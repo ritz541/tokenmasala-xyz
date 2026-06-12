@@ -1,0 +1,45 @@
+{
+  "name": "@851-labs/tokenmaxxing",
+  "version": "0.1.0",
+  "description": "CLI for tokenmaxxing — sync your LLM token usage to the leaderboard.",
+  "keywords": [
+    "ccusage",
+    "claude-code",
+    "cli",
+    "leaderboard",
+    "llm",
+    "tokens"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/851-labs/tokenmaxxing.git",
+    "directory": "apps/cli"
+  },
+  "bin": {
+    "tokenmaxxing": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": "./dist/index.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepack": "bun run build",
+    "cli": "TOKENMAXXING_ENV=development bun src/index.ts",
+    "build": "bun run typecheck && bun build src/index.ts --target bun --outfile dist/index.js && chmod +x dist/index.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@effect/platform-bun": "catalog:",
+    "@tokenmaxxing/api-contract": "workspace:*",
+    "@types/bun": "catalog:",
+    "effect": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

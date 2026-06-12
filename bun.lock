@@ -36,6 +36,21 @@
         "vitest": "catalog:",
       },
     },
+    "apps/cli": {
+      "name": "@851-labs/tokenmaxxing",
+      "version": "0.1.0",
+      "bin": {
+        "tokenmaxxing": "dist/index.js",
+      },
+      "devDependencies": {
+        "@effect/platform-bun": "catalog:",
+        "@tokenmaxxing/api-contract": "workspace:*",
+        "@types/bun": "catalog:",
+        "effect": "catalog:",
+        "typescript": "catalog:",
+        "vitest": "catalog:",
+      },
+    },
     "apps/www": {
       "name": "@tokenmaxxing/www",
       "dependencies": {
@@ -123,6 +138,8 @@
     "vitest": "4.1.8",
   },
   "packages": {
+    "@851-labs/tokenmaxxing": ["@851-labs/tokenmaxxing@workspace:apps/cli"],
+
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.2.5", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-3NX/MpTdroi0aKz134A6RC2Gb2iXVECN4QaAXnvCIxxIm3C3AVB1mkUe8NaaiyvOpDfsrqWhYtj+Q6a62RrTsw=="],
 
     "@alchemy.run/node-utils": ["@alchemy.run/node-utils@0.0.4", "", {}, "sha512-TiIhPXCTCi3tk0zmdYJJ14CNSesSfsJxXdIOP0HTSItQ1mZWLocrF7qCuEWKyW/IEFzp6kaiOf19aIA/mbCp1g=="],

@@ -4,22 +4,19 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 
-import { CliAuth, Unauthorized } from "@tokenmaxxing/api-contract";
-
 import { AuthRepositoryLive } from "./auth/d1";
 import { AuthService, makeAuthService } from "./auth/service";
 import { Database } from "./cloudflare/database";
+import { CliLoginRepositoryLive } from "./clilogin/d1";
+import { CliLoginService, makeCliLoginService } from "./clilogin/service";
 import { AppConfig } from "./config";
 import { Drizzle } from "./database";
 import { GitHubClient, makeGitHubClient } from "./github/client";
 import { AuthorizationLive } from "./http/middleware/authorization";
+import { CliAuthLive } from "./http/middleware/cli-auth";
 import { makeApiHttpEffect } from "./http/layer";
-
-/** Placeholder until the device-code milestone lands: CLI endpoints 401. */
-const cliAuthStubLayer = Layer.succeed(
-  CliAuth,
-  CliAuth.of(() => Effect.fail(new Unauthorized({ message: "CLI token required." }))),
-);
+import { makeTokensService, TokensService } from "./tokens/service";
+import { TokensRepositoryLive } from "./tokens/d1";
 
 const ApiWorker = Cloudflare.Worker(
   "api",
@@ -52,6 +49,12 @@ const ApiWorker = Cloudflare.Worker(
     const auth = yield* makeAuthService().pipe(
       Effect.provide(AuthRepositoryLive.pipe(Layer.provide(drizzleLayer))),
     );
+    const cliLogin = yield* makeCliLoginService().pipe(
+      Effect.provide(CliLoginRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
+    const tokens = yield* makeTokensService().pipe(
+      Effect.provide(TokensRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
     const github = yield* makeGitHubClient().pipe(
       Effect.provide(FetchHttpClient.layer),
       Effect.provideService(AppConfig, config),
@@ -63,15 +66,19 @@ const ApiWorker = Cloudflare.Worker(
     const rawRouteServices = Context.empty().pipe(
       Context.add(AppConfig, config),
       Context.add(AuthService, auth),
+      Context.add(CliLoginService, cliLogin),
       Context.add(GitHubClient, github),
+      Context.add(TokensService, tokens),
     );
 
     return {
       fetch: makeApiHttpEffect({
         appConfigLayer,
         authServiceLayer: Layer.succeed(AuthService, auth),
+        cliLoginServiceLayer: Layer.succeed(CliLoginService, cliLogin),
         drizzleLayer,
-        middlewareLayer: Layer.mergeAll(AuthorizationLive, cliAuthStubLayer),
+        middlewareLayer: Layer.mergeAll(AuthorizationLive, CliAuthLive),
+        tokensServiceLayer: Layer.succeed(TokensService, tokens),
       }).pipe(Effect.map((apiHttpEffect) => apiHttpEffect.pipe(Effect.provide(rawRouteServices)))),
     };
   }).pipe(Effect.provide([Cloudflare.D1ConnectionLive, Cloudflare.D1ConnectionPolicyLive])),

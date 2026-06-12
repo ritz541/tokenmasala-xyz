@@ -33,6 +33,24 @@ function hashCliToken(token: string): Effect.Effect<string> {
   return sha256Hex(token).pipe(Effect.map((hex) => `sha256:${hex}`));
 }
 
+/** Unambiguous alphabet (no 0/O/1/I/L) for human-typed login codes. */
+const LOGIN_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+
+/** Readable device-flow code like "K3QF-W8MT". */
+function generateLoginCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const chars = [...bytes].map((byte) => LOGIN_CODE_ALPHABET[byte % LOGIN_CODE_ALPHABET.length]);
+
+  return `${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
+}
+
+/** Tolerates lowercase and missing/extra dashes from hand-typed codes. */
+function normalizeLoginCode(input: string): string {
+  const stripped = input.trim().toUpperCase().replaceAll("-", "");
+
+  return `${stripped.slice(0, 4)}-${stripped.slice(4)}`;
+}
+
 const encoder = new TextEncoder();
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -42,4 +60,12 @@ function toBase64Url(bytes: Uint8Array): string {
     .replaceAll("=", "");
 }
 
-export { CLI_TOKEN_PREFIX, generateCliToken, generateToken, hashCliToken, sha256Hex };
+export {
+  CLI_TOKEN_PREFIX,
+  generateCliToken,
+  generateLoginCode,
+  generateToken,
+  hashCliToken,
+  normalizeLoginCode,
+  sha256Hex,
+};

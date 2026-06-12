@@ -15,9 +15,29 @@ const stack = Stack(
     const api = yield* ApiWorker;
     const db = yield* Database;
 
+    const www = yield* Cloudflare.Vite("www", {
+      name: "tokenmaxxing-www",
+      rootDir: "./apps/www",
+      url: false,
+      compatibility: {
+        date: "2026-06-02",
+        flags: ["nodejs_compat"],
+      },
+      domain: "tokenmaxxing.851.sh",
+      observability: {
+        enabled: true,
+      },
+      dev: {
+        host: "tokenmaxxing.localhost",
+        port: 3002,
+        strictPort: true,
+      },
+    });
+
     return {
       api,
       db,
+      www,
     };
   }),
 );

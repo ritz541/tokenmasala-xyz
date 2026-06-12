@@ -13,12 +13,15 @@ import * as HttpPlatform from "effect/unstable/http/HttpPlatform";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import * as HttpApiError from "effect/unstable/httpapi/HttpApiError";
 
-import { CurrentUser, TokenmaxxingApi } from "@tokenmaxxing/api-contract";
+import { CurrentCliIdentity, CurrentUser, TokenmaxxingApi } from "@tokenmaxxing/api-contract";
 import type { Authorization, CliAuth } from "@tokenmaxxing/api-contract";
 
 import { AppConfig } from "../config";
+import { cookieScopeFor } from "../auth/cookies";
 import type { AuthService } from "../auth/service";
+import { CliLoginService } from "../clilogin/service";
 import type { Drizzle } from "../database";
+import { TokensService } from "../tokens/service";
 import { oauthRoutesLayer } from "./routes/oauth";
 
 /**
@@ -48,22 +51,70 @@ const meHandlers = HttpApiBuilder.group(TokenmaxxingApi, "me", (handlers) =>
         return { user };
       }),
     )
-    .handle("approveCliLogin", () => Effect.die("not implemented"))
-    .handle("listDevices", () => Effect.die("not implemented"))
-    .handle("listTokens", () => Effect.die("not implemented"))
-    .handle("revokeToken", () => Effect.die("not implemented")),
+    .handle("approveCliLogin", ({ payload }) =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const cliLogin = yield* CliLoginService;
+        const { deviceName } = yield* cliLogin.approve(user, payload.code);
+        return { deviceName, ok: true };
+      }),
+    )
+    .handle("listDevices", () =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const tokens = yield* TokensService;
+        return { devices: yield* tokens.listDevices(user.id) };
+      }),
+    )
+    .handle("listTokens", () =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const tokens = yield* TokensService;
+        return { tokens: yield* tokens.listTokens(user.id) };
+      }),
+    )
+    .handle("revokeToken", ({ params }) =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const tokens = yield* TokensService;
+        yield* tokens.revokeToken(user.id, params.tokenId);
+        return { ok: true };
+      }),
+    ),
 );
 
 const cliLoginHandlers = HttpApiBuilder.group(TokenmaxxingApi, "cliLogin", (handlers) =>
   handlers
-    .handle("start", () => Effect.die("not implemented"))
-    .handle("poll", () => Effect.die("not implemented")),
+    .handle("start", ({ payload }) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const scope = cookieScopeFor(request.headers["host"] ?? "");
+        const cliLogin = yield* CliLoginService;
+        return yield* cliLogin.start(payload, scope.wwwOrigin);
+      }),
+    )
+    .handle("poll", ({ payload }) =>
+      Effect.gen(function* () {
+        const cliLogin = yield* CliLoginService;
+        return yield* cliLogin.poll(payload.code);
+      }),
+    ),
 );
 
 const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) =>
   handlers
     .handle("sync", () => Effect.die("not implemented"))
-    .handle("logout", () => Effect.die("not implemented")),
+    .handle("logout", () =>
+      Effect.gen(function* () {
+        const identity = yield* CurrentCliIdentity;
+        const tokens = yield* TokensService;
+        // Already-revoked is fine — logout is idempotent from the CLI's view.
+        yield* tokens
+          .revokeToken(identity.user.id, identity.tokenId)
+          .pipe(Effect.catchTag("TokenNotFound", () => Effect.void));
+        return { ok: true };
+      }),
+    ),
 );
 
 const leaderboardHandlers = HttpApiBuilder.group(TokenmaxxingApi, "leaderboard", (handlers) =>
@@ -88,8 +139,10 @@ const handlersLayer = Layer.mergeAll(
 interface ApiLayerOptions {
   appConfigLayer: Layer.Layer<AppConfig>;
   authServiceLayer: Layer.Layer<AuthService>;
+  cliLoginServiceLayer: Layer.Layer<CliLoginService>;
   drizzleLayer: Layer.Layer<Drizzle>;
-  middlewareLayer: Layer.Layer<Authorization | CliAuth, never, AuthService>;
+  middlewareLayer: Layer.Layer<Authorization | CliAuth, never, AuthService | TokensService>;
+  tokensServiceLayer: Layer.Layer<TokensService>;
 }
 
 function makeApiLayer(options: ApiLayerOptions) {
@@ -103,6 +156,8 @@ function makeApiLayer(options: ApiLayerOptions) {
     Layer.provide(options.middlewareLayer),
     Layer.provide(requestIdLayer),
     Layer.provide(corsLayer),
+    Layer.provide(options.cliLoginServiceLayer),
+    Layer.provide(options.tokensServiceLayer),
     Layer.provide(options.authServiceLayer),
     Layer.provide(options.drizzleLayer),
     Layer.provide(options.appConfigLayer),

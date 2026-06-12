@@ -1,0 +1,22 @@
+{
+  "name": "@tokenmaxxing/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run typecheck",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "@tokenmaxxing/api-contract": "workspace:*",
+    "@tokenmaxxing/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.dev.vars
+.turbo
+.tanstack
+.alchemy
+coverage
+dist
+.output
+node_modules
+bun.lockb
+*.tsbuildinfo
+.wrangler
+.tmp

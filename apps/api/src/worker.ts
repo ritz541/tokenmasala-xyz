@@ -12,6 +12,10 @@ import { CliLoginService, makeCliLoginService } from "./clilogin/service";
 import { AppConfig } from "./config";
 import { Drizzle } from "./database";
 import { GitHubClient, makeGitHubClient } from "./github/client";
+import { LeaderboardRepositoryLive } from "./leaderboard/d1";
+import { LeaderboardService, makeLeaderboardService } from "./leaderboard/service";
+import { makeProfilesService, ProfilesService } from "./profiles/service";
+import { ProfilesRepositoryLive } from "./profiles/d1";
 import { AuthorizationLive } from "./http/middleware/authorization";
 import { CliAuthLive } from "./http/middleware/cli-auth";
 import { makeApiHttpEffect } from "./http/layer";
@@ -64,6 +68,12 @@ const ApiWorker = Cloudflare.Worker(
     const usage = yield* makeUsageService().pipe(
       Effect.provide(UsageRepositoryLive.pipe(Layer.provide(drizzleLayer))),
     );
+    const leaderboard = yield* makeLeaderboardService().pipe(
+      Effect.provide(LeaderboardRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
+    const profiles = yield* makeProfilesService().pipe(
+      Effect.provide(ProfilesRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
 
     // Handlers and raw routes (OAuth) resolve these services at request
     // time, not layer-build time — this context rides along with every
@@ -73,6 +83,8 @@ const ApiWorker = Cloudflare.Worker(
       Context.add(AuthService, auth),
       Context.add(CliLoginService, cliLogin),
       Context.add(GitHubClient, github),
+      Context.add(LeaderboardService, leaderboard),
+      Context.add(ProfilesService, profiles),
       Context.add(TokensService, tokens),
       Context.add(UsageService, usage),
     );
@@ -83,6 +95,8 @@ const ApiWorker = Cloudflare.Worker(
         authServiceLayer: Layer.succeed(AuthService, auth),
         cliLoginServiceLayer: Layer.succeed(CliLoginService, cliLogin),
         drizzleLayer,
+        leaderboardServiceLayer: Layer.succeed(LeaderboardService, leaderboard),
+        profilesServiceLayer: Layer.succeed(ProfilesService, profiles),
         middlewareLayer: Layer.mergeAll(AuthorizationLive, CliAuthLive),
         tokensServiceLayer: Layer.succeed(TokensService, tokens),
         usageServiceLayer: Layer.succeed(UsageService, usage),

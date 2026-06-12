@@ -21,6 +21,8 @@ import { cookieScopeFor } from "../auth/cookies";
 import type { AuthService } from "../auth/service";
 import { CliLoginService } from "../clilogin/service";
 import type { Drizzle } from "../database";
+import { LeaderboardService } from "../leaderboard/service";
+import { ProfilesService } from "../profiles/service";
 import { TokensService } from "../tokens/service";
 import { UsageService } from "../usage/service";
 import { oauthRoutesLayer } from "./routes/oauth";
@@ -125,13 +127,37 @@ const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) 
 );
 
 const leaderboardHandlers = HttpApiBuilder.group(TokenmaxxingApi, "leaderboard", (handlers) =>
-  handlers.handle("list", () => Effect.die("not implemented")),
+  handlers.handle("list", ({ query }) =>
+    Effect.gen(function* () {
+      const leaderboard = yield* LeaderboardService;
+      const metric = query.metric ?? "spend";
+      const window = query.window ?? "all";
+
+      return { entries: yield* leaderboard.list(metric, window), metric, window };
+    }),
+  ),
 );
 
 const profilesHandlers = HttpApiBuilder.group(TokenmaxxingApi, "profiles", (handlers) =>
   handlers
-    .handle("get", () => Effect.die("not implemented"))
-    .handle("daily", () => Effect.die("not implemented")),
+    .handle("get", ({ params }) =>
+      Effect.gen(function* () {
+        const profiles = yield* ProfilesService;
+        return yield* profiles.getProfile(params.login);
+      }),
+    )
+    .handle("daily", ({ params, query }) =>
+      Effect.gen(function* () {
+        const profiles = yield* ProfilesService;
+        const days = yield* profiles.getDaily(params.login, {
+          groupBy: query.groupBy ?? "model",
+          since: query.since,
+          until: query.until,
+        });
+
+        return { days };
+      }),
+    ),
 );
 
 const handlersLayer = Layer.mergeAll(
@@ -148,6 +174,8 @@ interface ApiLayerOptions {
   authServiceLayer: Layer.Layer<AuthService>;
   cliLoginServiceLayer: Layer.Layer<CliLoginService>;
   drizzleLayer: Layer.Layer<Drizzle>;
+  leaderboardServiceLayer: Layer.Layer<LeaderboardService>;
+  profilesServiceLayer: Layer.Layer<ProfilesService>;
   middlewareLayer: Layer.Layer<Authorization | CliAuth, never, AuthService | TokensService>;
   tokensServiceLayer: Layer.Layer<TokensService>;
   usageServiceLayer: Layer.Layer<UsageService>;
@@ -165,6 +193,8 @@ function makeApiLayer(options: ApiLayerOptions) {
     Layer.provide(requestIdLayer),
     Layer.provide(corsLayer),
     Layer.provide(options.cliLoginServiceLayer),
+    Layer.provide(options.leaderboardServiceLayer),
+    Layer.provide(options.profilesServiceLayer),
     Layer.provide(options.tokensServiceLayer),
     Layer.provide(options.usageServiceLayer),
     Layer.provide(options.authServiceLayer),

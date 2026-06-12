@@ -30,7 +30,10 @@ function runCcusageSource(
   source: CcusageSource,
   options: RunOptions = {},
 ): Effect.Effect<Option.Option<readonly CcusageDay[]>> {
-  const args = [source.subcommand, "daily", "--json", "--breakdown"];
+  // calculate mode prices every token at current list rates ("API-equivalent
+  // cost") — auto mode trusts pre-recorded costs, which subscription usage
+  // records as $0 and would zero out codex/opencode on the leaderboard.
+  const args = [source.subcommand, "daily", "--json", "--breakdown", "--mode", "calculate"];
   if (options.since !== undefined) {
     args.push("--since", options.since.replaceAll("-", ""));
   }

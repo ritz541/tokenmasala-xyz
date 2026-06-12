@@ -77,6 +77,53 @@ const sparseFixture = {
   ],
 };
 
+/** codex calculate-mode dialect: costUSD + models record, no per-model cost. */
+const codexFixture = {
+  daily: [
+    {
+      date: "2026-05-06",
+      inputTokens: 28_136_328,
+      outputTokens: 643_983,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 336_649_216,
+      totalTokens: 365_429_527,
+      costUSD: 820.81,
+      models: {
+        "gpt-5.5": {
+          inputTokens: 28_136_328,
+          outputTokens: 643_983,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 336_649_216,
+          totalTokens: 365_429_527,
+          isFallback: false,
+        },
+      },
+    },
+  ],
+};
+
+/** opencode calculate-mode dialect: day totals + modelsUsed only. */
+const opencodeFixture = {
+  daily: [
+    {
+      date: "2026-02-20",
+      inputTokens: 15_930_898,
+      outputTokens: 670_900,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 180_602_880,
+      totalTokens: 197_204_678,
+      totalCost: 68.88,
+      modelsUsed: ["gpt-5.3-codex"],
+    },
+    {
+      date: "2026-02-21",
+      totalTokens: 1_000,
+      totalCost: 1.0,
+      modelsUsed: ["gpt-5.3-codex", "opus-4-5"],
+    },
+  ],
+};
+
 describe("decodeDailyReport", () => {
   it("parses the verified v20 focused-command shape", async () => {
     const report = await Effect.runPromise(decodeDailyReport(claudeFixture));
@@ -119,6 +166,45 @@ describe("aggregateDays", () => {
     expect(rows.map((row) => row.model).sort()).toEqual(["gpt-5.5", "unknown"]);
     const unknown = rows.find((row) => row.model === "unknown");
     expect(unknown).toMatchObject({ costUsd: 0.5, date: "2026-06-09", totalTokens: 5_000 });
+  });
+
+  it("explodes the codex models record and attributes the day cost", async () => {
+    const report = await Effect.runPromise(decodeDailyReport(codexFixture));
+    const rows = aggregateDays("codex", report.daily);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      costUsd: 820.81,
+      date: "2026-05-06",
+      model: "gpt-5.5",
+      source: "codex",
+      totalTokens: 365_429_527,
+    });
+  });
+
+  it("attributes opencode day totals to the single used model, unknown when ambiguous", async () => {
+    const report = await Effect.runPromise(decodeDailyReport(opencodeFixture));
+    const rows = aggregateDays("opencode", report.daily);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ costUsd: 68.88, model: "gpt-5.3-codex" });
+    expect(rows[1]).toMatchObject({ costUsd: 1.0, model: "unknown" });
+  });
+
+  it("distributes day cost over token weight when breakdowns lack per-model cost", () => {
+    const rows = aggregateDays("codex", [
+      {
+        date: "2026-05-07",
+        costUSD: 100,
+        models: {
+          "gpt-5.5": { inputTokens: 750 },
+          "gpt-5.4": { inputTokens: 250 },
+        },
+      },
+    ]);
+
+    expect(rows.find((row) => row.model === "gpt-5.5")?.costUsd).toBeCloseTo(75);
+    expect(rows.find((row) => row.model === "gpt-5.4")?.costUsd).toBeCloseTo(25);
   });
 
   it("sums duplicate (date, model) pairs", () => {

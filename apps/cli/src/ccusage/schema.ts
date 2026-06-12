@@ -1,11 +1,16 @@
 import { Schema } from "effect";
 
 /**
- * The shape of `ccusage <source> daily --json --breakdown` (v20, focused
- * per-source commands — NOT the unified report, which buckets by `period`
- * and mixes agents). Deliberately lenient: only `date` is required, every
- * count defaults at the aggregation step, and unknown keys are ignored —
- * field presence varies across sources and ccusage versions.
+ * The shape of `ccusage <source> daily --json --breakdown --mode calculate`
+ * (v20, focused per-source commands — NOT the unified report, which buckets
+ * by `period` and mixes agents). Each source emits a different dialect:
+ *
+ *   claude    totalCost + modelBreakdowns[{modelName, …, cost}]
+ *   codex     costUSD   + models{name: {tokens…}} (no per-model cost)
+ *   opencode  totalCost + modelsUsed[] only (day totals, no breakdown)
+ *
+ * Deliberately lenient: only `date` is required, every count defaults at
+ * the aggregation step, and unknown keys are ignored.
  */
 
 const CcusageModelBreakdown = Schema.Struct({
@@ -19,12 +24,26 @@ const CcusageModelBreakdown = Schema.Struct({
 
 type CcusageModelBreakdown = typeof CcusageModelBreakdown.Type;
 
+/** codex-style per-model entry: token counts only, cost lives on the day. */
+const CcusageModelEntry = Schema.Struct({
+  cacheCreationTokens: Schema.optional(Schema.Number),
+  cacheReadTokens: Schema.optional(Schema.Number),
+  inputTokens: Schema.optional(Schema.Number),
+  outputTokens: Schema.optional(Schema.Number),
+  totalTokens: Schema.optional(Schema.Number),
+});
+
+type CcusageModelEntry = typeof CcusageModelEntry.Type;
+
 const CcusageDay = Schema.Struct({
   cacheCreationTokens: Schema.optional(Schema.Number),
   cacheReadTokens: Schema.optional(Schema.Number),
+  costUSD: Schema.optional(Schema.Number),
   date: Schema.String,
   inputTokens: Schema.optional(Schema.Number),
   modelBreakdowns: Schema.optional(Schema.Array(CcusageModelBreakdown)),
+  models: Schema.optional(Schema.Record(Schema.String, CcusageModelEntry)),
+  modelsUsed: Schema.optional(Schema.Array(Schema.String)),
   outputTokens: Schema.optional(Schema.Number),
   totalCost: Schema.optional(Schema.Number),
   totalTokens: Schema.optional(Schema.Number),
@@ -40,4 +59,10 @@ type CcusageDailyReport = typeof CcusageDailyReport.Type;
 
 const decodeDailyReport = Schema.decodeUnknownEffect(CcusageDailyReport);
 
-export { CcusageDailyReport, CcusageDay, CcusageModelBreakdown, decodeDailyReport };
+export {
+  CcusageDailyReport,
+  CcusageDay,
+  CcusageModelBreakdown,
+  CcusageModelEntry,
+  decodeDailyReport,
+};

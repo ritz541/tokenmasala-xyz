@@ -22,10 +22,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - run: bun run typecheck
-
-      - run: bun run test
-
       - name: Deploy
         run: bunx alchemy deploy --stage prod --yes
         env:

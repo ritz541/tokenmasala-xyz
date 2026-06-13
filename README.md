@@ -55,7 +55,14 @@ callback `http://api.tokenmaxxing.localhost:8788/auth/github/callback`).
 Run the CLI against the dev stack with
 `TOKENMAXXING_ENV=development bun apps/cli/src/index.ts <command>`.
 
-Deploy with `bun run deploy` (prod OAuth pair in the environment).
+## Deploys
+
+Every push to `main` deploys via GitHub Actions (typecheck + tests gate
+it). Deploy state lives on a Cloudflare state-store worker
+(`alchemy cloudflare bootstrap`), shared between CI and local machines —
+`bun run deploy` does the same deploy locally, reading the prod OAuth pair
+from `.env.production`. Required repo secrets: `CLOUDFLARE_API_TOKEN`,
+`TMX_GITHUB_CLIENT_ID`, `TMX_GITHUB_CLIENT_SECRET`.
 
 ## License
 

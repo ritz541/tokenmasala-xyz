@@ -45,8 +45,8 @@
   "type": "module",
   "scripts": {
     "dev": "alchemy dev",
-    "deploy": "alchemy deploy",
-    "plan": "alchemy plan",
+    "deploy": "ALCHEMY_STATE=cloudflare alchemy deploy --env-file .env.production --stage prod",
+    "plan": "ALCHEMY_STATE=cloudflare alchemy plan --env-file .env.production --stage prod",
     "build": "turbo build",
     "db:generate": "turbo db:generate",
     "test": "turbo test",

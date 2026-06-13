@@ -9,7 +9,9 @@ const stack = Stack(
   "tokenmaxxing",
   {
     providers: Cloudflare.providers(),
-    state: localState(),
+    // Deploys (local `bun run deploy` and CI) share remote state on the
+    // Cloudflare state-store worker; `bun run dev` stays machine-local.
+    state: process.env["ALCHEMY_STATE"] === "cloudflare" ? Cloudflare.state() : localState(),
   },
   Effect.gen(function* () {
     const api = yield* ApiWorker;

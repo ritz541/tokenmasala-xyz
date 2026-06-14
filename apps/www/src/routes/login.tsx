@@ -11,10 +11,23 @@ function GitHubMark({ className }: { className?: string }) {
 }
 
 const Route = createFileRoute("/login")({
+  validateSearch: (search): LoginSearch => ({
+    redirect: sanitizeLoginRedirectPath(
+      typeof search["redirect"] === "string" ? search["redirect"] : null,
+    ),
+  }),
   component: LoginPage,
 });
 
+interface LoginSearch {
+  redirect: string;
+}
+
 function LoginPage() {
+  const { redirect } = Route.useSearch();
+  const authUrl = new URL(`${resolveApiUrl()}/auth/github/start`);
+  authUrl.searchParams.set("redirect", redirect);
+
   return (
     <div className="mx-auto mt-24 flex max-w-sm flex-col items-center rounded-xl border border-border bg-card p-8 text-center">
       <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing</h1>
@@ -23,7 +36,7 @@ function LoginPage() {
       </p>
       <a
         className="mt-6 flex w-full items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-85"
-        href={`${resolveApiUrl()}/auth/github/start`}
+        href={authUrl.toString()}
       >
         <GitHubMark className="size-4" />
         Continue with GitHub
@@ -32,4 +45,28 @@ function LoginPage() {
   );
 }
 
+function sanitizeLoginRedirectPath(value: string | null): string {
+  if (value === null) {
+    return "/settings";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/settings";
+  }
+
+  try {
+    const url = new URL(trimmed, "https://tokenmaxxing.invalid");
+    if (url.origin !== "https://tokenmaxxing.invalid") {
+      return "/settings";
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/settings";
+  }
+}
+
 export { Route };
+
+export type { LoginSearch };

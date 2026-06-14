@@ -55,6 +55,7 @@ function UserMenu() {
     return (
       <Link
         className="rounded-md bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-opacity hover:opacity-85"
+        search={{ redirect: "/settings" }}
         to="/login"
       >
         Sign in

@@ -23,6 +23,8 @@ import { buildAuthorizeUrl, GitHubClient } from "../../github/client";
  * endpoints.
  */
 
+const DEFAULT_OAUTH_REDIRECT_PATH = "/settings";
+
 const oauthStartRoute = HttpRouter.add(
   "GET",
   "/auth/github/start",
@@ -30,7 +32,9 @@ const oauthStartRoute = HttpRouter.add(
     const request = yield* HttpServerRequest.HttpServerRequest;
     const config = yield* AppConfig;
     const scope = cookieScopeFor(request.headers["host"] ?? "");
-    const state = generateToken();
+    const url = new URL(request.url, "http://localhost");
+    const redirectPath = sanitizeOAuthRedirectPath(url.searchParams.get("redirect"));
+    const state = encodeOAuthState(generateToken(), redirectPath);
 
     return HttpServerResponse.empty({ status: 302 }).pipe(
       HttpServerResponse.setHeaders({
@@ -61,6 +65,7 @@ const oauthCallbackRoute = HttpRouter.add(
         { status: 400 },
       );
     }
+    const redirectPath = redirectPathFromOAuthState(state);
 
     const auth = yield* AuthService;
     const github = yield* GitHubClient;
@@ -97,7 +102,7 @@ const oauthCallbackRoute = HttpRouter.add(
       onSome: ({ token }) =>
         HttpServerResponse.empty({ status: 302 }).pipe(
           HttpServerResponse.setHeaders({
-            location: scope.wwwOrigin,
+            location: `${scope.wwwOrigin}${redirectPath}`,
             "set-cookie": cookie(scope, SESSION_COOKIE, token, 30 * 24 * 60 * 60),
           }),
         ),
@@ -127,4 +132,73 @@ const signoutRoute = HttpRouter.add(
 
 const oauthRoutesLayer = Layer.mergeAll(oauthStartRoute, oauthCallbackRoute, signoutRoute);
 
-export { oauthRoutesLayer };
+function sanitizeOAuthRedirectPath(value: string | null): string {
+  if (value === null) {
+    return DEFAULT_OAUTH_REDIRECT_PATH;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return DEFAULT_OAUTH_REDIRECT_PATH;
+  }
+
+  try {
+    const url = new URL(trimmed, "https://tokenmaxxing.invalid");
+    if (url.origin !== "https://tokenmaxxing.invalid") {
+      return DEFAULT_OAUTH_REDIRECT_PATH;
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return DEFAULT_OAUTH_REDIRECT_PATH;
+  }
+}
+
+function encodeOAuthState(nonce: string, redirectPath: string): string {
+  return `${nonce}.${base64UrlEncode(redirectPath)}`;
+}
+
+function redirectPathFromOAuthState(state: string): string {
+  const encodedRedirect = state.split(".", 2)[1];
+  if (encodedRedirect === undefined || encodedRedirect.length === 0) {
+    return DEFAULT_OAUTH_REDIRECT_PATH;
+  }
+
+  const redirectPath = base64UrlDecode(encodedRedirect);
+  if (redirectPath === null) {
+    return DEFAULT_OAUTH_REDIRECT_PATH;
+  }
+
+  return sanitizeOAuthRedirectPath(redirectPath);
+}
+
+function base64UrlEncode(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function base64UrlDecode(value: string): string | null {
+  try {
+    const padded = value
+      .replaceAll("-", "+")
+      .replaceAll("_", "/")
+      .padEnd(Math.ceil(value.length / 4) * 4, "=");
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export {
+  encodeOAuthState,
+  oauthRoutesLayer,
+  redirectPathFromOAuthState,
+  sanitizeOAuthRedirectPath,
+};

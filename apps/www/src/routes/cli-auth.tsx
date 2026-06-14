@@ -42,6 +42,7 @@ function CliAuthPage() {
           </p>
           <Link
             className="mt-6 w-full rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-85"
+            search={{ redirect: cliAuthRedirectPath(code) }}
             to="/login"
           >
             Sign in with GitHub
@@ -85,6 +86,10 @@ function CliAuthPage() {
 
 function Code({ children }: { children: React.ReactNode }) {
   return <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{children}</code>;
+}
+
+function cliAuthRedirectPath(code: string): string {
+  return `/cli-auth?${new URLSearchParams({ code }).toString()}`;
 }
 
 export { Route };

@@ -20,7 +20,11 @@ function SettingsPage() {
     return (
       <div className="mt-24 text-center">
         <p className="text-sm text-muted-foreground">Sign in to manage your devices and tokens.</p>
-        <Link className="mt-4 inline-block text-sm underline" to="/login">
+        <Link
+          className="mt-4 inline-block text-sm underline"
+          search={{ redirect: "/settings" }}
+          to="/login"
+        >
           Sign in with GitHub
         </Link>
       </div>

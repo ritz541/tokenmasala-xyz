@@ -3,7 +3,6 @@ import { Link, useRouter } from "@tanstack/react-router";
 
 import { signOut } from "../lib/api";
 import { meQueryOptions } from "../lib/queries";
-import { ThemeToggle } from "./theme-toggle";
 import { Avatar } from "./ui/avatar";
 import { Button, buttonClassName } from "./ui/button";
 
@@ -28,10 +27,7 @@ function Nav() {
             Leaderboard
           </Link>
         </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <UserMenu />
-        </div>
+        <UserMenu />
       </div>
     </header>
   );

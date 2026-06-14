@@ -15,7 +15,7 @@ const Route = createFileRoute("/design")({
 });
 
 /** Token swatches. The `bg-*` class is a complete literal so Tailwind's
- * scanner emits it; these re-render under `.dark`. */
+ * scanner emits it. */
 const COLOR_TOKENS = [
   { name: "background", swatch: "bg-background" },
   { name: "foreground", swatch: "bg-foreground" },
@@ -53,8 +53,7 @@ function DesignPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Design system</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          The tokens and primitives the site is built from. Flip the theme toggle in the nav to
-          preview dark mode.
+          The tokens and primitives the site is built from. Colors follow the system appearance.
         </p>
       </header>
 

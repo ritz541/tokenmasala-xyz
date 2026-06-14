@@ -4,19 +4,6 @@ import type { QueryClient } from "@tanstack/react-query";
 import { Nav } from "../components/nav";
 import styles from "../styles.css?url";
 
-/**
- * Runs before first paint: applies the persisted theme (or the system
- * preference) so there is no flash of the wrong theme.
- */
-const themeBootstrapScript = `(function () {
-  try {
-    var stored = localStorage.getItem("tmx.theme");
-    var dark = stored === "dark" || (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", dark);
-    document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  } catch (e) {}
-})();`;
-
 interface RouterContext {
   queryClient: QueryClient;
 }
@@ -41,14 +28,13 @@ const Route = createRootRouteWithContext<RouterContext>()({
       { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "stylesheet", href: styles }],
-    scripts: [{ children: themeBootstrapScript }],
   }),
   component: RootDocument,
 });
 
 function RootDocument() {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

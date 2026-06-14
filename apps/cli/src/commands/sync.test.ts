@@ -12,7 +12,7 @@ import {
   TerminalService,
   type TokenmaxxingApiClient,
 } from "../services";
-import { resolveSyncAuth } from "./sync";
+import { formatSyncUsd, resolveSyncAuth } from "./sync";
 
 interface TestLayerOptions {
   envTokenActive?: boolean;
@@ -129,6 +129,15 @@ function makeTestLayer(options: TestLayerOptions) {
 function unauthorizedError() {
   return Object.assign(new Error("unauthorized"), { _tag: "Unauthorized" as const });
 }
+
+describe("formatSyncUsd", () => {
+  it("matches the site USD formatting for small and large values", () => {
+    expect(formatSyncUsd(99.5)).toBe("$99.50");
+    expect(formatSyncUsd(100)).toBe("$100");
+    expect(formatSyncUsd(2_609.77)).toBe("$2,610");
+    expect(formatSyncUsd(11_802.15)).toBe("$11,802");
+  });
+});
 
 describe("resolveSyncAuth", () => {
   it("keeps --json machine-readable by failing without browser login when no token exists", async () => {

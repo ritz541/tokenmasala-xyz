@@ -34,6 +34,19 @@ class UnknownSourceError extends Data.TaggedError("UnknownSourceError")<{
 
 const CHUNK_SIZE = 1000;
 
+const usd0 = new Intl.NumberFormat("en-US", {
+  currency: "USD",
+  maximumFractionDigits: 0,
+  style: "currency",
+});
+
+const usd2 = new Intl.NumberFormat("en-US", {
+  currency: "USD",
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+  style: "currency",
+});
+
 const syncCommand = Command.make(
   "sync",
   {
@@ -110,7 +123,7 @@ function syncEffect(options: SyncOptions) {
       rows.push(...sourceRows);
       yield* Effect.sync(() =>
         output.log(
-          `${source.source.padEnd(9)} ${summary.days} days · ${summary.models} models · $${summary.spendUsd.toFixed(2)}`,
+          `${source.source.padEnd(9)} ${summary.days} days · ${summary.models} models · ${formatSyncUsd(summary.spendUsd)}`,
         ),
       );
     }
@@ -231,6 +244,17 @@ function isUnauthorizedError(cause: unknown): boolean {
   );
 }
 
-export { resolveSyncAuth, syncCommand, syncEffect, SyncPushError, UnknownSourceError };
+function formatSyncUsd(value: number): string {
+  return value >= 100 ? usd0.format(value) : usd2.format(value);
+}
+
+export {
+  formatSyncUsd,
+  resolveSyncAuth,
+  syncCommand,
+  syncEffect,
+  SyncPushError,
+  UnknownSourceError,
+};
 
 export type { ResolveSyncAuthOptions, SyncAuth, SyncOptions };

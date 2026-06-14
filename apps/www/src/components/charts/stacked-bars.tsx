@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { formatDay, formatUsd, linearScale, niceMax } from "./scale";
+import { anchorLeft, ChartTooltip } from "./tooltip";
 
 /**
  * Daily spend, one bar per day stacked by model family — the centerpiece
@@ -40,8 +41,9 @@ function StackedBars({ days }: { days: StackedDay[] }) {
   return (
     <div className="relative">
       <svg
+        aria-label={`Daily spend by model family across ${days.length} days`}
         className="block w-full"
-        onMouseLeave={() => setHovered(null)}
+        onPointerLeave={() => setHovered(null)}
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}
       >
@@ -75,7 +77,7 @@ function StackedBars({ days }: { days: StackedDay[] }) {
           const x = AXIS + slot * index + (slot - barWidth) / 2;
           let cursor = HEIGHT;
           return (
-            <g key={day.date} onMouseEnter={() => setHovered(index)}>
+            <g key={day.date} onPointerEnter={() => setHovered(index)}>
               {/* Invisible hover target spanning the full column height. */}
               <rect fill="transparent" height={HEIGHT} width={slot} x={AXIS + slot * index} y={0} />
               {day.segments.map((segment) => {
@@ -113,27 +115,20 @@ function StackedBars({ days }: { days: StackedDay[] }) {
       </svg>
 
       {active !== null && active !== undefined ? (
-        <div
-          className="pointer-events-none absolute top-0 z-10 w-56 rounded-lg border border-border bg-card p-3 text-xs shadow-lg"
-          style={{
-            left: `${Math.min((((hovered ?? 0) + 0.5) / Math.max(days.length, 1)) * 100, 72)}%`,
-          }}
-        >
-          <p className="font-medium">{formatDay(active.date)}</p>
-          <p className="mt-1 text-muted-foreground">{formatUsd(active.total)} total</p>
-          <ul className="mt-2 flex flex-col gap-1">
-            {active.segments
-              .filter((segment) => segment.value > 0)
-              .sort((a, b) => b.value - a.value)
-              .map((segment) => (
-                <li className="flex items-center gap-2" key={segment.family}>
-                  <span className="size-2 rounded-sm" style={{ background: segment.color }} />
-                  <span className="flex-1 truncate">{segment.family}</span>
-                  <span className="text-muted-foreground">{formatUsd(segment.value)}</span>
-                </li>
-              ))}
-          </ul>
-        </div>
+        <ChartTooltip
+          className="w-56"
+          rows={active.segments
+            .filter((segment) => segment.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .map((segment) => ({
+              color: segment.color,
+              label: segment.family,
+              value: formatUsd(segment.value),
+            }))}
+          style={{ left: anchorLeft(((hovered ?? 0) + 0.5) / Math.max(days.length, 1)) }}
+          subtitle={`${formatUsd(active.total)} total`}
+          title={formatDay(active.date)}
+        />
       ) : null}
     </div>
   );

@@ -124,6 +124,11 @@ function formatTokens(value: number): string {
 }
 
 const monthLabel = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+const monthLongLabel = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  timeZone: "UTC",
+  year: "numeric",
+});
 const dayLabel = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
@@ -139,6 +144,11 @@ function formatDay(date: string): string {
 
 function formatMonth(month: string): string {
   return monthLabel.format(new Date(`${month}-01T00:00:00Z`));
+}
+
+/** Full month + year, e.g. "June 2026" — used in tooltips. */
+function formatMonthLong(month: string): string {
+  return monthLongLabel.format(new Date(`${month}-01T00:00:00Z`));
 }
 
 /** Every YYYY-MM-DD between two inclusive bounds (pure string walking). */
@@ -159,6 +169,7 @@ export {
   familyColors,
   formatDay,
   formatMonth,
+  formatMonthLong,
   formatTokens,
   formatUsd,
   linearScale,

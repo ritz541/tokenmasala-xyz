@@ -2,11 +2,13 @@ import { hostname } from "node:os";
 
 import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
+import type { AuthUser } from "@tokenmaxxing/api-contract";
 
 import {
   ApiClientService,
   BrowserService,
   ClockService,
+  type CliConfig,
   ConfigService,
   ConsoleService,
   TerminalService,
@@ -66,6 +68,15 @@ class NonInteractiveLoginError extends Data.TaggedError("NonInteractiveLoginErro
 
 const MAX_POLL_ATTEMPTS = 150;
 
+interface BrowserLoginOptions {
+  json: boolean;
+}
+
+interface BrowserLoginResult {
+  config: CliConfig;
+  user: AuthUser;
+}
+
 const loginCommand = Command.make(
   "login",
   {
@@ -75,6 +86,26 @@ const loginCommand = Command.make(
 ).pipe(Command.withDescription("Log in to tokenmaxxing via your browser"));
 
 function loginEffect(options: { json: boolean }) {
+  return Effect.gen(function* () {
+    const config = yield* Effect.service(ConfigService);
+    const console = yield* Effect.service(ConsoleService);
+
+    const stored = yield* config.readConfig();
+    const envTokenActive = yield* config.hasEnvToken();
+    if (stored.token !== undefined || envTokenActive) {
+      return yield* Effect.fail(new AlreadyLoggedInError({ envTokenActive }));
+    }
+
+    const login = yield* browserLoginEffect(options);
+    yield* Effect.sync(() => {
+      if (options.json) {
+        console.log(JSON.stringify({ login: login.user.login, status: "ok" }));
+      }
+    });
+  });
+}
+
+function browserLoginEffect(options: BrowserLoginOptions) {
   return Effect.gen(function* () {
     const browser = yield* Effect.service(BrowserService);
     const clock = yield* Effect.service(ClockService);
@@ -86,11 +117,6 @@ function loginEffect(options: { json: boolean }) {
     const output = options.json ? { error: console.error, log: () => {} } : console;
 
     const stored = yield* config.readConfig();
-    const envTokenActive = yield* config.hasEnvToken();
-    if (stored.token !== undefined || envTokenActive) {
-      return yield* Effect.fail(new AlreadyLoggedInError({ envTokenActive }));
-    }
-
     if (!(yield* terminal.isInteractive)) {
       return yield* Effect.fail(new NonInteractiveLoginError());
     }
@@ -122,17 +148,22 @@ function loginEffect(options: { json: boolean }) {
         .pipe(Effect.mapError((cause) => new PollCliLoginError({ cause })));
 
       if (poll.status === "complete") {
-        yield* config
+        const written = yield* config
           .writeToken(poll.token)
           .pipe(Effect.mapError((cause) => new WriteCliTokenError({ cause })));
+        const nextConfig = {
+          ...written,
+          apiUrl: stored.apiUrl,
+          token: poll.token,
+          wwwUrl: stored.wwwUrl,
+        };
+
         yield* Effect.sync(() => {
-          if (options.json) {
-            console.log(JSON.stringify({ login: poll.user.login, status: "ok" }));
-          } else {
+          if (!options.json) {
             output.log(`Logged in as ${poll.user.login}.`);
           }
         });
-        return;
+        return { config: nextConfig, user: poll.user };
       }
 
       yield* clock
@@ -146,6 +177,7 @@ function loginEffect(options: { json: boolean }) {
 
 export {
   AlreadyLoggedInError,
+  browserLoginEffect,
   loginCommand,
   loginEffect,
   LoginSleepError,
@@ -156,3 +188,5 @@ export {
   StartCliLoginError,
   WriteCliTokenError,
 };
+
+export type { BrowserLoginOptions, BrowserLoginResult };

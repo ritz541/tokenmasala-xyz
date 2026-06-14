@@ -20,13 +20,15 @@ const Route = createFileRoute("/login")({
 });
 
 interface LoginSearch {
-  redirect: string;
+  redirect?: string | undefined;
 }
 
 function LoginPage() {
   const { redirect } = Route.useSearch();
   const authUrl = new URL(`${resolveApiUrl()}/auth/github/start`);
-  authUrl.searchParams.set("redirect", redirect);
+  if (redirect !== undefined) {
+    authUrl.searchParams.set("redirect", redirect);
+  }
 
   return (
     <div className="mx-auto mt-24 flex max-w-sm flex-col items-center rounded-xl border border-border bg-card p-8 text-center">
@@ -45,25 +47,25 @@ function LoginPage() {
   );
 }
 
-function sanitizeLoginRedirectPath(value: string | null): string {
+function sanitizeLoginRedirectPath(value: string | null): string | undefined {
   if (value === null) {
-    return "/settings";
+    return undefined;
   }
 
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return "/settings";
+    return undefined;
   }
 
   try {
     const url = new URL(trimmed, "https://tokenmaxxing.invalid");
     if (url.origin !== "https://tokenmaxxing.invalid") {
-      return "/settings";
+      return undefined;
     }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return "/settings";
+    return undefined;
   }
 }
 

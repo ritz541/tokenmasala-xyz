@@ -23,8 +23,6 @@ import { buildAuthorizeUrl, GitHubClient } from "../../github/client";
  * endpoints.
  */
 
-const DEFAULT_OAUTH_REDIRECT_PATH = "/settings";
-
 const oauthStartRoute = HttpRouter.add(
   "GET",
   "/auth/github/start",
@@ -88,7 +86,7 @@ const oauthCallbackRoute = HttpRouter.add(
       Effect.catchCause((cause) =>
         Effect.sync(() => {
           console.error("github oauth callback failed", String(cause).slice(0, 500));
-          return Option.none<{ token: string }>();
+          return Option.none<{ token: string; user: { login: string } }>();
         }),
       ),
     );
@@ -99,10 +97,10 @@ const oauthCallbackRoute = HttpRouter.add(
           { error: { code: "oauth_failed", message: "GitHub sign-in failed; try again." } },
           { status: 502 },
         ),
-      onSome: ({ token }) =>
+      onSome: ({ token, user }) =>
         HttpServerResponse.empty({ status: 302 }).pipe(
           HttpServerResponse.setHeaders({
-            location: `${scope.wwwOrigin}${redirectPath}`,
+            location: `${scope.wwwOrigin}${redirectPath ?? defaultOAuthRedirectPath(user.login)}`,
             "set-cookie": cookie(scope, SESSION_COOKIE, token, 30 * 24 * 60 * 60),
           }),
         ),
@@ -132,44 +130,52 @@ const signoutRoute = HttpRouter.add(
 
 const oauthRoutesLayer = Layer.mergeAll(oauthStartRoute, oauthCallbackRoute, signoutRoute);
 
-function sanitizeOAuthRedirectPath(value: string | null): string {
+function sanitizeOAuthRedirectPath(value: string | null): string | null {
   if (value === null) {
-    return DEFAULT_OAUTH_REDIRECT_PATH;
+    return null;
   }
 
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return DEFAULT_OAUTH_REDIRECT_PATH;
+    return null;
   }
 
   try {
     const url = new URL(trimmed, "https://tokenmaxxing.invalid");
     if (url.origin !== "https://tokenmaxxing.invalid") {
-      return DEFAULT_OAUTH_REDIRECT_PATH;
+      return null;
     }
 
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return DEFAULT_OAUTH_REDIRECT_PATH;
+    return null;
   }
 }
 
-function encodeOAuthState(nonce: string, redirectPath: string): string {
+function encodeOAuthState(nonce: string, redirectPath: string | null): string {
+  if (redirectPath === null) {
+    return nonce;
+  }
+
   return `${nonce}.${base64UrlEncode(redirectPath)}`;
 }
 
-function redirectPathFromOAuthState(state: string): string {
+function redirectPathFromOAuthState(state: string): string | null {
   const encodedRedirect = state.split(".", 2)[1];
   if (encodedRedirect === undefined || encodedRedirect.length === 0) {
-    return DEFAULT_OAUTH_REDIRECT_PATH;
+    return null;
   }
 
   const redirectPath = base64UrlDecode(encodedRedirect);
   if (redirectPath === null) {
-    return DEFAULT_OAUTH_REDIRECT_PATH;
+    return null;
   }
 
   return sanitizeOAuthRedirectPath(redirectPath);
+}
+
+function defaultOAuthRedirectPath(login: string): string {
+  return `/${encodeURIComponent(login)}`;
 }
 
 function base64UrlEncode(value: string): string {
@@ -198,6 +204,7 @@ function base64UrlDecode(value: string): string | null {
 
 export {
   encodeOAuthState,
+  defaultOAuthRedirectPath,
   oauthRoutesLayer,
   redirectPathFromOAuthState,
   sanitizeOAuthRedirectPath,

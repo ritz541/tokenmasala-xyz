@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { encodeOAuthState, redirectPathFromOAuthState, sanitizeOAuthRedirectPath } from "./oauth";
+import {
+  defaultOAuthRedirectPath,
+  encodeOAuthState,
+  redirectPathFromOAuthState,
+  sanitizeOAuthRedirectPath,
+} from "./oauth";
 
 describe("sanitizeOAuthRedirectPath", () => {
   it("keeps same-site paths including query strings", () => {
@@ -8,9 +13,9 @@ describe("sanitizeOAuthRedirectPath", () => {
   });
 
   it("falls back for missing or external redirects", () => {
-    expect(sanitizeOAuthRedirectPath(null)).toBe("/settings");
-    expect(sanitizeOAuthRedirectPath("https://evil.example/cli-auth")).toBe("/settings");
-    expect(sanitizeOAuthRedirectPath("//evil.example/cli-auth")).toBe("/settings");
+    expect(sanitizeOAuthRedirectPath(null)).toBeNull();
+    expect(sanitizeOAuthRedirectPath("https://evil.example/cli-auth")).toBeNull();
+    expect(sanitizeOAuthRedirectPath("//evil.example/cli-auth")).toBeNull();
   });
 });
 
@@ -22,7 +27,21 @@ describe("redirectPathFromOAuthState", () => {
   });
 
   it("falls back for malformed state", () => {
-    expect(redirectPathFromOAuthState("nonce")).toBe("/settings");
-    expect(redirectPathFromOAuthState("nonce.not-base64-url")).toBe("/settings");
+    expect(redirectPathFromOAuthState("nonce")).toBeNull();
+    expect(redirectPathFromOAuthState("nonce.not-base64-url")).toBeNull();
+  });
+
+  it("round-trips oauth state without a redirect", () => {
+    const state = encodeOAuthState("nonce", null);
+
+    expect(state).toBe("nonce");
+    expect(redirectPathFromOAuthState(state)).toBeNull();
+  });
+});
+
+describe("defaultOAuthRedirectPath", () => {
+  it("uses the signed-in user's profile path", () => {
+    expect(defaultOAuthRedirectPath("pondorasti")).toBe("/pondorasti");
+    expect(defaultOAuthRedirectPath("name/with/slashes")).toBe("/name%2Fwith%2Fslashes");
   });
 });

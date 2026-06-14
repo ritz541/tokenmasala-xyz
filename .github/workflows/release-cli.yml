@@ -1,0 +1,72 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @851-labs/tokenmaxxing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22.14.0"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup npm
+        run: npm install --global npm@11.5.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify tag version
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const tag = process.env.GITHUB_REF_NAME;
+          const packageJson = JSON.parse(readFileSync("apps/cli/package.json", "utf8"));
+          const expectedTag = `cli-v${packageJson.version}`;
+
+          if (tag !== expectedTag) {
+            console.error(`Tag ${tag} does not match CLI package version ${packageJson.version}.`);
+            console.error(`Expected ${expectedTag}.`);
+            process.exit(1);
+          }
+          NODE
+
+      - name: Typecheck CLI
+        run: bun --filter @851-labs/tokenmaxxing typecheck
+
+      - name: Test CLI
+        run: bun --filter @851-labs/tokenmaxxing test
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Format
+        run: bun run fmt
+
+      - name: Build CLI
+        working-directory: apps/cli
+        run: bun run build
+
+      - name: Publish CLI
+        working-directory: apps/cli
+        run: npm publish --access public --provenance

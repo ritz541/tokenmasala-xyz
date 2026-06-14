@@ -64,6 +64,23 @@ it). Deploy state lives on a Cloudflare state-store worker
 from `.env.production`. Required repo secrets: `CLOUDFLARE_API_TOKEN`,
 `TMX_GITHUB_CLIENT_ID`, `TMX_GITHUB_CLIENT_SECRET`.
 
+## CLI Releases
+
+The CLI publishes to npm from the `Release CLI` GitHub Actions workflow.
+Publishing is tag-based: bump `apps/cli/package.json`, commit the bump to
+`main`, then push a tag named `cli-vX.Y.Z` that exactly matches the package
+version.
+
+```bash
+git tag cli-vX.Y.Z
+git push origin main
+git push origin cli-vX.Y.Z
+```
+
+Before the first release from this workflow, configure npm trusted
+publishing for package `@851-labs/tokenmaxxing` with repository
+`851-labs/tokenmaxxing` and workflow `.github/workflows/release-cli.yml`.
+
 ## License
 
 MIT

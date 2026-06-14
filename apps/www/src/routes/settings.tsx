@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
-import { MeResponse } from "@tokenmaxxing/api-contract";
+import { DeviceSummary, MeResponse } from "@tokenmaxxing/api-contract";
 import * as Schema from "effect/Schema";
 import { Laptop, KeyRound } from "lucide-react";
 
@@ -15,7 +15,9 @@ import { devicesQuery, meQuery, tokensQuery } from "../lib/queries";
 const SETTINGS_PATH = "/settings";
 
 type Me = typeof MeResponse.Type;
+type Device = typeof DeviceSummary.Type;
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type DeviceDeleteInvalidationKey = readonly unknown[];
 
 const requireSettingsSession = createServerFn({ method: "GET" }).handler(async () =>
   fetchSettingsSession(getRequestHeader("cookie")),
@@ -83,14 +85,34 @@ function SettingsPage() {
           Signed in as <span className="font-medium">{me.data.user.login}</span>
         </p>
       </div>
-      <DevicesSection />
+      <DevicesSection login={me.data.user.login} />
       <TokensSection />
     </div>
   );
 }
 
-function DevicesSection() {
+function DevicesSection({ login }: { login: string }) {
+  const queryClient = useQueryClient();
   const devices = useQuery(devicesQuery);
+  const deleteDevice = useMutation({
+    mutationFn: (device: Device) =>
+      runApi((client) => client.me.deleteDevice({ params: { deviceId: device.id } })),
+    onSuccess: async () => {
+      await Promise.all(
+        deviceDeleteInvalidationKeys(login).map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
+      );
+    },
+  });
+
+  const requestDelete = (device: Device) => {
+    if (!confirmDeviceDelete(device)) {
+      return;
+    }
+
+    deleteDevice.mutate(device);
+  };
 
   return (
     <section>
@@ -100,6 +122,11 @@ function DevicesSection() {
       <p className="mt-1 text-sm text-muted-foreground">
         Every machine that has pushed usage. Aggregates on your profile span all of them.
       </p>
+      {deleteDevice.isError ? (
+        <p className="mt-2 text-sm text-red-500">
+          {errorMessage(deleteDevice.error, "Delete failed; refresh and try again.")}
+        </p>
+      ) : null}
       <div className="mt-4 overflow-hidden rounded-lg border border-border">
         {devices.isPending ? (
           <p className="p-4 text-sm text-muted-foreground">Loading…</p>
@@ -118,6 +145,15 @@ function DevicesSection() {
                     {device.lastSyncAt === null
                       ? "never synced"
                       : `synced ${new Date(device.lastSyncAt).toLocaleString()}`}
+                  </td>
+                  <td className="p-3 text-right">
+                    <Button
+                      disabled={deleteDevice.isPending}
+                      onClick={() => requestDelete(device)}
+                      variant="destructive"
+                    >
+                      Delete data
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -191,4 +227,26 @@ function TokensSection() {
   );
 }
 
-export { fetchSettingsSession, guardSettingsRoute, Route };
+function deviceDeleteConfirmationMessage(deviceName: string): string {
+  return `Delete synced usage for ${deviceName}? This removes the device from your profile and revokes its CLI tokens.`;
+}
+
+function confirmDeviceDelete(
+  device: Pick<Device, "name">,
+  confirm: (message: string) => boolean = window.confirm,
+): boolean {
+  return confirm(deviceDeleteConfirmationMessage(device.name));
+}
+
+function deviceDeleteInvalidationKeys(login: string): DeviceDeleteInvalidationKey[] {
+  return [devicesQuery.queryKey, tokensQuery.queryKey, ["profile", login]];
+}
+
+export {
+  confirmDeviceDelete,
+  deviceDeleteConfirmationMessage,
+  deviceDeleteInvalidationKeys,
+  fetchSettingsSession,
+  guardSettingsRoute,
+  Route,
+};

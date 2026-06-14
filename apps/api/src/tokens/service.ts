@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
-import { TokenNotFound } from "@tokenmaxxing/api-contract";
+import { DeviceNotFound, TokenNotFound } from "@tokenmaxxing/api-contract";
 import type { CliIdentity, CliTokenSummary, DeviceSummary } from "@tokenmaxxing/api-contract";
 
 import { CLI_TOKEN_PREFIX, hashCliToken } from "../auth/crypto";
@@ -22,6 +22,7 @@ interface TokensServiceShape {
   ): Effect.Effect<Option.Option<typeof CliIdentity.Type>, never, any>;
   listDevices(userId: string): Effect.Effect<(typeof DeviceSummary.Type)[], never, any>;
   listTokens(userId: string): Effect.Effect<(typeof CliTokenSummary.Type)[], never, any>;
+  deleteDevice(userId: string, deviceId: string): Effect.Effect<void, DeviceNotFound, any>;
   revokeToken(userId: string, tokenId: string): Effect.Effect<void, TokenNotFound, any>;
 }
 
@@ -32,6 +33,11 @@ interface TokensRepositoryShape {
   ): Effect.Effect<Option.Option<typeof CliIdentity.Type>, DatabaseError, any>;
   listDevices(userId: string): Effect.Effect<(typeof DeviceSummary.Type)[], DatabaseError, any>;
   listTokens(userId: string): Effect.Effect<(typeof CliTokenSummary.Type)[], DatabaseError, any>;
+  deleteDevice(
+    userId: string,
+    deviceId: string,
+    now: Date,
+  ): Effect.Effect<boolean, DatabaseError, any>;
   revokeToken(
     userId: string,
     tokenId: string,
@@ -64,6 +70,14 @@ const makeTokensService = Effect.fn("makeTokensService")(function* () {
     }),
     listTokens: Effect.fn("TokensService.listTokens")(function* (userId) {
       return yield* repository.listTokens(userId).pipe(Effect.orDie);
+    }),
+    deleteDevice: Effect.fn("TokensService.deleteDevice")(function* (userId, deviceId) {
+      const deleted = yield* repository
+        .deleteDevice(userId, deviceId, new Date())
+        .pipe(Effect.orDie);
+      if (!deleted) {
+        return yield* Effect.fail(new DeviceNotFound({ id: deviceId }));
+      }
     }),
     revokeToken: Effect.fn("TokensService.revokeToken")(function* (userId, tokenId) {
       const revoked = yield* repository.revokeToken(userId, tokenId, new Date()).pipe(Effect.orDie);

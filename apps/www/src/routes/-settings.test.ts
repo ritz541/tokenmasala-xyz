@@ -3,7 +3,13 @@ import { isRedirect, type AnyRedirect } from "@tanstack/react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { meQuery } from "../lib/queries";
-import { fetchSettingsSession, guardSettingsRoute } from "./settings";
+import {
+  confirmDeviceDelete,
+  deviceDeleteConfirmationMessage,
+  deviceDeleteInvalidationKeys,
+  fetchSettingsSession,
+  guardSettingsRoute,
+} from "./settings";
 
 const me = {
   user: {
@@ -64,5 +70,30 @@ describe("guardSettingsRoute", () => {
     await guardSettingsRoute(queryClient, async () => me);
 
     expect(queryClient.getQueryData(meQuery.queryKey)).toEqual(me);
+  });
+});
+
+describe("device deletion helpers", () => {
+  it("asks for destructive confirmation with the device name", () => {
+    const confirm = vi.fn(() => true);
+
+    expect(confirmDeviceDelete({ name: "Mac.localdomain" }, confirm)).toBe(true);
+    expect(confirm).toHaveBeenCalledWith(
+      "Delete synced usage for Mac.localdomain? This removes the device from your profile and revokes its CLI tokens.",
+    );
+  });
+
+  it("uses the expected cache invalidation keys after delete", () => {
+    expect(deviceDeleteInvalidationKeys("pondorasti")).toEqual([
+      ["me", "devices"],
+      ["me", "tokens"],
+      ["profile", "pondorasti"],
+    ]);
+  });
+
+  it("keeps confirmation copy explicit about token revocation", () => {
+    expect(deviceDeleteConfirmationMessage("tuftlords-MBP.localdomain")).toContain(
+      "revokes its CLI tokens",
+    );
   });
 });

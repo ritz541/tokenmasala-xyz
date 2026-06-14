@@ -1,4 +1,4 @@
-import { cliTokens, devices, users } from "@tokenmaxxing/db";
+import { cliTokens, devices, usageDays, users } from "@tokenmaxxing/db";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -80,6 +80,32 @@ const makeD1TokensRepository = Effect.fn("makeD1TokensRepository")(function* () 
           name: row.name,
           revokedAt: row.revokedAt?.toISOString() ?? null,
         }));
+      }),
+    deleteDevice: (userId, deviceId, now) =>
+      Effect.gen(function* () {
+        const [deletedDevices] = yield* database.use((db) =>
+          db.batch([
+            db
+              .delete(devices)
+              .where(and(eq(devices.id, deviceId), eq(devices.userId, userId)))
+              .returning({ id: devices.id }),
+            db
+              .delete(usageDays)
+              .where(and(eq(usageDays.userId, userId), eq(usageDays.deviceId, deviceId))),
+            db
+              .update(cliTokens)
+              .set({ revokedAt: now })
+              .where(
+                and(
+                  eq(cliTokens.userId, userId),
+                  eq(cliTokens.deviceId, deviceId),
+                  isNull(cliTokens.revokedAt),
+                ),
+              ),
+          ]),
+        );
+
+        return deletedDevices.length > 0;
       }),
     revokeToken: (userId, tokenId, now) =>
       Effect.gen(function* () {

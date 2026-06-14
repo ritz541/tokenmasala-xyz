@@ -4,6 +4,7 @@ import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
 
 import {
+  DeviceNotFound,
   DeviceMissing,
   LoginCodeExpired,
   LoginCodeNotFound,
@@ -62,6 +63,15 @@ class MeGroup extends HttpApiGroup.make("me")
   .add(
     HttpApiEndpoint.get("listDevices", "/me/devices", {
       success: Schema.Struct({ devices: Schema.Array(DeviceSummary) }),
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("deleteDevice", "/me/devices/:deviceId/delete", {
+      params: {
+        deviceId: Schema.String,
+      },
+      success: OkResponse,
+      error: DeviceNotFound,
     }),
   )
   .add(

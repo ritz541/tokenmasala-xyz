@@ -69,6 +69,14 @@ const meHandlers = HttpApiBuilder.group(TokenmaxxingApi, "me", (handlers) =>
         return { devices: yield* tokens.listDevices(user.id) };
       }),
     )
+    .handle("deleteDevice", ({ params }) =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const tokens = yield* TokensService;
+        yield* tokens.deleteDevice(user.id, params.deviceId);
+        return { ok: true };
+      }),
+    )
     .handle("listTokens", () =>
       Effect.gen(function* () {
         const user = yield* CurrentUser;

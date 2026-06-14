@@ -39,6 +39,12 @@ class TokenNotFound extends Schema.TaggedErrorClass<TokenNotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
+class DeviceNotFound extends Schema.TaggedErrorClass<DeviceNotFound>()(
+  "DeviceNotFound",
+  { id: Schema.String },
+  { httpApiStatus: 404 },
+) {}
+
 class DeviceMissing extends Schema.TaggedErrorClass<DeviceMissing>()(
   "DeviceMissing",
   { message: Schema.String },
@@ -46,6 +52,7 @@ class DeviceMissing extends Schema.TaggedErrorClass<DeviceMissing>()(
 ) {}
 
 export {
+  DeviceNotFound,
   DeviceMissing,
   LoginCodeExpired,
   LoginCodeNotFound,

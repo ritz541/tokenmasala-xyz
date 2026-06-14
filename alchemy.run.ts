@@ -25,7 +25,7 @@ const stack = Stack(
         date: "2026-06-02",
         flags: ["nodejs_compat"],
       },
-      domain: ["tokenmaxxing.sh", "tokenmaxxing.851.sh"],
+      domain: "tokenmaxxing.sh",
       observability: {
         enabled: true,
       },

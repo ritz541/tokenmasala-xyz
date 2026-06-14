@@ -3,7 +3,7 @@ import type { HttpServerRequest } from "effect/unstable/http";
 /**
  * Session/state cookie plumbing for the browser auth flow. Cookie attributes
  * derive from the request host, so one deploy serves dev
- * (api.tokenmaxxing.localhost, http) and prod (api.tokenmaxxing.851.sh,
+ * (api.tokenmaxxing.localhost, http) and prod (api.tokenmaxxing.sh,
  * https) without environment plumbing.
  */
 
@@ -36,10 +36,10 @@ function cookieScopeFor(host: string): CookieScope {
   }
 
   return {
-    apiOrigin: "https://api.tokenmaxxing.851.sh",
-    domain: ".tokenmaxxing.851.sh",
+    apiOrigin: "https://api.tokenmaxxing.sh",
+    domain: ".tokenmaxxing.sh",
     secure: true,
-    wwwOrigin: "https://tokenmaxxing.851.sh",
+    wwwOrigin: "https://tokenmaxxing.sh",
   };
 }
 

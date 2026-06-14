@@ -37,7 +37,7 @@ const Route = createRootRouteWithContext<RouterContext>()({
         content: "The social leaderboard for LLM token usage. Sync your agents, climb the ranks.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://tokenmaxxing.851.sh" },
+      { property: "og:url", content: "https://tokenmaxxing.sh" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "stylesheet", href: styles }],

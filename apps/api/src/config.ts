@@ -21,9 +21,9 @@ const runtimeUrlTable = {
     wwwUrl: "http://tokenmaxxing.localhost:3002",
   },
   production: {
-    apiUrl: "https://api.tokenmaxxing.851.sh",
+    apiUrl: "https://api.tokenmaxxing.sh",
     sandbox: "production",
-    wwwUrl: "https://tokenmaxxing.851.sh",
+    wwwUrl: "https://tokenmaxxing.sh",
   },
 } as const satisfies Record<TokenmaxxingSandbox, RuntimeUrls>;
 

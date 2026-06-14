@@ -60,8 +60,8 @@ const runtimeConfigTable: Record<TokenmaxxingEnvironment, { apiUrl: string; wwwU
     wwwUrl: "http://tokenmaxxing.localhost:3002",
   },
   production: {
-    apiUrl: "https://api.tokenmaxxing.851.sh",
-    wwwUrl: "https://tokenmaxxing.851.sh",
+    apiUrl: "https://api.tokenmaxxing.sh",
+    wwwUrl: "https://tokenmaxxing.sh",
   },
 };
 

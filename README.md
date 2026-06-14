@@ -2,7 +2,7 @@
 
 The social leaderboard for LLM token usage. Sync your local agent usage
 (Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI), climb the board at
-[tokenmaxxing.851.sh](https://tokenmaxxing.851.sh).
+[tokenmaxxing.sh](https://tokenmaxxing.sh).
 
 Built on [ccusage](https://github.com/ryoppippi/ccusage) for local usage
 parsing, [Effect](https://effect.website) v4 end to end, and deployed to
@@ -31,7 +31,7 @@ content. Profiles and the leaderboard are public; device hostnames appear
 on your own settings page and in your per-device breakdown.
 
 CLI tokens never expire. Revoke them with `tokenmaxxing logout` or from
-[settings](https://tokenmaxxing.851.sh/settings).
+[settings](https://tokenmaxxing.sh/settings).
 
 ## Layout
 

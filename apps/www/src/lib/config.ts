@@ -5,7 +5,7 @@
  */
 
 const DEV_API_URL = "http://api.tokenmaxxing.localhost:8788";
-const PROD_API_URL = "https://api.tokenmaxxing.851.sh";
+const PROD_API_URL = "https://api.tokenmaxxing.sh";
 
 function resolveApiUrl(): string {
   if (typeof window !== "undefined") {

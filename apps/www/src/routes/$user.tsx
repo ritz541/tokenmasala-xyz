@@ -108,9 +108,6 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="font-medium">Daily spend</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Stacked by model family — hover for the per-day breakdown.
-        </p>
         <div className="mt-3">
           <Legend entries={derived.legend} />
         </div>
@@ -122,16 +119,12 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="font-medium">Cumulative spend</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Running total since the first recorded day.
-          </p>
           <div className="mt-4">
             <AreaChart accent={derived.accent} points={derived.cumulative} />
           </div>
         </section>
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="font-medium">Monthly spend</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">Total cost per calendar month.</p>
           <div className="mt-4">
             <MonthBars accent={derived.accent} months={derived.months} />
           </div>
@@ -140,9 +133,6 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="font-medium">Activity heatmap</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Daily spend intensity, GitHub-style. Weeks run left to right.
-        </p>
         <div className="mt-4 overflow-x-auto">
           {derived.heatmap !== null ? (
             <Heatmap

@@ -34,7 +34,7 @@ const ApiWorker = Cloudflare.Worker(
       date: "2026-06-02",
       flags: ["nodejs_compat"],
     },
-    domain: "api.tokenmaxxing.sh",
+    domain: ["api.tokenmaxxing.sh", "api.tokenmaxxing.851.sh"],
     observability: {
       enabled: true,
     },

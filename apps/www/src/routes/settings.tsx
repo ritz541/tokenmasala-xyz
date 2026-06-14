@@ -1,15 +1,64 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
+import { MeResponse } from "@tokenmaxxing/api-contract";
+import * as Schema from "effect/Schema";
 import { Laptop, KeyRound } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { Code } from "../components/ui/code";
 import { errorMessage, runApi } from "../lib/api";
+import { resolveApiUrl } from "../lib/config";
 import { devicesQuery, meQuery, tokensQuery } from "../lib/queries";
 
+const SETTINGS_PATH = "/settings";
+
+type Me = typeof MeResponse.Type;
+type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+const requireSettingsSession = createServerFn({ method: "GET" }).handler(async () =>
+  fetchSettingsSession(getRequestHeader("cookie")),
+);
+
 const Route = createFileRoute("/settings")({
+  beforeLoad: ({ context }) => guardSettingsRoute(context.queryClient),
   component: SettingsPage,
 });
+
+async function guardSettingsRoute(
+  queryClient: QueryClient,
+  loadSession: () => Promise<Me | null> = requireSettingsSession,
+): Promise<void> {
+  const me = await loadSession();
+  if (me === null) {
+    throw redirect({
+      search: { redirect: SETTINGS_PATH },
+      to: "/login",
+    });
+  }
+
+  queryClient.setQueryData(meQuery.queryKey, me);
+}
+
+async function fetchSettingsSession(
+  cookie: string | undefined,
+  fetcher: Fetcher = fetch,
+): Promise<Me | null> {
+  const response = await fetcher(`${resolveApiUrl()}/me`, {
+    headers: cookie === undefined ? undefined : { cookie },
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Settings session check failed with HTTP ${response.status}.`);
+  }
+
+  return Schema.decodeUnknownPromise(MeResponse)(await response.json());
+}
 
 function SettingsPage() {
   const me = useQuery(meQuery);
@@ -20,16 +69,9 @@ function SettingsPage() {
 
   if (me.isError) {
     return (
-      <div className="mt-24 text-center">
-        <p className="text-sm text-muted-foreground">Sign in to manage your devices and tokens.</p>
-        <Link
-          className="mt-4 inline-block text-sm underline"
-          search={{ redirect: "/settings" }}
-          to="/login"
-        >
-          Sign in with GitHub
-        </Link>
-      </div>
+      <p className="text-sm text-red-500">
+        {errorMessage(me.error, "Could not load your session; refresh and try again.")}
+      </p>
     );
   }
 
@@ -149,4 +191,4 @@ function TokensSection() {
   );
 }
 
-export { Route };
+export { fetchSettingsSession, guardSettingsRoute, Route };

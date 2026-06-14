@@ -9,21 +9,23 @@ import {
 
 describe("sanitizeOAuthRedirectPath", () => {
   it("keeps same-site paths including query strings", () => {
-    expect(sanitizeOAuthRedirectPath("/cli-auth?code=ABCD-1234")).toBe("/cli-auth?code=ABCD-1234");
+    expect(sanitizeOAuthRedirectPath("/login/cli?code=ABCD-1234")).toBe(
+      "/login/cli?code=ABCD-1234",
+    );
   });
 
   it("falls back for missing or external redirects", () => {
     expect(sanitizeOAuthRedirectPath(null)).toBeNull();
-    expect(sanitizeOAuthRedirectPath("https://evil.example/cli-auth")).toBeNull();
-    expect(sanitizeOAuthRedirectPath("//evil.example/cli-auth")).toBeNull();
+    expect(sanitizeOAuthRedirectPath("https://evil.example/login/cli")).toBeNull();
+    expect(sanitizeOAuthRedirectPath("//evil.example/login/cli")).toBeNull();
   });
 });
 
 describe("redirectPathFromOAuthState", () => {
   it("round-trips the redirect embedded in oauth state", () => {
-    const state = encodeOAuthState("nonce", "/cli-auth?code=ABCD-1234");
+    const state = encodeOAuthState("nonce", "/login/cli?code=ABCD-1234");
 
-    expect(redirectPathFromOAuthState(state)).toBe("/cli-auth?code=ABCD-1234");
+    expect(redirectPathFromOAuthState(state)).toBe("/login/cli?code=ABCD-1234");
   });
 
   it("falls back for malformed state", () => {

@@ -61,7 +61,7 @@ function makeTestLayer(options: TestLayerOptions) {
                 code: "ABC123",
                 expiresAt: "2026-06-13T20:00:00.000Z",
                 intervalSeconds: 0,
-                verificationUri: "https://tokenmaxxing.example/cli-auth?code=ABC123",
+                verificationUri: "https://tokenmaxxing.example/login/cli?code=ABC123",
               }),
           },
           me: {
@@ -177,7 +177,7 @@ describe("resolveSyncAuth", () => {
     const auth = exit.value;
     expect(auth.config.token).toBe("tmx_new");
     expect(auth.user.login).toBe("alex");
-    expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/cli-auth?code=ABC123"]);
+    expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
     expect(state.madeClients).toEqual([
       { baseUrl: "https://api.tokenmaxxing.example" },
@@ -208,7 +208,7 @@ describe("resolveSyncAuth", () => {
     const auth = exit.value;
     expect(auth.config.token).toBe("tmx_new");
     expect(state.clearedTokens).toBe(1);
-    expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/cli-auth?code=ABC123"]);
+    expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.madeClients).toEqual([
       { baseUrl: "https://api.tokenmaxxing.example", token: "tmx_old" },
       { baseUrl: "https://api.tokenmaxxing.example" },

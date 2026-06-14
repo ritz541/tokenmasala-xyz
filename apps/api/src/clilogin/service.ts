@@ -127,7 +127,7 @@ const makeCliLoginService = Effect.fn("makeCliLoginService")(function* () {
         code,
         expiresAt: expiresAt.toISOString(),
         intervalSeconds: POLL_INTERVAL_SECONDS,
-        verificationUri: `${wwwOrigin}/cli-auth?code=${encodeURIComponent(code)}`,
+        verificationUri: cliLoginVerificationUri(wwwOrigin, code),
       };
     }),
     poll: Effect.fn("CliLoginService.poll")(function* (rawCode) {
@@ -175,6 +175,16 @@ const makeCliLoginService = Effect.fn("makeCliLoginService")(function* () {
 
 const CliLoginServiceLive = Layer.effect(CliLoginService, makeCliLoginService());
 
-export { CliLoginRepository, CliLoginService, CliLoginServiceLive, makeCliLoginService };
+function cliLoginVerificationUri(wwwOrigin: string, code: string): string {
+  return `${wwwOrigin}/login/cli?code=${encodeURIComponent(code)}`;
+}
+
+export {
+  CliLoginRepository,
+  CliLoginService,
+  CliLoginServiceLive,
+  cliLoginVerificationUri,
+  makeCliLoginService,
+};
 
 export type { CliLoginRepositoryShape, CliLoginServiceShape, PollResult, StartInput, StartResult };

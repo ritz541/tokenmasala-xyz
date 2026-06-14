@@ -1,25 +1,26 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, TerminalSquare } from "lucide-react";
 
-import { Button, buttonClassName } from "../components/ui/button";
+import { OAuthProviderButtons } from "../components/oauth-providers";
+import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Code } from "../components/ui/code";
 import { errorMessage, runApi } from "../lib/api";
 import { meQueryOptions } from "../lib/queries";
 
-interface CliAuthSearch {
+interface CliLoginSearch {
   code: string;
 }
 
-const Route = createFileRoute("/cli-auth")({
-  validateSearch: (search): CliAuthSearch => ({
+const Route = createFileRoute("/login_/cli")({
+  validateSearch: (search): CliLoginSearch => ({
     code: typeof search["code"] === "string" ? search["code"] : "",
   }),
-  component: CliAuthPage,
+  component: CliLoginPage,
 });
 
-function CliAuthPage() {
+function CliLoginPage() {
   const { code } = Route.useSearch();
   const me = useQuery(meQueryOptions);
   const approve = useMutation({
@@ -40,18 +41,9 @@ function CliAuthPage() {
       ) : me.isError ? (
         <>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in first, then come back to approve code <Code>{code}</Code>. This page will keep
-            the code in the URL.
+            Sign in to approve code <Code>{code}</Code>.
           </p>
-          <Link
-            className={
-              buttonClassName({ variant: "primary", size: "md", fullWidth: true }) + " mt-6"
-            }
-            search={{ redirect: cliAuthRedirectPath(code) }}
-            to="/login"
-          >
-            Sign in with GitHub
-          </Link>
+          <OAuthProviderButtons className="mt-6" redirect={cliLoginRedirectPath(code)} />
         </>
       ) : approve.isSuccess ? (
         <>
@@ -91,10 +83,10 @@ function CliAuthPage() {
   );
 }
 
-function cliAuthRedirectPath(code: string): string {
-  return `/cli-auth?${new URLSearchParams({ code }).toString()}`;
+function cliLoginRedirectPath(code: string): string {
+  return `/login/cli?${new URLSearchParams({ code }).toString()}`;
 }
 
 export { Route };
 
-export type { CliAuthSearch };
+export type { CliLoginSearch };

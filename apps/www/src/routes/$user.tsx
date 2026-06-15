@@ -85,8 +85,8 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
   const derived = useMemo(() => deriveCharts(rows), [rows]);
 
   return (
-    <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-1 gap-px border border-border bg-border">
+      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Total spend" value={formatUsd(stats.totalSpendUsd)} />
         <StatCard label="Total tokens" value={formatTokens(stats.totalTokens)} />
         <StatCard label="Active days" value={String(stats.activeDays)} />
@@ -101,7 +101,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         />
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="bg-card p-5">
         <h2 className="font-medium">Daily spend</h2>
         <div className="mt-3">
           <Legend entries={derived.legend} />
@@ -111,14 +111,14 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-border bg-card p-5">
+      <div className="grid grid-cols-1 gap-px bg-border lg:grid-cols-2">
+        <section className="bg-card p-5">
           <h2 className="font-medium">Cumulative spend</h2>
           <div className="mt-4">
             <AreaChart accent={derived.accent} points={derived.cumulative} />
           </div>
         </section>
-        <section className="rounded-xl border border-border bg-card p-5">
+        <section className="bg-card p-5">
           <h2 className="font-medium">Monthly spend</h2>
           <div className="mt-4">
             <MonthBars accent={derived.accent} months={derived.months} />
@@ -126,7 +126,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         </section>
       </div>
 
-      <section className="rounded-xl border border-border bg-card p-5">
+      <section className="bg-card p-5">
         <h2 className="font-medium">Activity heatmap</h2>
         <div className="mt-4 overflow-x-auto">
           {derived.heatmap !== null ? (
@@ -139,7 +139,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
           ) : null}
         </div>
       </section>
-    </>
+    </div>
   );
 }
 

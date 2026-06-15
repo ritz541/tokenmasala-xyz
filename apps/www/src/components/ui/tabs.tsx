@@ -9,11 +9,11 @@ interface TabsProps<Value extends string> {
 /** A segmented control: pick one option from a small inline set. */
 function Tabs<Value extends string>({ options, value, onChange }: TabsProps<Value>) {
   return (
-    <div className="inline-flex rounded-lg border border-border p-0.5">
+    <div className="inline-flex border border-border p-0.5">
       {options.map((option) => (
         <button
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            "px-2.5 py-1 text-xs font-medium transition-colors",
             option.value === value
               ? "bg-foreground text-background"
               : "text-muted-foreground hover:text-foreground",

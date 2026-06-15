@@ -14,7 +14,7 @@ interface ButtonStyleProps {
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "rounded-md font-medium bg-foreground text-background transition-opacity hover:opacity-85 disabled:opacity-50",
+    "font-medium bg-foreground text-background transition-opacity hover:opacity-85 disabled:opacity-50",
   ghost: "text-muted-foreground transition-colors hover:text-foreground",
   destructive: "text-red-500 transition-colors hover:underline disabled:opacity-50",
 };
@@ -22,7 +22,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
 const SIZES: Record<ButtonSize, string> = {
   sm: "px-3 py-1.5",
   md: "px-4 py-2",
-  icon: "rounded-md p-1.5",
+  icon: "p-1.5",
 };
 
 /**

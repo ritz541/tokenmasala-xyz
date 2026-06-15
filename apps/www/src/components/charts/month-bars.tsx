@@ -71,7 +71,6 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
                 fill={accent}
                 height={Math.max(height, 1)}
                 opacity={hovered === null || hovered === index ? 1 : 0.45}
-                rx={2}
                 width={barWidth}
                 x={x}
                 y={HEIGHT - height}

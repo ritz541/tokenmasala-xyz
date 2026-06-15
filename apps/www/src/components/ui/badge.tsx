@@ -9,14 +9,11 @@ const VARIANTS: Record<BadgeVariant, string> = {
   accent: "bg-accent text-accent-foreground",
 };
 
-/** A small rounded label/pill. */
+/** A small label/tag. */
 function Badge({ variant = "muted", children }: { variant?: BadgeVariant; children: ReactNode }) {
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        VARIANTS[variant],
-      )}
+      className={cn("inline-flex items-center px-2 py-0.5 text-xs font-medium", VARIANTS[variant])}
     >
       {children}
     </span>

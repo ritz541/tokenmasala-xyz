@@ -89,7 +89,6 @@ function StackedBars({ days }: { days: StackedDay[] }) {
                     height={Math.max(height, 0)}
                     key={segment.family}
                     opacity={hovered === null || hovered === index ? 1 : 0.45}
-                    rx={1}
                     width={barWidth}
                     x={x}
                     y={cursor}
@@ -139,7 +138,7 @@ function Legend({ entries }: { entries: { color: string; family: string }[] }) {
     <ul className="flex flex-wrap gap-x-4 gap-y-1">
       {entries.map((entry) => (
         <li className="flex items-center gap-1.5 text-xs text-muted-foreground" key={entry.family}>
-          <span className="size-2 rounded-sm" style={{ background: entry.color }} />
+          <span className="size-2" style={{ background: entry.color }} />
           {entry.family}
         </li>
       ))}

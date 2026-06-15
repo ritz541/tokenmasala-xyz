@@ -8,8 +8,8 @@ import { Button, buttonClassName } from "./ui/button";
 
 function Nav() {
   return (
-    <header className="mb-10 border-b border-border">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
+      <div className="mx-4 flex h-14 max-w-5xl items-center justify-between border-x border-border px-4 lg:mx-auto">
         <div className="flex items-baseline gap-6">
           <Link
             className="font-mono text-sm font-semibold tracking-tight"

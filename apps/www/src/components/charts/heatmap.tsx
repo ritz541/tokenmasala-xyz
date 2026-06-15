@@ -131,7 +131,6 @@ function Heatmap({ accent, byDate, first, last }: HeatmapProps) {
                     })
                   }
                   opacity={level === 0 ? 0.08 : opacities[level]}
-                  rx={2}
                   width={CELL}
                   x={cx}
                   y={cy}

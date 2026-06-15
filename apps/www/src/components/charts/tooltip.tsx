@@ -44,7 +44,7 @@ function ChartTooltip({
 }) {
   return (
     <div
-      className={`pointer-events-none absolute top-0 z-10 rounded-lg border border-border bg-card p-3 text-xs shadow-lg ${className ?? ""}`}
+      className={`pointer-events-none absolute top-0 z-10 border border-border bg-card p-3 text-xs shadow-lg ${className ?? ""}`}
       style={style}
     >
       <p className="font-medium">{title}</p>
@@ -54,7 +54,7 @@ function ChartTooltip({
           {rows.map((row) => (
             <li className="flex items-center gap-2" key={row.label}>
               {row.color !== undefined ? (
-                <span className="size-2 shrink-0 rounded-sm" style={{ background: row.color }} />
+                <span className="size-2 shrink-0" style={{ background: row.color }} />
               ) : null}
               <span className="flex-1 truncate">{row.label}</span>
               <span className="text-muted-foreground">{row.value}</span>

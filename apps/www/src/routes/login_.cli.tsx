@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, TerminalSquare } from "lucide-react";
@@ -26,6 +28,14 @@ function CliLoginPage() {
   const approve = useMutation({
     mutationFn: () => runApi((client) => client.me.approveCliLogin({ payload: { code } })),
   });
+  const shouldAutoApprove =
+    code !== "" && me.isSuccess && approve.isIdle && approve.submittedAt === 0;
+
+  useEffect(() => {
+    if (shouldAutoApprove) {
+      approve.mutate();
+    }
+  }, [approve, shouldAutoApprove]);
 
   return (
     <Card className="mx-auto mt-24 flex max-w-sm flex-col items-center p-8 text-center">
@@ -69,7 +79,7 @@ function CliLoginPage() {
           ) : null}
           <Button
             className="mt-6"
-            disabled={approve.isPending}
+            disabled={approve.isPending || shouldAutoApprove}
             fullWidth
             onClick={() => approve.mutate()}
             size="md"

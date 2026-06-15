@@ -29,6 +29,12 @@ const Route = createFileRoute("/$user")({
 /** The daily-bars chart stays readable up to roughly this many days. */
 const DAILY_WINDOW = 184;
 
+const countFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+
+function formatCount(value: number): string {
+  return countFormatter.format(value);
+}
+
 function ProfilePage() {
   const { user } = Route.useParams();
   const profile = useQuery(profileQueryOptions(user));
@@ -73,9 +79,13 @@ function ProfilePage() {
 interface DashboardStats {
   activeDays: number;
   avgSpendPerActiveDay: number;
+  currentStreakDays: number;
   firstDate: string | null;
   lastDate: string | null;
+  longestStreakDays: number;
+  messageCount: number;
   peakDay: { date: string; spendUsd: number } | null;
+  sessionCount: number;
   topModel: { model: string; spendUsd: number } | null;
   totalSpendUsd: number;
   totalTokens: number;
@@ -86,19 +96,18 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
 
   return (
     <div className="grid grid-cols-1 gap-px border border-border bg-border">
-      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
         <StatCard label="Total spend" value={formatUsd(stats.totalSpendUsd)} />
         <StatCard label="Total tokens" value={formatTokens(stats.totalTokens)} />
-        <StatCard label="Active days" value={String(stats.activeDays)} />
-        <StatCard label="Avg / active day" value={formatUsd(stats.avgSpendPerActiveDay)} />
-        <StatCard
-          label="Peak day"
-          value={stats.peakDay === null ? "—" : formatUsd(stats.peakDay.spendUsd)}
-        />
+        <StatCard label="Messages" value={formatCount(stats.messageCount)} />
+        <StatCard label="Sessions" value={formatCount(stats.sessionCount)} />
         <StatCard
           label="Top model"
           value={stats.topModel === null ? "—" : modelFamily(stats.topModel.model)}
         />
+        <StatCard label="Current streak" value={formatCount(stats.currentStreakDays)} />
+        <StatCard label="Longest streak" value={formatCount(stats.longestStreakDays)} />
+        <StatCard label="Active days" value={formatCount(stats.activeDays)} />
       </div>
 
       <section className="bg-card p-5">

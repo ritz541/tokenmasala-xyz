@@ -6,6 +6,7 @@ import * as Option from "effect/Option";
 
 import { Drizzle } from "../database";
 import { ProfilesRepository } from "./service";
+import { usageStreaks } from "./streaks";
 
 const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function* () {
   const database = yield* Drizzle;
@@ -31,6 +32,8 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
               deviceCount: sql<number>`count(distinct ${usageDays.deviceId})`,
               firstDate: sql<string | null>`min(${usageDays.date})`,
               lastDate: sql<string | null>`max(${usageDays.date})`,
+              messageCount: sql<number>`sum(case when ${usageDays.inputTokens} > 0 or ${usageDays.outputTokens} > 0 then 1 else 0 end)`,
+              sessionCount: sql<number>`count(distinct ${usageDays.deviceId} || ':' || ${usageDays.date} || ':' || ${usageDays.source})`,
               totalSpendUsd: sql<number | null>`sum(${usageDays.costUsd})`,
               totalTokens: sql<number | null>`sum(${usageDays.totalTokens})`,
             })
@@ -72,16 +75,29 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
             .orderBy(asc(usageDays.source)),
         );
 
+        const activeDateRows = yield* database.use((db) =>
+          db
+            .selectDistinct({ date: usageDays.date })
+            .from(usageDays)
+            .where(eq(usageDays.userId, userId))
+            .orderBy(asc(usageDays.date)),
+        );
+
         const activeDays = totals?.activeDays ?? 0;
         const totalSpendUsd = totals?.totalSpendUsd ?? 0;
+        const streaks = usageStreaks(activeDateRows.map((row) => row.date));
 
         return {
           activeDays,
           avgSpendPerActiveDay: activeDays === 0 ? 0 : totalSpendUsd / activeDays,
+          currentStreakDays: streaks.currentStreakDays,
           deviceCount: totals?.deviceCount ?? 0,
           firstDate: totals?.firstDate ?? null,
           lastDate: totals?.lastDate ?? null,
+          longestStreakDays: streaks.longestStreakDays,
+          messageCount: totals?.messageCount ?? 0,
           peakDay: peakDays[0] ?? null,
+          sessionCount: totals?.sessionCount ?? 0,
           sources: sourceRows.map((row) => row.source),
           topModel: topModels[0] ?? null,
           totalSpendUsd,

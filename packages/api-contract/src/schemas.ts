@@ -160,15 +160,19 @@ const LeaderboardResponse = Schema.Struct({
 const ProfileStats = Schema.Struct({
   activeDays: Schema.Number,
   avgSpendPerActiveDay: Schema.Number,
+  currentStreakDays: Schema.Number,
   deviceCount: Schema.Number,
   firstDate: Schema.NullOr(Schema.String),
   lastDate: Schema.NullOr(Schema.String),
+  longestStreakDays: Schema.Number,
+  messageCount: Schema.Number,
   peakDay: Schema.NullOr(
     Schema.Struct({
       date: Schema.String,
       spendUsd: Schema.Number,
     }),
   ),
+  sessionCount: Schema.Number,
   sources: Schema.Array(Schema.String),
   topModel: Schema.NullOr(
     Schema.Struct({

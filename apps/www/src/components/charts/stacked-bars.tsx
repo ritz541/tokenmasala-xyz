@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { formatDay, formatUsd, linearScale, niceMax } from "./scale";
-import { anchorLeft, ChartTooltip } from "./tooltip";
+import { anchorBesideBar, ChartTooltip } from "./tooltip";
 
 /**
  * Daily spend, one bar per day stacked by model family — the centerpiece
@@ -37,6 +37,17 @@ function StackedBars({ days }: { days: StackedDay[] }) {
   );
 
   const active = hovered === null ? null : days[hovered];
+  const activePosition =
+    hovered === null
+      ? null
+      : (() => {
+          const x = AXIS + slot * hovered + (slot - barWidth) / 2;
+          const center = x + barWidth / 2;
+          return {
+            center: center / WIDTH,
+            edge: (center < WIDTH / 2 ? x + barWidth : x) / WIDTH,
+          };
+        })();
 
   return (
     <div className="relative">
@@ -113,9 +124,9 @@ function StackedBars({ days }: { days: StackedDay[] }) {
         ))}
       </svg>
 
-      {active !== null && active !== undefined ? (
+      {active !== null && active !== undefined && activePosition !== null ? (
         <ChartTooltip
-          className="w-56"
+          className="w-56 -translate-y-1/2"
           rows={active.segments
             .filter((segment) => segment.value > 0)
             .sort((a, b) => b.value - a.value)
@@ -124,7 +135,7 @@ function StackedBars({ days }: { days: StackedDay[] }) {
               label: segment.family,
               value: formatUsd(segment.value),
             }))}
-          style={{ left: anchorLeft(((hovered ?? 0) + 0.5) / Math.max(days.length, 1)) }}
+          style={{ left: anchorBesideBar(activePosition.center, activePosition.edge), top: "50%" }}
           subtitle={`${formatUsd(active.total)} total`}
           title={formatDay(active.date)}
         />

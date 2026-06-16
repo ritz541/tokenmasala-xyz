@@ -25,6 +25,16 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
   const barWidth = Math.min(slot * 0.55, 44);
 
   const active = hovered === null ? null : months[hovered];
+  const activeTooltip =
+    hovered === null
+      ? null
+      : (() => {
+          const x = AXIS + slot * hovered + (slot - barWidth) / 2;
+          return {
+            left: anchorLeft((x + barWidth / 2) / WIDTH, 11),
+            top: HEIGHT - y(months[hovered]?.value ?? 0) - 12,
+          };
+        })();
 
   return (
     <div className="relative">
@@ -103,10 +113,10 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
           );
         })}
       </svg>
-      {active !== null && active !== undefined ? (
+      {active !== null && active !== undefined && activeTooltip !== null ? (
         <ChartTooltip
-          className="w-44"
-          style={{ left: anchorLeft(((hovered ?? 0) + 0.5) / Math.max(months.length, 1)) }}
+          className="w-44 -translate-y-full"
+          style={{ left: activeTooltip.left, top: `${activeTooltip.top}px` }}
           subtitle={`${formatUsd(active.value)} total`}
           title={formatMonthLong(active.month)}
         />

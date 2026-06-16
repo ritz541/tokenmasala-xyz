@@ -16,16 +16,28 @@ interface TooltipRow {
 
 /** Card width (rem) the anchored charts render at — kept in sync with the clamp. */
 const CARD_REM = 14;
+const BAR_GUTTER_REM = 0.75;
 
 /**
  * Left offset (a CSS string) that centres a tooltip on the point at `fraction`
  * (0–1) across the chart, clamped so the card never spills past either edge of
  * its relative container.
  */
-function anchorLeft(fraction: number): string {
+function anchorLeft(fraction: number, cardRem: number = CARD_REM): string {
   const pct = Math.min(Math.max(fraction, 0), 1) * 100;
 
-  return `clamp(0rem, calc(${pct}% - ${CARD_REM / 2}rem), calc(100% - ${CARD_REM}rem))`;
+  return `clamp(0rem, calc(${pct}% - ${cardRem / 2}rem), calc(100% - ${cardRem}rem))`;
+}
+
+/**
+ * Position a bar-chart tooltip beside the hovered bar: to the right in the
+ * first half of the chart, and to the left in the second half.
+ */
+function anchorBesideBar(centerFraction: number, edgeFraction: number = centerFraction): string {
+  const pct = Math.min(Math.max(edgeFraction, 0), 1) * 100;
+  const offset = centerFraction < 0.5 ? BAR_GUTTER_REM : -(CARD_REM + BAR_GUTTER_REM);
+
+  return `clamp(0rem, calc(${pct}% + ${offset}rem), calc(100% - ${CARD_REM}rem))`;
 }
 
 function ChartTooltip({
@@ -65,6 +77,6 @@ function ChartTooltip({
   );
 }
 
-export { anchorLeft, ChartTooltip };
+export { anchorBesideBar, anchorLeft, ChartTooltip };
 
 export type { TooltipRow };

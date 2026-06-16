@@ -9,12 +9,22 @@ to your public profile.
 ## Usage
 
 ```bash
-bunx @851-labs/tokenmaxxing@latest login   # sign in in the browser, approves this device
-bunx @851-labs/tokenmaxxing@latest sync    # parse local usage and push it
+npm install -g @851-labs/tokenmaxxing
+tokenmaxxing login              # sign in in the browser, approves this device
+tokenmaxxing sync               # parse local usage and push it
+tokenmaxxing service install    # optional: sync automatically every day
 ```
 
-Always use `@latest` — bunx caches packages aggressively, and a stale CLI
-can price usage with outdated rules.
+You can also install globally with `bun install -g`, `pnpm add -g`, or
+`yarn global add`.
+
+The background service uses the global `tokenmaxxing` binary, runs at 09:00,
+13:00, 17:00, and 21:00 local time, and skips duplicate attempts when a sync
+already succeeded in the last three hours. By default it auto-updates through
+the package manager that installed the global binary (bun, npm, pnpm, or yarn);
+pass `--no-auto-update` to `service install` if you want to update manually.
+Use `tokenmaxxing service status` for the last run and `tokenmaxxing service
+doctor` to inspect scheduler files, auth, auto-update, locks, and recent logs.
 
 Run `sync` as often as you like, from as many machines as you like —
 profiles aggregate across devices. Useful flags: `--dry-run`,

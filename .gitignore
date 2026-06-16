@@ -1,5 +1,4 @@
 .DS_Store
-.env
 .env.*
 !.env.example
 .dev.vars
@@ -14,3 +13,8 @@ bun.lockb
 *.tsbuildinfo
 .wrangler
 .tmp
+
+.projects/cache
+.projects/vault
+.env
+.env.local

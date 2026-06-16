@@ -169,7 +169,7 @@ function DesignPage() {
 
       <Section title="Code">
         <p className="text-sm text-muted-foreground">
-          Run <Code>bunx @851-labs/tokenmaxxing@latest login</Code> to join.
+          Run <Code>npm install -g @851-labs/tokenmaxxing</Code> to install.
         </p>
       </Section>
 

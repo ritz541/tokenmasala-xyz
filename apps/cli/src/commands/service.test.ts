@@ -25,6 +25,7 @@ import {
   formatServiceLockStatus,
   formatServiceStatusAutoUpdate,
   isEphemeralCommandPath,
+  legacyServiceWrapperPaths,
   renderLaunchdPlist,
   renderServiceWrapper,
   renderSystemdTimer,
@@ -226,7 +227,7 @@ describe("servicePaths", () => {
       logPath: "/tmp/tokenmaxxing/service.log",
       metadataPath: "/tmp/tokenmaxxing/service.json",
       statePath: "/tmp/tokenmaxxing/service-state.json",
-      wrapperPath: "/tmp/tokenmaxxing/service-sync.sh",
+      wrapperPath: "/tmp/tokenmaxxing/tokenmaxxing.sh",
     });
   });
 
@@ -306,15 +307,42 @@ describe("native scheduler templates", () => {
     });
 
     expect(paths).not.toBeNull();
-    expect(renderLaunchdPlist(paths!)).toContain("<integer>9</integer>");
-    expect(renderLaunchdPlist(paths!)).toContain("<integer>13</integer>");
-    expect(renderLaunchdPlist(paths!)).toContain("<integer>17</integer>");
-    expect(renderLaunchdPlist(paths!)).toContain("<integer>21</integer>");
+    const launchdPlist = renderLaunchdPlist(paths!);
+    expect(launchdPlist).toContain("<string>/tmp/tokenmaxxing/tokenmaxxing.sh</string>");
+    expect(launchdPlist).not.toContain("service-sync.sh");
+    expect(launchdPlist).toContain("<integer>9</integer>");
+    expect(launchdPlist).toContain("<integer>13</integer>");
+    expect(launchdPlist).toContain("<integer>17</integer>");
+    expect(launchdPlist).toContain("<integer>21</integer>");
     expect(renderSystemdTimer()).toContain("OnCalendar=*-*-* 09:00:00");
     expect(renderSystemdTimer()).toContain("OnCalendar=*-*-* 13:00:00");
     expect(renderSystemdTimer()).toContain("OnCalendar=*-*-* 17:00:00");
     expect(renderSystemdTimer()).toContain("OnCalendar=*-*-* 21:00:00");
     expect(scheduleDescription()).toBe("daily at 09:00, 13:00, 17:00, and 21:00 local time");
+  });
+});
+
+describe("legacyServiceWrapperPaths", () => {
+  it("tracks old POSIX wrapper names for cleanup", () => {
+    const paths = servicePaths({
+      env: { TOKENMAXXING_CONFIG_DIR: "/tmp/tokenmaxxing" },
+      home: "/Users/alex",
+      platform: "darwin",
+    });
+
+    expect(paths).not.toBeNull();
+    expect(legacyServiceWrapperPaths(paths!)).toEqual(["/tmp/tokenmaxxing/service-sync.sh"]);
+  });
+
+  it("does not add legacy cleanup paths for Windows task wrappers", () => {
+    const paths = servicePaths({
+      env: { TOKENMAXXING_CONFIG_DIR: "C:\\Users\\alex\\AppData\\Roaming\\tokenmaxxing" },
+      home: "C:\\Users\\alex",
+      platform: "win32",
+    });
+
+    expect(paths).not.toBeNull();
+    expect(legacyServiceWrapperPaths(paths!)).toEqual([]);
   });
 });
 

@@ -17,6 +17,9 @@ const execFilePromise = promisify(execFile);
 const SERVICE_LABEL = "sh.tokenmaxxing.sync";
 const SYSTEMD_NAME = "tokenmaxxing-sync";
 const WINDOWS_TASK_NAME = "tokenmaxxing-sync";
+const POSIX_WRAPPER_NAME = "tokenmaxxing.sh";
+const LEGACY_POSIX_WRAPPER_NAME = "service-sync.sh";
+const WINDOWS_WRAPPER_NAME = "service-sync.cmd";
 const PACKAGE_NAME = "@851-labs/tokenmaxxing";
 const SERVICE_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
 const SERVICE_NOOP_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -950,7 +953,7 @@ function servicePaths({
   const configDir = dirname(getConfigPath(env));
   const wrapperPath = join(
     configDir,
-    platform === "win32" ? "service-sync.cmd" : "service-sync.sh",
+    platform === "win32" ? WINDOWS_WRAPPER_NAME : POSIX_WRAPPER_NAME,
   );
   const logPath = join(configDir, "service.log");
   const lockPath = join(configDir, "service.lock");
@@ -1133,6 +1136,9 @@ function writeServiceFiles(
         await mkdir(dirname(paths.definitionPath), { recursive: true });
       }
 
+      for (const legacyWrapperPath of legacyServiceWrapperPaths(paths)) {
+        await rm(legacyWrapperPath, { force: true });
+      }
       await writeFile(paths.wrapperPath, wrapper);
       if (paths.backend !== "windows-task-scheduler") {
         await chmod(paths.wrapperPath, 0o755);
@@ -1155,6 +1161,9 @@ function removeServiceFiles(paths: ServicePaths): Effect.Effect<void, unknown> {
   return Effect.tryPromise({
     try: async () => {
       await rm(paths.wrapperPath, { force: true });
+      for (const legacyWrapperPath of legacyServiceWrapperPaths(paths)) {
+        await rm(legacyWrapperPath, { force: true });
+      }
       await rm(paths.metadataPath, { force: true });
       await rm(paths.statePath, { force: true });
       await rm(paths.lockPath, { force: true });
@@ -1167,6 +1176,16 @@ function removeServiceFiles(paths: ServicePaths): Effect.Effect<void, unknown> {
     },
     catch: (cause) => cause,
   });
+}
+
+function legacyServiceWrapperPaths(paths: ServicePaths): string[] {
+  if (paths.backend === "windows-task-scheduler") {
+    return [];
+  }
+
+  const legacyWrapperPath = join(paths.configDir, LEGACY_POSIX_WRAPPER_NAME);
+
+  return legacyWrapperPath === paths.wrapperPath ? [] : [legacyWrapperPath];
 }
 
 function installNativeScheduler(paths: ServicePaths): Effect.Effect<void, unknown> {
@@ -1544,6 +1563,7 @@ export {
   formatServiceLockStatus,
   formatServiceStatusAutoUpdate,
   isEphemeralCommandPath,
+  legacyServiceWrapperPaths,
   renderLaunchdPlist,
   renderServiceWrapper,
   renderSystemdService,

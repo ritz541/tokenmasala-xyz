@@ -42,6 +42,21 @@ const MODEL_FAMILY_RULES: readonly [RegExp, string][] = [
   [/^o[0-9]/i, "OpenAI o-series"],
 ];
 
+const MODEL_FAMILY_ORDER = [
+  "GPT-5.5",
+  "GPT-5.4",
+  "GPT-5",
+  "GPT",
+  "GPT Codex",
+  "OpenAI o-series",
+  "Claude Fable",
+  "Claude Mythos",
+  "Claude Opus",
+  "Claude Sonnet",
+  "Claude Haiku",
+  "Gemini",
+] as const;
+
 function modelFamily(model: string): string {
   for (const [pattern, family] of MODEL_FAMILY_RULES) {
     if (pattern.test(model)) {
@@ -52,38 +67,38 @@ function modelFamily(model: string): string {
   return "Other";
 }
 
-/** Palette tuned to read on both themes; "Other" is always the gray. */
-const FAMILY_PALETTE = [
-  "#f97316",
-  "#22c55e",
-  "#38bdf8",
-  "#8b5cf6",
-  "#eab308",
-  "#ec4899",
-  "#14b8a6",
-] as const;
+/** Fixed palette tuned to read on both themes. */
+const MODEL_FAMILY_COLORS = {
+  "Claude Fable": "#38bdf8",
+  "Claude Haiku": "#ec4899",
+  "Claude Mythos": "#a855f7",
+  "Claude Opus": "#eab308",
+  "Claude Sonnet": "#14b8a6",
+  Gemini: "#ef4444",
+  GPT: "#6366f1",
+  "GPT Codex": "#0ea5e9",
+  "GPT-5": "#8b5cf6",
+  "GPT-5.4": "#22c55e",
+  "GPT-5.5": "#f97316",
+  "OpenAI o-series": "#84cc16",
+  Other: "#9ca3af",
+} as const satisfies Record<string, string>;
 
-const OTHER_COLOR = "#9ca3af";
-
-/** Stable family -> color assignment ordered by total spend (top first). */
+/** Stable family -> color assignment in canonical model-family order. */
 function familyColors(rows: readonly DailyRow[]): Map<string, string> {
-  const spendByFamily = new Map<string, number>();
+  const seen = new Set<string>();
   for (const row of rows) {
-    const family = modelFamily(row.key);
-    spendByFamily.set(family, (spendByFamily.get(family) ?? 0) + row.costUsd);
+    seen.add(modelFamily(row.key));
   }
 
-  const ranked = [...spendByFamily.entries()]
-    .filter(([family]) => family !== "Other")
-    .sort((a, b) => b[1] - a[1])
-    .map(([family]) => family);
-
   const colors = new Map<string, string>();
-  ranked.forEach((family, index) => {
-    colors.set(family, FAMILY_PALETTE[index % FAMILY_PALETTE.length]!);
-  });
-  if (spendByFamily.has("Other")) {
-    colors.set("Other", OTHER_COLOR);
+  for (const family of MODEL_FAMILY_ORDER) {
+    if (seen.has(family)) {
+      colors.set(family, MODEL_FAMILY_COLORS[family]);
+    }
+  }
+  if (seen.has("Other")) {
+    colors.set("Other", MODEL_FAMILY_COLORS.Other);
   }
 
   return colors;

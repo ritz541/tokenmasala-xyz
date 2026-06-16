@@ -110,7 +110,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
       </div>
 
       <section className="bg-card p-5">
-        <h2 className="font-medium">Daily spend</h2>
+        <h2 className="font-medium">Daily Spend</h2>
         <div className="mt-3">
           <Legend entries={derived.legend} />
         </div>
@@ -120,7 +120,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
       </section>
 
       <section className="bg-card p-5">
-        <h2 className="font-medium">Activity heatmap</h2>
+        <h2 className="font-medium">Activity Heatmap</h2>
         <div className="mt-4">
           {derived.heatmap !== null ? (
             <Heatmap
@@ -128,15 +128,16 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
               byDate={derived.spendByDate}
               first={derived.heatmap.first}
               last={derived.heatmap.last}
+              segmentsByDate={derived.segmentsByDate}
             />
           ) : null}
         </div>
       </section>
 
       <section className="bg-card p-5">
-        <h2 className="font-medium">Monthly spend</h2>
+        <h2 className="font-medium">Monthly Spend</h2>
         <div className="mt-4">
-          <MonthBars accent={derived.accent} months={derived.months} />
+          <MonthBars months={derived.months} />
         </div>
       </section>
     </div>
@@ -150,6 +151,8 @@ function deriveCharts(rows: readonly DailyRow[]) {
   // Per-day totals and per-day family segments.
   const spendByDate = new Map<string, number>();
   const familiesByDate = new Map<string, Map<string, number>>();
+  const spendByMonth = new Map<string, number>();
+  const familiesByMonth = new Map<string, Map<string, number>>();
   let outputTokens = 0;
   for (const row of rows) {
     outputTokens += row.outputTokens;
@@ -158,6 +161,12 @@ function deriveCharts(rows: readonly DailyRow[]) {
     const families = familiesByDate.get(row.date) ?? new Map<string, number>();
     families.set(family, (families.get(family) ?? 0) + row.costUsd);
     familiesByDate.set(row.date, families);
+
+    const month = row.date.slice(0, 7);
+    spendByMonth.set(month, (spendByMonth.get(month) ?? 0) + row.costUsd);
+    const monthFamilies = familiesByMonth.get(month) ?? new Map<string, number>();
+    monthFamilies.set(family, (monthFamilies.get(family) ?? 0) + row.costUsd);
+    familiesByMonth.set(month, monthFamilies);
   }
 
   const first = rows[0]?.date ?? null;
@@ -172,6 +181,17 @@ function deriveCharts(rows: readonly DailyRow[]) {
       : null;
 
   const familyOrder = [...colors.keys()];
+  const segmentsByDate = new Map(
+    [...familiesByDate.entries()].map(([date, families]) => [
+      date,
+      familyOrder.map((family) => ({
+        color: colors.get(family) ?? "#9ca3af",
+        family,
+        value: families.get(family) ?? 0,
+      })),
+    ]),
+  );
+
   const stackedDays: StackedDay[] = allDays.slice(-DAILY_WINDOW).map((date) => {
     const families = familiesByDate.get(date);
     return {
@@ -185,16 +205,16 @@ function deriveCharts(rows: readonly DailyRow[]) {
     };
   });
 
-  const byMonth = new Map<string, number>();
-  for (const [date, value] of spendByDate) {
-    const month = date.slice(0, 7);
-    byMonth.set(month, (byMonth.get(month) ?? 0) + value);
-  }
   const months =
     last !== null
       ? enumerateCalendarYearMonths(last.slice(0, 4)).map((month) => ({
           month,
-          value: byMonth.get(month) ?? 0,
+          segments: familyOrder.map((family) => ({
+            color: colors.get(family) ?? "#9ca3af",
+            family,
+            value: familiesByMonth.get(month)?.get(family) ?? 0,
+          })),
+          value: spendByMonth.get(month) ?? 0,
         }))
       : [];
 
@@ -204,6 +224,7 @@ function deriveCharts(rows: readonly DailyRow[]) {
     legend: familyOrder.map((family) => ({ color: colors.get(family) ?? "#9ca3af", family })),
     months,
     outputTokens,
+    segmentsByDate,
     spendByDate,
     stackedDays,
   };

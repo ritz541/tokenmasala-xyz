@@ -8,6 +8,7 @@ import { anchorLeft, ChartTooltip } from "./tooltip";
 interface MonthPoint {
   /** YYYY-MM */
   month: string;
+  segments: { color: string; family: string; value: number }[];
   value: number;
 }
 
@@ -16,7 +17,7 @@ const HEIGHT = 220;
 const TICKS = 4;
 const AXIS = 44;
 
-function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] }) {
+function MonthBars({ months }: { months: MonthPoint[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const max = useMemo(() => niceMax(Math.max(...months.map((point) => point.value), 0)), [months]);
@@ -40,7 +41,7 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
     <div className="relative">
       <svg
         aria-label={`Monthly spend across ${months.length} months`}
-        className="block w-full"
+        className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}
@@ -71,30 +72,38 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
           );
         })}
         {months.map((point, index) => {
-          const height = y(point.value);
           const hasValue = point.value > 0;
+          const totalHeight = y(point.value);
           const x = AXIS + slot * index + (slot - barWidth) / 2;
+          let cursor = HEIGHT;
           return (
             <g key={point.month} onPointerEnter={() => setHovered(index)}>
               {/* Invisible hover target spanning the full column height. */}
               <rect fill="transparent" height={HEIGHT} width={slot} x={AXIS + slot * index} y={0} />
               {hasValue ? (
                 <>
-                  <rect
-                    fill={accent}
-                    height={height}
-                    opacity={hovered === null || hovered === index ? 1 : 0.45}
-                    width={barWidth}
-                    x={x}
-                    y={HEIGHT - height}
-                  />
+                  {point.segments.map((segment) => {
+                    const height = y(segment.value);
+                    cursor -= height;
+                    return (
+                      <rect
+                        fill={segment.color}
+                        height={Math.max(height, 0)}
+                        key={segment.family}
+                        opacity={hovered === null || hovered === index ? 1 : 0.45}
+                        width={barWidth}
+                        x={x}
+                        y={cursor}
+                      />
+                    );
+                  })}
                   <text
                     className="fill-current text-muted-foreground"
                     fontSize={10}
                     fontWeight={500}
                     textAnchor="middle"
                     x={x + barWidth / 2}
-                    y={HEIGHT - height - 6}
+                    y={HEIGHT - totalHeight - 6}
                   >
                     {formatUsd(point.value)}
                   </text>
@@ -115,7 +124,15 @@ function MonthBars({ accent, months }: { accent: string; months: MonthPoint[] })
       </svg>
       {active !== null && active !== undefined && activeTooltip !== null ? (
         <ChartTooltip
-          className="w-44 -translate-y-full"
+          className="w-56 -translate-y-full"
+          rows={active.segments
+            .filter((segment) => segment.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .map((segment) => ({
+              color: segment.color,
+              label: segment.family,
+              value: formatUsd(segment.value),
+            }))}
           style={{ left: activeTooltip.left, top: `${activeTooltip.top}px` }}
           subtitle={`${formatUsd(active.value)} total`}
           title={formatMonthLong(active.month)}

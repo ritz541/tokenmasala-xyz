@@ -53,7 +53,7 @@ function StackedBars({ days }: { days: StackedDay[] }) {
     <div className="relative">
       <svg
         aria-label={`Daily spend by model family across ${days.length} days`}
-        className="block w-full"
+        className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}

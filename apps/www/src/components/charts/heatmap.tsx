@@ -14,6 +14,7 @@ interface HeatmapProps {
   byDate: Map<string, number>;
   first: string;
   last: string;
+  segmentsByDate: Map<string, { color: string; family: string; value: number }[]>;
 }
 
 interface HoveredCell {
@@ -29,7 +30,7 @@ const GAP = 2;
 const LEFT = 28;
 const TOP = 16;
 
-function Heatmap({ accent, byDate, first, last }: HeatmapProps) {
+function Heatmap({ accent, byDate, first, last, segmentsByDate }: HeatmapProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<HoveredCell | null>(null);
 
@@ -80,7 +81,7 @@ function Heatmap({ accent, byDate, first, last }: HeatmapProps) {
       <div className="overflow-x-auto">
         <svg
           aria-label={`Daily spend heatmap from ${formatDay(first)} to ${formatDay(last)}`}
-          className="block h-auto w-full"
+          className="block h-auto w-full select-none"
           height={height}
           onPointerLeave={() => setHovered(null)}
           preserveAspectRatio="xMinYMin meet"
@@ -150,7 +151,15 @@ function Heatmap({ accent, byDate, first, last }: HeatmapProps) {
       </div>
       {hovered !== null ? (
         <ChartTooltip
-          className="w-max max-w-[12rem] -translate-x-1/2 -translate-y-full"
+          className="w-56 -translate-x-1/2 -translate-y-full"
+          rows={(segmentsByDate.get(hovered.day) ?? [])
+            .filter((segment) => segment.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .map((segment) => ({
+              color: segment.color,
+              label: segment.family,
+              value: formatUsd(segment.value),
+            }))}
           style={{ left: `${hovered.left}px`, top: `${hovered.top - 4}px` }}
           subtitle={hovered.value > 0 ? `${formatUsd(hovered.value)} spent` : "No spend"}
           title={formatDay(hovered.day)}

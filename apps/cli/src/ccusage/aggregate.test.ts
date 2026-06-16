@@ -230,8 +230,10 @@ describe("summarize", () => {
 
     expect(summary).toEqual({
       days: 2,
+      messages: 3,
       models: 2,
       rows: 3,
+      sessions: 2,
       spendUsd: 841.29 + 9.85 + 1.25,
     });
   });

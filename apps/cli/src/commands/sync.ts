@@ -4,7 +4,7 @@ import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import type { AuthUser, UsageDayInput } from "@tokenmaxxing/api-contract";
 
-import { aggregateDays, summarize } from "../ccusage/aggregate";
+import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
 import { runCcusageSource } from "../ccusage/runner";
 import { DEFAULT_SOURCE_NAMES, resolveSources } from "../ccusage/sources";
 import {
@@ -48,6 +48,12 @@ const usd2 = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   style: "currency",
 });
+
+const integer = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
+
+const ANSI_STYLE_SEQUENCE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 
 const syncCommand = Command.make(
   "sync",
@@ -95,6 +101,24 @@ interface SyncAuth {
   user: AuthUser;
 }
 
+interface SyncSourceResult {
+  source: string;
+  summary: SourceSummary | null;
+}
+
+interface FormatOptions {
+  env?: Record<string, string | undefined>;
+}
+
+type TableAlignment = "left" | "right";
+type Style = (value: string) => string;
+
+interface TableCell {
+  align?: TableAlignment;
+  style?: Style;
+  value: string;
+}
+
 function syncEffect(options: SyncOptions) {
   return Effect.gen(function* () {
     const console = yield* Effect.service(ConsoleService);
@@ -111,23 +135,21 @@ function syncEffect(options: SyncOptions) {
 
     const rows: UsageDayInput[] = [];
     const sourceSummaries: Record<string, ReturnType<typeof summarize> | null> = {};
+    const sourceResults: SyncSourceResult[] = [];
     for (const source of sources) {
+      yield* Effect.sync(() => output.log(`Scanning ${source.source}...`));
       const report = yield* runCcusageSource(source, { since: options.since });
       if (Option.isNone(report) || report.value.length === 0) {
         sourceSummaries[source.source] = null;
-        yield* Effect.sync(() => output.log(`${source.source.padEnd(9)} skipped (no data)`));
+        sourceResults.push({ source: source.source, summary: null });
         continue;
       }
 
       const sourceRows = aggregateDays(source.source, report.value);
       const summary = summarize(sourceRows);
       sourceSummaries[source.source] = summary;
+      sourceResults.push({ source: source.source, summary });
       rows.push(...sourceRows);
-      yield* Effect.sync(() =>
-        output.log(
-          `${source.source.padEnd(9)} ${summary.days} days · ${summary.models} models · ${formatSyncUsd(summary.spendUsd)}`,
-        ),
-      );
     }
 
     if (options.dryRun || rows.length === 0) {
@@ -142,11 +164,10 @@ function syncEffect(options: SyncOptions) {
             }),
           );
         } else {
-          output.log(
-            rows.length === 0
-              ? "Nothing to sync."
-              : `Dry run: ${rows.length} rows across ${sources.length} sources; nothing pushed.`,
-          );
+          output.log("");
+          output.log(renderSyncTable(sourceResults));
+          output.log("");
+          output.log(rows.length === 0 ? "Nothing to sync." : "Dry run complete. Nothing pushed.");
         }
       });
       return;
@@ -173,7 +194,10 @@ function syncEffect(options: SyncOptions) {
         );
       } else {
         const profileUrl = `${auth.config.wwwUrl}/${auth.user.login}`;
-        output.log(`Synced ${rows.length} rows -> ${profileUrl}`);
+        output.log("");
+        output.log(renderSyncTable(sourceResults));
+        output.log("");
+        output.log(renderSyncSuccess(profileUrl));
       }
     });
     if (!options.json) {
@@ -205,6 +229,102 @@ function openProfileIfAvailable(profileUrl: string) {
       );
     }
   });
+}
+
+function renderSyncTable(
+  results: readonly SyncSourceResult[],
+  options: FormatOptions = {},
+): string {
+  const styles = makeStyles(options);
+  const header: readonly TableCell[] = [
+    { value: "Agent" },
+    { value: "Status" },
+    { align: "right", value: "Days" },
+    { align: "right", value: "Sessions" },
+    { align: "right", value: "Messages" },
+    { align: "right", value: "Models" },
+    { align: "right", value: "Spend" },
+  ];
+  const rows = results.map((result): readonly TableCell[] => {
+    if (result.summary === null) {
+      return [
+        { value: result.source },
+        { style: styles.skipped, value: "skipped" },
+        { align: "right", style: styles.muted, value: "-" },
+        { align: "right", style: styles.muted, value: "-" },
+        { align: "right", style: styles.muted, value: "-" },
+        { align: "right", style: styles.muted, value: "-" },
+        { align: "right", style: styles.muted, value: "-" },
+      ];
+    }
+
+    return [
+      { value: result.source },
+      { style: styles.synced, value: "synced" },
+      { align: "right", value: formatInteger(result.summary.days) },
+      { align: "right", value: formatInteger(result.summary.sessions) },
+      { align: "right", value: formatInteger(result.summary.messages) },
+      { align: "right", value: formatInteger(result.summary.models) },
+      { align: "right", value: formatSyncUsd(result.summary.spendUsd) },
+    ];
+  });
+
+  return renderTable(header, rows, styles);
+}
+
+function renderSyncSuccess(profileUrl: string, options: FormatOptions = {}): string {
+  const styles = makeStyles(options);
+
+  return `${styles.synced("Sync complete.")}\nProfile: ${styles.link(profileUrl)}`;
+}
+
+function renderTable(
+  header: readonly TableCell[],
+  rows: readonly (readonly TableCell[])[],
+  styles: ReturnType<typeof makeStyles>,
+): string {
+  const widths = header.map((cell, index) =>
+    Math.max(
+      visibleLength(cell.value),
+      ...rows.map((row) => visibleLength(row[index]?.value ?? "")),
+    ),
+  );
+  const renderRow = (row: readonly TableCell[], isHeader = false) =>
+    row
+      .map((cell, index) => {
+        const padded = padCell(cell.value, widths[index] ?? 0, cell.align ?? "left");
+        const style = isHeader ? styles.muted : cell.style;
+        return style === undefined ? padded : style(padded);
+      })
+      .join("  ");
+
+  return [renderRow(header, true), ...rows.map((row) => renderRow(row))].join("\n");
+}
+
+function padCell(value: string, width: number, align: TableAlignment): string {
+  const padding = " ".repeat(Math.max(width - visibleLength(value), 0));
+  return align === "right" ? `${padding}${value}` : `${value}${padding}`;
+}
+
+function visibleLength(value: string): number {
+  return value.replaceAll(ANSI_STYLE_SEQUENCE, "").length;
+}
+
+function makeStyles(options: FormatOptions = {}): {
+  link: Style;
+  muted: Style;
+  skipped: Style;
+  synced: Style;
+} {
+  const env = options.env ?? process.env;
+  const colors = !Object.prototype.hasOwnProperty.call(env, "NO_COLOR");
+
+  return {
+    link: (value) => (colors ? `\x1b[36;4m${value}\x1b[0m` : value),
+    muted: (value) => (colors ? `\x1b[2m${value}\x1b[0m` : value),
+    skipped: (value) => (colors ? `\x1b[33m${value}\x1b[0m` : value),
+    synced: (value) => (colors ? `\x1b[32m${value}\x1b[0m` : value),
+  };
 }
 
 function resolveSyncAuth(options: ResolveSyncAuthOptions) {
@@ -280,9 +400,15 @@ function formatSyncUsd(value: number): string {
   return value >= 100 ? usd0.format(value) : usd2.format(value);
 }
 
+function formatInteger(value: number): string {
+  return integer.format(value);
+}
+
 export {
   formatSyncUsd,
   openProfileIfAvailable,
+  renderSyncSuccess,
+  renderSyncTable,
   resolveSyncAuth,
   syncCommand,
   syncEffect,

@@ -14,7 +14,7 @@ function Nav() {
       <div className="mx-4 flex h-14 max-w-5xl items-center justify-between border-x border-border px-4 lg:mx-auto">
         <div className="flex items-baseline gap-6">
           <Link
-            className="font-mono text-sm font-semibold tracking-tight"
+            className="text-sm font-semibold tracking-tight"
             search={{ metric: "spend", window: "all" }}
             to="/"
           >

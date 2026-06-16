@@ -14,7 +14,13 @@ import {
   type TokenmaxxingApiClient,
 } from "../services";
 import { browserLoginEffect } from "./login";
-import { formatSyncUsd, openProfileIfAvailable, resolveSyncAuth } from "./sync";
+import {
+  formatSyncUsd,
+  openProfileIfAvailable,
+  renderSyncSuccess,
+  renderSyncTable,
+  resolveSyncAuth,
+} from "./sync";
 
 interface TestLayerOptions {
   browserOpenError?: BrowserOpenError;
@@ -143,6 +149,72 @@ describe("formatSyncUsd", () => {
     expect(formatSyncUsd(100)).toBe("$100");
     expect(formatSyncUsd(2_609.77)).toBe("$2,610");
     expect(formatSyncUsd(11_802.15)).toBe("$11,802");
+  });
+});
+
+describe("renderSyncTable", () => {
+  it("renders a readable source summary table without colors when NO_COLOR is set", () => {
+    const table = renderSyncTable(
+      [
+        {
+          source: "claude",
+          summary: { days: 17, messages: 42, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
+        },
+        {
+          source: "opencode",
+          summary: {
+            days: 85,
+            messages: 1_234,
+            models: 9,
+            rows: 1_234,
+            sessions: 85,
+            spendUsd: 1_699,
+          },
+        },
+        { source: "gemini", summary: null },
+      ],
+      { env: { NO_COLOR: "" } },
+    );
+
+    expect(table).not.toContain("\x1b");
+    expect(table.split("\n").map((line) => line.trim().split(/\s{2,}/))).toEqual([
+      ["Agent", "Status", "Days", "Sessions", "Messages", "Models", "Spend"],
+      ["claude", "synced", "17", "17", "42", "7", "$2,672"],
+      ["opencode", "synced", "85", "85", "1,234", "9", "$1,699"],
+      ["gemini", "skipped", "-", "-", "-", "-", "-"],
+    ]);
+  });
+
+  it("colors synced and skipped statuses when colors are enabled", () => {
+    const table = renderSyncTable(
+      [
+        {
+          source: "claude",
+          summary: { days: 17, messages: 42, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
+        },
+        { source: "gemini", summary: null },
+      ],
+      { env: {} },
+    );
+
+    expect(table).toContain("\x1b[32msynced");
+    expect(table).toContain("\x1b[33mskipped");
+  });
+});
+
+describe("renderSyncSuccess", () => {
+  it("renders a concise success message with a highlighted profile link", () => {
+    const output = renderSyncSuccess("https://tokenmaxxing.example/alex", { env: {} });
+
+    expect(output).toBe(
+      "\x1b[32mSync complete.\x1b[0m\nProfile: \x1b[36;4mhttps://tokenmaxxing.example/alex\x1b[0m",
+    );
+  });
+
+  it("respects NO_COLOR", () => {
+    expect(renderSyncSuccess("https://tokenmaxxing.example/alex", { env: { NO_COLOR: "" } })).toBe(
+      "Sync complete.\nProfile: https://tokenmaxxing.example/alex",
+    );
   });
 });
 

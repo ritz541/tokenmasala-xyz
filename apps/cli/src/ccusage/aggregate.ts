@@ -127,35 +127,25 @@ function aggregateDays(source: string, days: readonly CcusageDay[]): UsageDayInp
 
 interface SourceSummary {
   days: number;
-  messages: number;
   models: number;
   rows: number;
-  sessions: number;
   spendUsd: number;
 }
 
 function summarize(rows: readonly UsageDayInput[]): SourceSummary {
   const days = new Set<string>();
-  const sessions = new Set<string>();
   const models = new Set<string>();
-  let messages = 0;
   let spendUsd = 0;
   for (const row of rows) {
     days.add(row.date);
-    sessions.add(`${row.date}:${row.source}`);
     models.add(row.model);
-    if (row.inputTokens > 0 || row.outputTokens > 0) {
-      messages += 1;
-    }
     spendUsd += row.costUsd;
   }
 
   return {
     days: days.size,
-    messages,
     models: models.size,
     rows: rows.length,
-    sessions: sessions.size,
     spendUsd,
   };
 }

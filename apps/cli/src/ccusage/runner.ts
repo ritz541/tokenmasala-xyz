@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { Data, Effect, Option } from "effect";
 
 import type { CcusageDay } from "./schema";
-import { decodeDailyReport } from "./schema";
+import { decodeDailyReport, decodeSessionReport } from "./schema";
 import type { CcusageSource } from "./sources";
 
 /**
@@ -51,6 +51,29 @@ function runCcusageSource(
   );
 }
 
+function runCcusageSessionCount(
+  source: CcusageSource,
+  options: RunOptions = {},
+): Effect.Effect<Option.Option<number>> {
+  const args = [source.subcommand, "session", "--json", "--mode", "calculate"];
+  if (options.since !== undefined) {
+    args.push("--since", options.since.replaceAll("-", ""));
+  }
+
+  return Effect.gen(function* () {
+    const stdout = yield* execCcusage(args, source.source);
+    const report = yield* decodeSessionReport(JSON.parse(stdout)).pipe(
+      Effect.mapError((cause) => new CcusageRunError({ cause, source: source.source })),
+    );
+
+    return Option.some(report.sessions.length);
+  }).pipe(
+    // Missing runner, no session support, no data dir, malformed output:
+    // show an unknown session count without failing usage sync.
+    Effect.catchCause(() => Effect.succeedNone),
+  );
+}
+
 function execCcusage(args: string[], source: string): Effect.Effect<string, CcusageRunError> {
   const run = (command: string, commandArgs: string[]) =>
     Effect.callback<string, CcusageRunError>((resume) => {
@@ -85,6 +108,6 @@ function isMissingCommand(cause: unknown): boolean {
   return (cause as NodeJS.ErrnoException)?.code === "ENOENT";
 }
 
-export { CcusageRunError, runCcusageSource };
+export { CcusageRunError, runCcusageSessionCount, runCcusageSource };
 
 export type { RunOptions };

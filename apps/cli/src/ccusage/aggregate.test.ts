@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { aggregateDays, summarize } from "./aggregate";
-import { decodeDailyReport } from "./schema";
+import { decodeDailyReport, decodeSessionReport } from "./schema";
 
 /** Mirrors the verified `ccusage claude daily --json --breakdown` v20 shape. */
 const claudeFixture = {
@@ -143,6 +143,31 @@ describe("decodeDailyReport", () => {
   });
 });
 
+describe("decodeSessionReport", () => {
+  it("parses a session report without caring about session contents", async () => {
+    const report = await Effect.runPromise(
+      decodeSessionReport({
+        sessions: [
+          {
+            projectPath: "-Users-alexandru-repos-tokenmaxxing",
+            sessionId: "526bf0dc-1b30-4d8a-983c-ce90ed476fe8",
+          },
+          {
+            sessionFile: "rollout-2026-02-09T12-05-23",
+          },
+        ],
+      }),
+    );
+
+    expect(report.sessions).toHaveLength(2);
+  });
+
+  it("rejects output with no sessions array", async () => {
+    const exit = await Effect.runPromiseExit(decodeSessionReport({ daily: [] }));
+    expect(exit._tag).toBe("Failure");
+  });
+});
+
 describe("aggregateDays", () => {
   it("explodes breakdowns into one row per (date, model) tagged with the source", async () => {
     const report = await Effect.runPromise(decodeDailyReport(claudeFixture));
@@ -230,10 +255,8 @@ describe("summarize", () => {
 
     expect(summary).toEqual({
       days: 2,
-      messages: 3,
       models: 2,
       rows: 3,
-      sessions: 2,
       spendUsd: 841.29 + 9.85 + 1.25,
     });
   });

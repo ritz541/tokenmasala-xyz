@@ -57,12 +57,21 @@ const CcusageDailyReport = Schema.Struct({
 
 type CcusageDailyReport = typeof CcusageDailyReport.Type;
 
+const CcusageSessionReport = Schema.Struct({
+  sessions: Schema.Array(Schema.Unknown),
+});
+
+type CcusageSessionReport = typeof CcusageSessionReport.Type;
+
 const decodeDailyReport = Schema.decodeUnknownEffect(CcusageDailyReport);
+const decodeSessionReport = Schema.decodeUnknownEffect(CcusageSessionReport);
 
 export {
   CcusageDailyReport,
   CcusageDay,
   CcusageModelBreakdown,
   CcusageModelEntry,
+  CcusageSessionReport,
   decodeDailyReport,
+  decodeSessionReport,
 };

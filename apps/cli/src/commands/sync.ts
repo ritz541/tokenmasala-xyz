@@ -5,7 +5,7 @@ import { Command, Flag } from "effect/unstable/cli";
 import type { AuthUser, UsageDayInput } from "@tokenmaxxing/api-contract";
 
 import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
-import { runCcusageSource } from "../ccusage/runner";
+import { runCcusageSessionCount, runCcusageSource } from "../ccusage/runner";
 import { DEFAULT_SOURCE_NAMES, resolveSources } from "../ccusage/sources";
 import {
   ApiClientService,
@@ -101,9 +101,11 @@ interface SyncAuth {
   user: AuthUser;
 }
 
+type SyncSourceSummary = SourceSummary & { sessions: number | null };
+
 interface SyncSourceResult {
   source: string;
-  summary: SourceSummary | null;
+  summary: SyncSourceSummary | null;
 }
 
 interface FormatOptions {
@@ -134,7 +136,7 @@ function syncEffect(options: SyncOptions) {
     const auth = options.dryRun ? undefined : yield* resolveSyncAuth({ json: options.json });
 
     const rows: UsageDayInput[] = [];
-    const sourceSummaries: Record<string, ReturnType<typeof summarize> | null> = {};
+    const sourceSummaries: Record<string, SyncSourceSummary | null> = {};
     const sourceResults: SyncSourceResult[] = [];
     for (const source of sources) {
       yield* Effect.sync(() => output.log(`Scanning ${source.source}...`));
@@ -146,7 +148,14 @@ function syncEffect(options: SyncOptions) {
       }
 
       const sourceRows = aggregateDays(source.source, report.value);
-      const summary = summarize(sourceRows);
+      const sessionCount = Option.match(
+        yield* runCcusageSessionCount(source, { since: options.since }),
+        {
+          onNone: () => null,
+          onSome: (count) => count,
+        },
+      );
+      const summary = { ...summarize(sourceRows), sessions: sessionCount };
       sourceSummaries[source.source] = summary;
       sourceResults.push({ source: source.source, summary });
       rows.push(...sourceRows);
@@ -241,7 +250,6 @@ function renderSyncTable(
     { value: "Status" },
     { align: "right", value: "Days" },
     { align: "right", value: "Sessions" },
-    { align: "right", value: "Messages" },
     { align: "right", value: "Models" },
     { align: "right", value: "Spend" },
   ];
@@ -254,7 +262,6 @@ function renderSyncTable(
         { align: "right", style: styles.muted, value: "-" },
         { align: "right", style: styles.muted, value: "-" },
         { align: "right", style: styles.muted, value: "-" },
-        { align: "right", style: styles.muted, value: "-" },
       ];
     }
 
@@ -262,8 +269,11 @@ function renderSyncTable(
       { value: result.source },
       { style: styles.synced, value: "synced" },
       { align: "right", value: formatInteger(result.summary.days) },
-      { align: "right", value: formatInteger(result.summary.sessions) },
-      { align: "right", value: formatInteger(result.summary.messages) },
+      {
+        align: "right",
+        style: result.summary.sessions === null ? styles.muted : undefined,
+        value: result.summary.sessions === null ? "-" : formatInteger(result.summary.sessions),
+      },
       { align: "right", value: formatInteger(result.summary.models) },
       { align: "right", value: formatSyncUsd(result.summary.spendUsd) },
     ];

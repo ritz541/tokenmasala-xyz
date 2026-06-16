@@ -158,16 +158,15 @@ describe("renderSyncTable", () => {
       [
         {
           source: "claude",
-          summary: { days: 17, messages: 42, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
+          summary: { days: 17, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
         },
         {
           source: "opencode",
           summary: {
             days: 85,
-            messages: 1_234,
             models: 9,
             rows: 1_234,
-            sessions: 85,
+            sessions: null,
             spendUsd: 1_699,
           },
         },
@@ -178,10 +177,10 @@ describe("renderSyncTable", () => {
 
     expect(table).not.toContain("\x1b");
     expect(table.split("\n").map((line) => line.trim().split(/\s{2,}/))).toEqual([
-      ["Agent", "Status", "Days", "Sessions", "Messages", "Models", "Spend"],
-      ["claude", "synced", "17", "17", "42", "7", "$2,672"],
-      ["opencode", "synced", "85", "85", "1,234", "9", "$1,699"],
-      ["gemini", "skipped", "-", "-", "-", "-", "-"],
+      ["Agent", "Status", "Days", "Sessions", "Models", "Spend"],
+      ["claude", "synced", "17", "17", "7", "$2,672"],
+      ["opencode", "synced", "85", "-", "9", "$1,699"],
+      ["gemini", "skipped", "-", "-", "-", "-"],
     ]);
   });
 
@@ -190,7 +189,7 @@ describe("renderSyncTable", () => {
       [
         {
           source: "claude",
-          summary: { days: 17, messages: 42, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
+          summary: { days: 17, models: 7, rows: 42, sessions: 17, spendUsd: 2_672 },
         },
         { source: "gemini", summary: null },
       ],

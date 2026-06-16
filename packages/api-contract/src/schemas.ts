@@ -120,12 +120,22 @@ const UsageDayInput = Schema.Struct({
 
 type UsageDayInput = typeof UsageDayInput.Type;
 
+const SourceUsageStatsInput = Schema.Struct({
+  sessionCount: Schema.Number,
+  source: Schema.String,
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+type SourceUsageStatsInput = typeof SourceUsageStatsInput.Type;
+
 const SyncUsageInput = Schema.Struct({
   days: Schema.Array(UsageDayInput),
   device: Schema.Struct({
     name: Schema.String,
     platform: Schema.String,
   }),
+  sourceStats: Schema.optional(Schema.Array(SourceUsageStatsInput)),
 }).annotate({
   parseOptions: { onExcessProperty: "error" },
 });
@@ -165,7 +175,6 @@ const ProfileStats = Schema.Struct({
   firstDate: Schema.NullOr(Schema.String),
   lastDate: Schema.NullOr(Schema.String),
   longestStreakDays: Schema.Number,
-  messageCount: Schema.Number,
   peakDay: Schema.NullOr(
     Schema.Struct({
       date: Schema.String,
@@ -237,6 +246,7 @@ export {
   ProfileDailyRow,
   ProfileResponse,
   ProfileStats,
+  SourceUsageStatsInput,
   SyncUsageInput,
   SyncUsageResponse,
   UserAccountSummary,

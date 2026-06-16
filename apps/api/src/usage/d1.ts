@@ -1,4 +1,4 @@
-import { devices, usageDays } from "@tokenmaxxing/db";
+import { devices, usageDays, usageSourceStats } from "@tokenmaxxing/db";
 import { eq } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -61,6 +61,37 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
             .set({ lastSyncAt: syncedAt, name: device.name, platform: device.platform })
             .where(eq(devices.id, deviceId)),
         );
+      }),
+    upsertSourceStats: (userId, deviceId, stats, syncedAt) =>
+      Effect.gen(function* () {
+        if (stats.length === 0) {
+          return;
+        }
+
+        yield* database.use((db) => {
+          const statements = stats.map((stat) =>
+            db
+              .insert(usageSourceStats)
+              .values({
+                deviceId,
+                userId,
+                source: stat.source,
+                sessionCount: stat.sessionCount,
+                syncedAt,
+              })
+              .onConflictDoUpdate({
+                target: [usageSourceStats.deviceId, usageSourceStats.source],
+                set: {
+                  userId,
+                  sessionCount: stat.sessionCount,
+                  syncedAt,
+                },
+              }),
+          );
+          const [first, ...rest] = statements;
+
+          return db.batch([first!, ...rest]);
+        });
       }),
   });
 });

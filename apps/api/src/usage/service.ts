@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DeviceMissing } from "@tokenmaxxing/api-contract";
-import type { CliIdentity, UsageDayInput } from "@tokenmaxxing/api-contract";
+import type { CliIdentity, SourceUsageStatsInput, UsageDayInput } from "@tokenmaxxing/api-contract";
 
 import type { DatabaseError } from "../database";
 
@@ -24,6 +24,7 @@ interface UsageServiceShape {
     identity: typeof CliIdentity.Type,
     device: { name: string; platform: string },
     days: readonly UsageDayInput[],
+    sourceStats?: readonly SourceUsageStatsInput[],
   ): Effect.Effect<SyncResult, DeviceMissing, any>;
 }
 
@@ -38,6 +39,12 @@ interface UsageRepositoryShape {
   touchDevice(
     deviceId: string,
     device: { name: string; platform: string },
+    syncedAt: Date,
+  ): Effect.Effect<void, DatabaseError, any>;
+  upsertSourceStats(
+    userId: string,
+    deviceId: string,
+    stats: readonly SourceUsageStatsInput[],
     syncedAt: Date,
   ): Effect.Effect<void, DatabaseError, any>;
 }
@@ -56,7 +63,12 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
   const repository = yield* UsageRepository;
 
   return UsageService.of({
-    syncBatch: Effect.fn("UsageService.syncBatch")(function* (identity, device, days) {
+    syncBatch: Effect.fn("UsageService.syncBatch")(function* (
+      identity,
+      device,
+      days,
+      sourceStats = [],
+    ) {
       const deviceId = identity.deviceId;
       if (deviceId === null) {
         return yield* Effect.fail(
@@ -77,6 +89,9 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
           )
           .pipe(Effect.orDie);
       }
+      yield* repository
+        .upsertSourceStats(identity.user.id, deviceId, sourceStats, syncedAt)
+        .pipe(Effect.orDie);
       yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
 
       return {

@@ -1,4 +1,4 @@
-import { cliTokens, devices, usageDays, users } from "@tokenmaxxing/db";
+import { cliTokens, devices, usageDays, usageSourceStats, users } from "@tokenmaxxing/db";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -92,6 +92,11 @@ const makeD1TokensRepository = Effect.fn("makeD1TokensRepository")(function* () 
             db
               .delete(usageDays)
               .where(and(eq(usageDays.userId, userId), eq(usageDays.deviceId, deviceId))),
+            db
+              .delete(usageSourceStats)
+              .where(
+                and(eq(usageSourceStats.userId, userId), eq(usageSourceStats.deviceId, deviceId)),
+              ),
             db
               .update(cliTokens)
               .set({ revokedAt: now })

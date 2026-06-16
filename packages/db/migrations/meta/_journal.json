@@ -15,6 +15,13 @@
       "when": 1781480203137,
       "tag": "0001_swift_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781589987409,
+      "tag": "0002_smooth_malice",
+      "breakpoints": true
     }
   ]
 }

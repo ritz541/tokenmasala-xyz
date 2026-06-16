@@ -125,7 +125,7 @@ const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) 
       Effect.gen(function* () {
         const identity = yield* CurrentCliIdentity;
         const usage = yield* UsageService;
-        return yield* usage.syncBatch(identity, payload.device, payload.days);
+        return yield* usage.syncBatch(identity, payload.device, payload.days, payload.sourceStats);
       }),
     )
     .handle("logout", () =>

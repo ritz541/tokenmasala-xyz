@@ -4,6 +4,7 @@ import {
   devices,
   sessions,
   usageDays,
+  usageSourceStats,
   userAccounts,
   users,
   type User,
@@ -215,6 +216,10 @@ const makeD1AuthRepository = Effect.fn("makeD1AuthRepository")(function* () {
               .update(usageDays)
               .set({ userId: targetUserId })
               .where(eq(usageDays.userId, sourceUserId)),
+            db
+              .update(usageSourceStats)
+              .set({ userId: targetUserId })
+              .where(eq(usageSourceStats.userId, sourceUserId)),
             db
               .update(users)
               .set({

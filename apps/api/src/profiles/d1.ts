@@ -1,5 +1,5 @@
-import { devices, usageDays, users } from "@tokenmaxxing/db";
-import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
+import { devices, usageDays, usageSourceStats, users } from "@tokenmaxxing/db";
+import { and, asc, desc, eq, gte, isNull, lte, sql, type SQL } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -32,13 +32,36 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
               deviceCount: sql<number>`count(distinct ${usageDays.deviceId})`,
               firstDate: sql<string | null>`min(${usageDays.date})`,
               lastDate: sql<string | null>`max(${usageDays.date})`,
-              messageCount: sql<number>`sum(case when ${usageDays.inputTokens} > 0 or ${usageDays.outputTokens} > 0 then 1 else 0 end)`,
-              sessionCount: sql<number>`count(distinct ${usageDays.deviceId} || ':' || ${usageDays.date} || ':' || ${usageDays.source})`,
               totalSpendUsd: sql<number | null>`sum(${usageDays.costUsd})`,
               totalTokens: sql<number | null>`sum(${usageDays.totalTokens})`,
             })
             .from(usageDays)
             .where(eq(usageDays.userId, userId)),
+        );
+
+        const [sessionStats] = yield* database.use((db) =>
+          db
+            .select({
+              sessionCount: sql<number | null>`sum(${usageSourceStats.sessionCount})`,
+            })
+            .from(usageSourceStats)
+            .where(eq(usageSourceStats.userId, userId)),
+        );
+
+        const [fallbackSessions] = yield* database.use((db) =>
+          db
+            .select({
+              sessionCount: sql<number>`count(distinct ${usageDays.deviceId} || ':' || ${usageDays.date} || ':' || ${usageDays.source})`,
+            })
+            .from(usageDays)
+            .leftJoin(
+              usageSourceStats,
+              and(
+                eq(usageSourceStats.deviceId, usageDays.deviceId),
+                eq(usageSourceStats.source, usageDays.source),
+              ),
+            )
+            .where(and(eq(usageDays.userId, userId), isNull(usageSourceStats.deviceId))),
         );
 
         const peakDays = yield* database.use((db) =>
@@ -85,6 +108,8 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
 
         const activeDays = totals?.activeDays ?? 0;
         const totalSpendUsd = totals?.totalSpendUsd ?? 0;
+        const sessionCount =
+          (sessionStats?.sessionCount ?? 0) + (fallbackSessions?.sessionCount ?? 0);
         const streaks = usageStreaks(activeDateRows.map((row) => row.date));
 
         return {
@@ -95,9 +120,8 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
           firstDate: totals?.firstDate ?? null,
           lastDate: totals?.lastDate ?? null,
           longestStreakDays: streaks.longestStreakDays,
-          messageCount: totals?.messageCount ?? 0,
           peakDay: peakDays[0] ?? null,
-          sessionCount: totals?.sessionCount ?? 0,
+          sessionCount,
           sources: sourceRows.map((row) => row.source),
           topModel: topModels[0] ?? null,
           totalSpendUsd,

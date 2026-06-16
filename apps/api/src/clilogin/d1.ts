@@ -1,4 +1,11 @@
-import { cliLoginRequests, cliTokens, devices, usageDays, users } from "@tokenmaxxing/db";
+import {
+  cliLoginRequests,
+  cliTokens,
+  devices,
+  usageDays,
+  usageSourceStats,
+  users,
+} from "@tokenmaxxing/db";
 import { eq } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -78,6 +85,10 @@ const makeD1CliLoginRepository = Effect.fn("makeD1CliLoginRepository")(function*
               .update(usageDays)
               .set({ userId: input.userId })
               .where(eq(usageDays.deviceId, input.deviceId)),
+            db
+              .update(usageSourceStats)
+              .set({ userId: input.userId })
+              .where(eq(usageSourceStats.deviceId, input.deviceId)),
             db.insert(cliTokens).values({
               id: input.tokenId,
               tokenHash: input.tokenHash,

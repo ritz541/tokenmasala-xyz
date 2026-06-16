@@ -2,7 +2,7 @@ import { hostname } from "node:os";
 
 import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
-import type { AuthUser, UsageDayInput } from "@tokenmaxxing/api-contract";
+import type { AuthUser, SourceUsageStatsInput, UsageDayInput } from "@tokenmaxxing/api-contract";
 
 import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
 import { runCcusageSessionCount, runCcusageSource } from "../ccusage/runner";
@@ -187,11 +187,18 @@ function syncEffect(options: SyncOptions) {
     if (auth === undefined) {
       return;
     }
+    const sourceStats = options.since === undefined ? sourceStatsForSync(sourceResults) : undefined;
 
     for (let offset = 0; offset < rows.length; offset += CHUNK_SIZE) {
       const chunk = rows.slice(offset, offset + CHUNK_SIZE);
       const response = yield* auth.client.usage
-        .sync({ payload: { days: chunk, device } })
+        .sync({
+          payload: {
+            days: chunk,
+            device,
+            ...(offset === 0 && sourceStats !== undefined ? { sourceStats } : {}),
+          },
+        })
         .pipe(Effect.mapError((cause) => new SyncPushError({ cause })));
       upserted += response.upserted;
     }
@@ -213,6 +220,18 @@ function syncEffect(options: SyncOptions) {
       yield* openProfileIfAvailable(`${auth.config.wwwUrl}/${auth.user.login}`);
     }
   });
+}
+
+function sourceStatsForSync(
+  results: readonly SyncSourceResult[],
+): SourceUsageStatsInput[] | undefined {
+  const stats = results.flatMap((result) =>
+    result.summary?.sessions === undefined || result.summary.sessions === null
+      ? []
+      : [{ sessionCount: result.summary.sessions, source: result.source }],
+  );
+
+  return stats.length === 0 ? undefined : stats;
 }
 
 function openProfileIfAvailable(profileUrl: string) {
@@ -420,6 +439,7 @@ export {
   renderSyncSuccess,
   renderSyncTable,
   resolveSyncAuth,
+  sourceStatsForSync,
   syncCommand,
   syncEffect,
   SyncPushError,

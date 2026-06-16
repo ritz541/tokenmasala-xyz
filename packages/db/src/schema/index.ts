@@ -132,6 +132,26 @@ const usageDays = sqliteTable(
   ],
 );
 
+/**
+ * One row per (device, agent) for sync-level aggregates that do not belong on
+ * model/day usage rows. The CLI reports all-time session counts here during a
+ * full sync; partial syncs leave these untouched.
+ */
+const usageSourceStats = sqliteTable(
+  "usage_source_stats",
+  {
+    deviceId: text("device_id").notNull(),
+    userId: text("user_id").notNull(),
+    source: text("source").notNull(),
+    sessionCount: integer("session_count").notNull().default(0),
+    syncedAt: integer("synced_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.deviceId, table.source] }),
+    index("usage_source_stats_user_idx").on(table.userId),
+  ],
+);
+
 type User = typeof users.$inferSelect;
 type NewUser = typeof users.$inferInsert;
 type UserAccount = typeof userAccounts.$inferSelect;
@@ -146,8 +166,19 @@ type Device = typeof devices.$inferSelect;
 type NewDevice = typeof devices.$inferInsert;
 type UsageDay = typeof usageDays.$inferSelect;
 type NewUsageDay = typeof usageDays.$inferInsert;
+type UsageSourceStat = typeof usageSourceStats.$inferSelect;
+type NewUsageSourceStat = typeof usageSourceStats.$inferInsert;
 
-export { cliLoginRequests, cliTokens, devices, sessions, usageDays, userAccounts, users };
+export {
+  cliLoginRequests,
+  cliTokens,
+  devices,
+  sessions,
+  usageDays,
+  usageSourceStats,
+  userAccounts,
+  users,
+};
 
 export type {
   CliLoginRequest,
@@ -159,9 +190,11 @@ export type {
   NewSession,
   NewUserAccount,
   NewUsageDay,
+  NewUsageSourceStat,
   NewUser,
   Session,
   UsageDay,
+  UsageSourceStat,
   UserAccount,
   User,
 };

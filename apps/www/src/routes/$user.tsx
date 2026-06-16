@@ -82,7 +82,6 @@ interface DashboardStats {
   firstDate: string | null;
   lastDate: string | null;
   longestStreakDays: number;
-  messageCount: number;
   peakDay: { date: string; spendUsd: number } | null;
   sessionCount: number;
   topModel: { model: string; spendUsd: number } | null;
@@ -98,8 +97,8 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
       <div className="grid grid-cols-2 gap-px bg-border md:grid-cols-4">
         <StatCard label="Total spend" value={formatUsd(stats.totalSpendUsd)} />
         <StatCard label="Total tokens" value={formatTokens(stats.totalTokens)} />
-        <StatCard label="Messages" value={formatCount(stats.messageCount)} />
         <StatCard label="Sessions" value={formatCount(stats.sessionCount)} />
+        <div aria-hidden="true" className="hidden bg-card md:block" />
         <StatCard
           label="Top model"
           value={stats.topModel === null ? "—" : modelFamily(stats.topModel.model)}

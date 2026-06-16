@@ -20,6 +20,7 @@ import {
   renderSyncSuccess,
   renderSyncTable,
   resolveSyncAuth,
+  sourceStatsForSync,
 } from "./sync";
 
 interface TestLayerOptions {
@@ -198,6 +199,28 @@ describe("renderSyncTable", () => {
 
     expect(table).toContain("\x1b[32msynced");
     expect(table).toContain("\x1b[33mskipped");
+  });
+});
+
+describe("sourceStatsForSync", () => {
+  it("keeps only sources with known session counts", () => {
+    expect(
+      sourceStatsForSync([
+        {
+          source: "claude",
+          summary: { days: 17, models: 7, rows: 42, sessions: 54, spendUsd: 2_672 },
+        },
+        {
+          source: "codex",
+          summary: { days: 89, models: 4, rows: 123, sessions: null, spendUsd: 12_172 },
+        },
+        { source: "gemini", summary: null },
+      ]),
+    ).toEqual([{ sessionCount: 54, source: "claude" }]);
+  });
+
+  it("returns undefined when there is nothing useful to upload", () => {
+    expect(sourceStatsForSync([{ source: "gemini", summary: null }])).toBeUndefined();
   });
 });
 

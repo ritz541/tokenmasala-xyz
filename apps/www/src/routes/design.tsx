@@ -39,8 +39,6 @@ const TYPE_SIZES = [
   { label: "text-xs", className: "text-xs" },
 ];
 
-const RADII = ["rounded", "rounded-md", "rounded-lg", "rounded-xl", "rounded-full"];
-
 const DEMO_TABS = [
   { label: "Spend", value: "spend" as const },
   { label: "Tokens", value: "tokens" as const },
@@ -90,17 +88,6 @@ function DesignPage() {
               <span className="font-semibold">semibold</span>
             </span>
           </div>
-        </div>
-      </Section>
-
-      <Section title="Radius">
-        <div className="flex flex-wrap gap-6">
-          {RADII.map((radius) => (
-            <div className="flex flex-col items-center gap-1.5" key={radius}>
-              <div className={`size-16 border border-border bg-muted ${radius}`} />
-              <Code>{radius}</Code>
-            </div>
-          ))}
         </div>
       </Section>
 

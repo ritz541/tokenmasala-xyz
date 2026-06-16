@@ -63,7 +63,7 @@ function UserMenu() {
 
   return (
     <Menu>
-      <Menu.Trigger className="flex rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <Menu.Trigger className="flex outline-none focus-visible:ring-2 focus-visible:ring-accent">
         <Avatar alt={user.login} size={28} src={user.avatarUrl} />
       </Menu.Trigger>
       <Menu.Content>

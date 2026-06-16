@@ -21,7 +21,7 @@ function LoginPage() {
 
   return (
     <Card className="mx-auto mt-24 flex max-w-sm flex-col items-center p-8 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing.sh</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Choose an OAuth provider to create or access your profile.
       </p>

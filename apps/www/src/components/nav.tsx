@@ -18,7 +18,7 @@ function Nav() {
             search={{ metric: "spend", window: "all" }}
             to="/"
           >
-            tokenmaxxing
+            tokenmaxxing.sh
           </Link>
           <Link
             activeProps={{ className: "text-foreground" }}

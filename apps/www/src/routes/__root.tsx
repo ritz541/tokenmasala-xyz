@@ -13,12 +13,12 @@ const Route = createRootRouteWithContext<RouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "tokenmaxxing" },
+      { title: "tokenmaxxing.sh" },
       {
         name: "description",
         content: "The social leaderboard for LLM token usage. Sync your agents, climb the ranks.",
       },
-      { property: "og:title", content: "tokenmaxxing" },
+      { property: "og:title", content: "tokenmaxxing.sh" },
       {
         property: "og:description",
         content: "The social leaderboard for LLM token usage. Sync your agents, climb the ranks.",

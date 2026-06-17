@@ -491,7 +491,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false }, runtime).pipe(
+      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
         Effect.provide(layer),
       ),
     );
@@ -527,7 +527,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: false, force: false }, runtime).pipe(
+      serviceInstallProgram({ autoUpdate: false, force: false, refresh: false }, runtime).pipe(
         Effect.provide(layer),
       ),
     );
@@ -559,7 +559,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false }, runtime).pipe(
+      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
         Effect.provide(layer),
       ),
     );
@@ -583,7 +583,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false }, runtime).pipe(
+      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
         Effect.provide(layer),
       ),
     );
@@ -595,6 +595,30 @@ describe("serviceInstallProgram", () => {
     expect(state.writtenTokens).toEqual([]);
     expect(written).toEqual([]);
     expect(installed).toEqual([]);
+  });
+
+  it("refreshes service files without starting login", async () => {
+    const { layer, state } = makeTestLayer({
+      initialConfig: {
+        apiUrl: "https://api.tokenmaxxing.example",
+        wwwUrl: "https://tokenmaxxing.example",
+      },
+      interactive: false,
+    });
+    const { installed, runtime, written } = makeInstallRuntime();
+
+    const exit = await Effect.runPromiseExit(
+      serviceInstallProgram({ autoUpdate: false, force: false, refresh: true }, runtime).pipe(
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(exit._tag).toBe("Success");
+    expect(state.browserUrls).toEqual([]);
+    expect(state.writtenTokens).toEqual([]);
+    expect(written).toHaveLength(1);
+    expect(written[0]?.metadata.autoUpdate).toBe(false);
+    expect(installed).toEqual([written[0]?.paths]);
   });
 });
 

@@ -15,6 +15,7 @@ npm install -g @851-labs/tokenmaxxing
 tokenmaxxing login              # sign in with OAuth, approves this device
 tokenmaxxing sync               # parse local usage via ccusage and push it
 tokenmaxxing service install    # optional: sync automatically every day
+tokenmaxxing update             # update the global CLI and refresh the service
 ```
 
 You can also install globally with `bun install -g`, `pnpm add -g`, or
@@ -24,6 +25,8 @@ The background service uses the global `tokenmaxxing` binary, checks hourly,
 and syncs at most once per local day. By default it auto-updates through
 the package manager that installed the global binary (bun, npm, pnpm, or yarn);
 pass `--no-auto-update` to `service install` if you want to update manually.
+After an update, installed services are refreshed automatically so scheduler
+files stay current.
 Use `tokenmaxxing service status` for the last run and `tokenmaxxing service
 doctor` to inspect scheduler files, auth, auto-update, locks, and recent logs.
 

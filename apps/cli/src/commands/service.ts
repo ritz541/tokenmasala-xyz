@@ -48,6 +48,7 @@ interface ScheduleTime {
 interface ServiceInstallOptions {
   autoUpdate: boolean;
   force: boolean;
+  refresh: boolean;
 }
 
 interface ServicePaths {
@@ -200,8 +201,10 @@ const installCommand = Command.make(
     noAutoUpdate: Flag.boolean("no-auto-update").pipe(
       Flag.withDescription("Disable automatic CLI updates before scheduled syncs"),
     ),
+    refresh: Flag.boolean("refresh").pipe(Flag.withHidden),
   },
-  ({ force, noAutoUpdate }) => serviceInstallEffect({ autoUpdate: !noAutoUpdate, force }),
+  ({ force, noAutoUpdate, refresh }) =>
+    serviceInstallEffect({ autoUpdate: !noAutoUpdate, force, refresh }),
 ).pipe(Command.withDescription("Install daily automatic sync"));
 
 const uninstallCommand = Command.make("uninstall", {}, () => serviceUninstallEffect()).pipe(
@@ -262,11 +265,13 @@ function serviceInstallProgram(
     const config = yield* Effect.service(ConfigService);
     const console = yield* Effect.service(ConsoleService);
 
-    if (yield* config.hasEnvToken()) {
+    if (!options.refresh && (yield* config.hasEnvToken())) {
       return yield* Effect.fail(new ServiceEnvTokenError());
     }
 
-    yield* resolveSyncAuth({ json: false });
+    if (!options.refresh) {
+      yield* resolveSyncAuth({ json: false });
+    }
 
     const env = runtime.env ?? process.env;
     const platform = runtime.platform ?? process.platform;
@@ -534,7 +539,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
     }
 
     const metadata = yield* readServiceMetadata(paths.metadataPath);
-    yield* runServiceAutoUpdate(metadata);
+    const autoUpdated = yield* runServiceAutoUpdate(metadata);
 
     yield* writeServiceState(paths.statePath, {
       ...currentState,
@@ -568,6 +573,19 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       lastSuccessDate: localDateKey(new Date(successAt)),
       version: 1,
     }).pipe(Effect.mapError((cause) => new ServiceRunError({ cause })));
+
+    if (autoUpdated && metadata !== null) {
+      yield* refreshServiceAfterUpdate({
+        autoUpdate: metadata.autoUpdate,
+        commandPath: metadata.commandPath,
+      }).pipe(
+        Effect.catch(() =>
+          Effect.sync(() => {
+            console.log("Service refresh failed after auto-update.");
+          }),
+        ),
+      );
+    }
 
     if (!options.scheduled) {
       yield* Effect.sync(() => {
@@ -798,12 +816,12 @@ function commandExists(command: string): Effect.Effect<boolean, never> {
 
 function runServiceAutoUpdate(
   metadata: ServiceMetadata | null,
-): Effect.Effect<void, never, ConsoleService> {
+): Effect.Effect<boolean, never, ConsoleService> {
   return Effect.gen(function* () {
     const console = yield* Effect.service(ConsoleService);
 
     if (metadata === null || metadata.autoUpdate === false) {
-      return;
+      return false;
     }
 
     const manager = metadata.autoUpdateManager;
@@ -811,7 +829,7 @@ function runServiceAutoUpdate(
       yield* Effect.sync(() => {
         console.log("Auto-update skipped; package manager was not detected.");
       });
-      return;
+      return false;
     }
 
     const managerExists = yield* commandExists(manager);
@@ -819,18 +837,37 @@ function runServiceAutoUpdate(
       yield* Effect.sync(() => {
         console.log(`Auto-update skipped; ${manager} not found.`);
       });
-      return;
+      return false;
     }
 
-    const command = autoUpdateCommand(manager);
-    yield* runExecutable(command.command, command.args).pipe(
+    return yield* runPackageManagerUpdate(manager).pipe(
+      Effect.as(true),
       Effect.catch(() =>
         Effect.sync(() => {
           console.log(`Auto-update failed; continuing with sync.`);
+          return false;
         }),
       ),
     );
   });
+}
+
+function runPackageManagerUpdate(manager: AutoUpdateManager): Effect.Effect<void, unknown> {
+  const command = autoUpdateCommand(manager);
+
+  return runExecutable(command.command, command.args);
+}
+
+function refreshServiceAfterUpdate(options: {
+  autoUpdate: boolean;
+  commandPath: string;
+}): Effect.Effect<void, unknown> {
+  const args = ["service", "install", "--refresh"];
+  if (!options.autoUpdate) {
+    args.push("--no-auto-update");
+  }
+
+  return runExecutable(options.commandPath, args);
 }
 
 function readLogTail(path: string, maxLines: number): Effect.Effect<string[], never> {
@@ -1596,6 +1633,7 @@ function escapeXml(value: string): string {
 }
 
 export {
+  autoUpdateCommand,
   autoUpdateCommandDescription,
   backendForPlatform,
   capturedServiceEnv,
@@ -1606,13 +1644,16 @@ export {
   formatServiceLockStatus,
   formatServiceStatusAutoUpdate,
   isEphemeralCommandPath,
+  isServiceInstalled,
   legacyServiceWrapperPaths,
   deterministicServiceJitterMs,
   localDateKey,
+  readServiceMetadata,
   renderLaunchdPlist,
   renderServiceWrapper,
   renderSystemdService,
   renderSystemdTimer,
+  refreshServiceAfterUpdate,
   scheduleDescription,
   serviceCommand,
   serviceDoctorEffect,
@@ -1626,6 +1667,8 @@ export {
   serviceStatusEffect,
   serviceUninstallEffect,
   shouldSkipServiceRun,
+  runPackageManagerUpdate,
+  runExecutable,
   windowsTaskNames,
   ServiceAutoUpdateManagerError,
   ServiceCommandNotFoundError,

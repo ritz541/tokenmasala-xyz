@@ -6,17 +6,26 @@ import {
   formatClackHintRow,
   formatClackRow,
   formatUrl,
+  humanConfirm,
   humanFailure,
   humanFrame,
   humanLog,
 } from "./output";
 
 const promptCalls = vi.hoisted((): string[] => []);
+const promptState = vi.hoisted((): { confirmValue: boolean | "cancel" } => ({
+  confirmValue: true,
+}));
 
 vi.mock("@clack/prompts", () => ({
+  confirm: (options: { initialValue: boolean; message: string }) => {
+    promptCalls.push(`confirm:${options.message}:${String(options.initialValue)}`);
+    return Promise.resolve(promptState.confirmValue);
+  },
   intro: (title: string) => {
     promptCalls.push(`intro:${title}`);
   },
+  isCancel: (value: unknown) => value === "cancel",
   log: {
     error: (message: string) => {
       promptCalls.push(`error:${message}`);
@@ -108,6 +117,7 @@ function restoreEnvironment() {
 describe("humanFrame", () => {
   afterEach(() => {
     promptCalls.length = 0;
+    promptState.confirmValue = true;
     restoreEnvironment();
   });
 
@@ -220,6 +230,52 @@ describe("humanFailure", () => {
   });
 });
 
+describe("humanConfirm", () => {
+  afterEach(() => {
+    promptCalls.length = 0;
+    promptState.confirmValue = true;
+    restoreEnvironment();
+  });
+
+  it("prompts with the provided default value", async () => {
+    const { layer } = testConsole();
+    promptState.confirmValue = false;
+
+    const result = await Effect.runPromise(
+      humanConfirm(
+        "install automatic sync?",
+        {},
+        {
+          cancelError: () => new Error("cancelled"),
+          defaultValue: true,
+        },
+      ).pipe(Effect.provide(layer)),
+    );
+
+    expect(result).toBe(false);
+    expect(promptCalls).toEqual(["confirm:Install automatic sync?:true"]);
+  });
+
+  it("fails with the provided cancellation error when cancelled", async () => {
+    const { layer } = testConsole();
+    promptState.confirmValue = "cancel";
+
+    const exit = await Effect.runPromiseExit(
+      humanConfirm(
+        "install automatic sync?",
+        {},
+        {
+          cancelError: () => new Error("cancelled"),
+          defaultValue: true,
+        },
+      ).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    expect(promptCalls).toEqual(["confirm:Install automatic sync?:true"]);
+  });
+});
+
 describe("formatClackRow", () => {
   it("capitalizes the first display letter", () => {
     expect(formatClackRow("already logged in")).toBe("Already logged in");
@@ -254,6 +310,14 @@ describe("formatClackHintRow", () => {
     ).toBe(
       "Hint: Unset TOKENMAXXING_API_TOKEN, run \x1b[36mtokenmaxxing login\x1b[0m, then run \x1b[36mtokenmaxxing service install\x1b[0m",
     );
+  });
+
+  it("includes values for tokenmaxxing flags that require values", () => {
+    expect(
+      formatClackHintRow("run tokenmaxxing bootstrap --service yes to skip this prompt", {
+        env: {},
+      }),
+    ).toBe("Hint: Run \x1b[36mtokenmaxxing bootstrap --service yes\x1b[0m to skip this prompt");
   });
 
   it("does not highlight commands when NO_COLOR is set", () => {

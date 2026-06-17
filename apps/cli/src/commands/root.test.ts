@@ -22,7 +22,10 @@ describe("root command", () => {
     const result = runCli(["--help"]);
 
     expect(result.status).toBe(0);
-    expect(result.output).toContain("upgrade    Upgrade the globally installed CLI");
+    expect(result.output).toContain(
+      "bootstrap    Log in, sync usage, and optionally install automatic sync",
+    );
+    expect(result.output).toContain("upgrade      Upgrade the globally installed CLI");
     expect(result.output).not.toContain("update     Update the globally installed CLI");
   });
 
@@ -31,7 +34,7 @@ describe("root command", () => {
 
     expect(result.status).toBe(1);
     expect(result.output).toContain('Unknown subcommand "update"');
-    expect(result.output).toContain("upgrade    Upgrade the globally installed CLI");
+    expect(result.output).toContain("upgrade      Upgrade the globally installed CLI");
   });
 
   it("exposes --json on all service subcommands and upgrade", () => {
@@ -48,6 +51,15 @@ describe("root command", () => {
       expect(result.status).toBe(0);
       expect(result.output).toContain("--json");
     }
+  });
+
+  it("exposes bootstrap as a human-only onboarding command", () => {
+    const result = runCli(["bootstrap", "--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("--service");
+    expect(result.output).toContain("Whether to install automatic sync");
+    expect(result.output).not.toContain("--json");
   });
 });
 

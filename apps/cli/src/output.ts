@@ -29,7 +29,13 @@ interface HumanSpinner {
   stop: (message?: string) => void;
 }
 
+interface HumanConfirmOptions<E> {
+  cancelError: () => E;
+  defaultValue: boolean;
+}
+
 const tokenmaxxingSubcommands = new Set([
+  "bootstrap",
   "login",
   "logout",
   "service",
@@ -39,6 +45,13 @@ const tokenmaxxingSubcommands = new Set([
 ]);
 
 const serviceSubcommands = new Set(["install", "run", "status", "uninstall"]);
+const tokenmaxxingFlagsWithValues = new Set([
+  "--completions",
+  "--log-level",
+  "--service",
+  "--since",
+  "--sources",
+]);
 
 function writeJson(value: unknown) {
   return Effect.gen(function* () {
@@ -214,6 +227,30 @@ function humanSpinner(message: string, options: HumanOutputOptions = {}) {
   });
 }
 
+function humanConfirm<E>(
+  message: string,
+  options: HumanOutputOptions,
+  confirmOptions: HumanConfirmOptions<E>,
+) {
+  return Effect.gen(function* () {
+    if (!shouldWriteHumanOutput(options)) {
+      return confirmOptions.defaultValue;
+    }
+
+    const answer = yield* Effect.promise(() =>
+      prompts.confirm({
+        initialValue: confirmOptions.defaultValue,
+        message: formatClackRow(message),
+      }),
+    );
+    if (prompts.isCancel(answer)) {
+      return yield* Effect.fail(confirmOptions.cancelError());
+    }
+
+    return answer;
+  });
+}
+
 function shouldWriteHumanOutput(options: HumanOutputOptions = {}): boolean {
   return options.json !== true && options.silent !== true;
 }
@@ -289,8 +326,18 @@ function tokenmaxxingCommandLength(input: string): number {
 
   let cursor = lastIncludedIndex + 1;
   while (tokens[cursor]?.[0].startsWith("-") === true) {
+    const flag = tokens[cursor]?.[0] ?? "";
     lastIncludedIndex = cursor;
     cursor += 1;
+    const nextToken = tokens[cursor]?.[0];
+    if (
+      tokenmaxxingFlagsWithValues.has(flag) &&
+      nextToken !== undefined &&
+      !nextToken.startsWith("-")
+    ) {
+      lastIncludedIndex = cursor;
+      cursor += 1;
+    }
   }
 
   const lastToken = tokens[lastIncludedIndex];
@@ -395,6 +442,7 @@ export {
   formatClackHintRow,
   formatClackRow,
   formatUrl,
+  humanConfirm,
   humanFailure,
   humanFrame,
   humanIntro,
@@ -407,4 +455,10 @@ export {
   writeJson,
 };
 
-export type { FormatUrlOptions, HumanFailureContent, HumanOutputOptions, HumanSpinner };
+export type {
+  FormatUrlOptions,
+  HumanConfirmOptions,
+  HumanFailureContent,
+  HumanOutputOptions,
+  HumanSpinner,
+};

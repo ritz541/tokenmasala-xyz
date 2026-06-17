@@ -44,6 +44,13 @@ class SyncPushError extends Data.TaggedError("SyncPushError")<{
     "error: failed to push usage to tokenmaxxing\nhint: check your network and run tokenmaxxing sync again";
 }
 
+class SyncAuthValidationError extends Data.TaggedError("SyncAuthValidationError")<{
+  readonly cause: unknown;
+}> {
+  override message =
+    "error: failed to validate stored login\nhint: check your network and run tokenmaxxing login again";
+}
+
 class UnknownSourceError extends Data.TaggedError("UnknownSourceError")<{
   readonly names: string[];
 }> {
@@ -106,6 +113,7 @@ interface SyncOptions {
 }
 
 interface SyncProgramOptions extends SyncOptions {
+  auth?: SyncAuth | undefined;
   silent?: boolean | undefined;
 }
 
@@ -202,7 +210,9 @@ function syncProgram(options: SyncProgramOptions) {
       return yield* Effect.fail(new UnknownSourceError({ names: invalid }));
     }
 
-    const auth = options.dryRun ? undefined : yield* resolveSyncAuth({ json: options.json });
+    const auth = options.dryRun
+      ? undefined
+      : (options.auth ?? (yield* resolveSyncAuth({ json: options.json })));
 
     const rows: UsageDayInput[] = [];
     const rawReports: RawUsageReportInput[] = [];
@@ -500,7 +510,11 @@ function resolveSyncAuth(options: ResolveSyncAuthOptions) {
       return { client, config: authenticatedConfig, user: validated.user };
     }
 
-    if (!isUnauthorizedError(validated.cause) || options.json || envTokenActive) {
+    if (!isUnauthorizedError(validated.cause)) {
+      return yield* Effect.fail(new SyncAuthValidationError({ cause: validated.cause }));
+    }
+
+    if (options.json || envTokenActive) {
       return yield* Effect.fail(new NotLoggedInError());
     }
 
@@ -558,6 +572,7 @@ export {
   syncCommand,
   syncEffect,
   syncProgram,
+  SyncAuthValidationError,
   SyncPushError,
   UnknownSourceError,
 };

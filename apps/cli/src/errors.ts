@@ -12,8 +12,11 @@ import { ConsoleService } from "./services";
 
 const userFacingErrorTags = new Set([
   "AlreadyLoggedInError",
+  "BootstrapCancelledError",
+  "BootstrapServiceDecisionRequiredError",
   "ConfigReadError",
   "ConfigWriteError",
+  "InvalidBootstrapServiceOptionError",
   "LoginSleepError",
   "LoginTimeoutError",
   "NonInteractiveLoginError",
@@ -29,6 +32,7 @@ const userFacingErrorTags = new Set([
   "ServiceRunError",
   "ServiceUninstallError",
   "ServiceUnsupportedPlatformError",
+  "SyncAuthValidationError",
   "StartCliLoginError",
   "SyncPushError",
   "UnknownSourceError",

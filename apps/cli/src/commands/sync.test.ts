@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Cause, Effect, Layer, Option } from "effect";
 import type { AuthUser } from "@tokenmaxxing/api-contract";
 import { describe, expect, it } from "vitest";
 
@@ -22,6 +22,7 @@ import {
   renderSyncTable,
   resolveSyncAuth,
   sourceStatsForSync,
+  SyncAuthValidationError,
 } from "./sync";
 
 interface TestLayerOptions {
@@ -422,6 +423,40 @@ describe("resolveSyncAuth", () => {
     expect(state.browserUrls).toEqual([]);
     expect(state.clearedTokens).toBe(0);
     expect(state.writtenTokens).toEqual([]);
+  });
+
+  it("keeps stored tokens when validation fails for network or server reasons", async () => {
+    const { layer, state } = makeTestLayer({
+      initialConfig: {
+        apiUrl: "https://api.tokenmaxxing.example",
+        token: "tmx_old",
+        wwwUrl: "https://tokenmaxxing.example",
+      },
+      meError: new Error("network unavailable"),
+    });
+
+    const exit = await Effect.runPromiseExit(
+      resolveSyncAuth({ json: false }).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag !== "Failure") {
+      throw new Error("expected resolveSyncAuth to fail");
+    }
+
+    expect(state.browserUrls).toEqual([]);
+    expect(state.clearedTokens).toBe(0);
+    expect(state.writtenTokens).toEqual([]);
+    expect(state.madeClients).toEqual([
+      { baseUrl: "https://api.tokenmaxxing.example", token: "tmx_old" },
+    ]);
+    const error = Cause.findErrorOption(exit.cause);
+    expect(Option.isSome(error)).toBe(true);
+    if (Option.isNone(error)) {
+      throw new Error("expected a typed failure");
+    }
+
+    expect(error.value).toBeInstanceOf(SyncAuthValidationError);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   modelFamily,
 } from "../components/charts/scale";
 import { Legend, StackedBars, type StackedDay } from "../components/charts/stacked-bars";
+import { WeekdayBars } from "../components/charts/weekday-bars";
 import { StatCard } from "../components/stat-card";
 import { Avatar } from "../components/ui/avatar";
 import { Card } from "../components/ui/card";
@@ -134,6 +135,13 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
       </section>
 
       <section className="bg-card p-5">
+        <h2 className="font-medium">Most Active Time</h2>
+        <div className="mt-4">
+          <WeekdayBars accent={derived.accent} spend={derived.spendByWeekday} />
+        </div>
+      </section>
+
+      <section className="bg-card p-5">
         <h2 className="font-medium">Monthly Spend</h2>
         <div className="mt-4">
           <MonthBars months={derived.months} />
@@ -152,10 +160,15 @@ function deriveCharts(rows: readonly DailyRow[]) {
   const familiesByDate = new Map<string, Map<string, number>>();
   const spendByMonth = new Map<string, number>();
   const familiesByMonth = new Map<string, Map<string, number>>();
+  // Spend bucketed by weekday, Monday-first: [0]=Mon … [6]=Sun.
+  const spendByWeekday = [0, 0, 0, 0, 0, 0, 0];
   let outputTokens = 0;
   for (const row of rows) {
     outputTokens += row.outputTokens;
     spendByDate.set(row.date, (spendByDate.get(row.date) ?? 0) + row.costUsd);
+    // getUTCDay() is Sunday-first; shift to Monday-first. UTC avoids tz drift.
+    const weekday = (new Date(`${row.date}T00:00:00Z`).getUTCDay() + 6) % 7;
+    spendByWeekday[weekday] = (spendByWeekday[weekday] ?? 0) + row.costUsd;
     const family = modelFamily(row.key);
     const families = familiesByDate.get(row.date) ?? new Map<string, number>();
     families.set(family, (families.get(family) ?? 0) + row.costUsd);
@@ -225,6 +238,7 @@ function deriveCharts(rows: readonly DailyRow[]) {
     outputTokens,
     segmentsByDate,
     spendByDate,
+    spendByWeekday,
     stackedDays,
   };
 }

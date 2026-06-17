@@ -2,7 +2,7 @@ import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
 import { ApiClientService, ConfigService } from "../services";
-import { humanFrame, humanLog, humanSpinner, writeJson } from "../output";
+import { humanFrame, humanSpinner, writeJson } from "../output";
 
 class NotLoggedInError extends Data.TaggedError("NotLoggedInError")<{}> {
   override message = "error: not logged in\nhint: run tokenmaxxing login";
@@ -47,17 +47,13 @@ function whoamiEffect(options: { json: boolean }) {
             : new WhoamiError({ cause }),
         ),
         Effect.tapError(() => Effect.sync(() => spinner.error("Could not fetch account."))),
-        Effect.tap(() => Effect.sync(() => spinner.stop())),
       );
 
       if (options.json) {
         yield* writeJson({ user: me.user });
       } else {
-        yield* humanLog(
-          "info",
-          me.user.name === null ? me.user.login : `${me.user.login} (${me.user.name})`,
-          options,
-        );
+        const label = me.user.name === null ? me.user.login : `${me.user.login} (${me.user.name})`;
+        yield* Effect.sync(() => spinner.stop(label));
       }
     }),
   );

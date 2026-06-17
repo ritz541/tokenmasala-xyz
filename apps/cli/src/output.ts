@@ -205,7 +205,11 @@ function humanSpinner(message: string, options: HumanOutputOptions = {}) {
           output.error(nextMessage);
         }
       },
-      stop: () => {},
+      stop: (nextMessage?: string) => {
+        if (nextMessage !== undefined) {
+          output.log(nextMessage);
+        }
+      },
     } satisfies HumanSpinner;
   });
 }

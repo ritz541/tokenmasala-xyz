@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleService } from "./services";
 import { clackFailureForCliFailure, renderCliFailure } from "./errors";
+import { AlreadyLoggedInError } from "./commands/login";
 import { NotLoggedInError } from "./commands/whoami";
 
 const promptCalls = vi.hoisted((): string[] => []);
@@ -106,6 +107,30 @@ describe("renderCliFailure", () => {
     });
   });
 
+  it("renders concise already logged in JSON failures without ANSI output", async () => {
+    const { errors, layer, logs } = testConsole();
+
+    const exit = await Effect.runPromiseExit(
+      Effect.fail(new AlreadyLoggedInError({ envTokenActive: false })).pipe(
+        Effect.tapCause((cause) => renderCliFailure(cause, { json: true, verbose: false })),
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    expect(logs).toEqual([]);
+    expect(promptCalls).toEqual([]);
+    expect(errors).toHaveLength(1);
+    expect(JSON.parse(errors[0]!)).toEqual({
+      error: {
+        code: "already_logged_in",
+        hint: "run tokenmaxxing logout first before logging in again",
+        message: "already logged in",
+      },
+      status: "error",
+    });
+  });
+
   it("renders expected failures as plain text without Clack", async () => {
     const { errors, layer, logs } = testConsole();
     setTty(false);
@@ -142,7 +167,7 @@ describe("renderCliFailure", () => {
     expect(errors).toEqual([]);
     expect(promptCalls).toEqual([
       "error:Not logged in",
-      "info:Hint: run tokenmaxxing login",
+      "info:Hint: Run \x1b[36;4mtokenmaxxing login\x1b[0m",
       "outro:Failed",
     ]);
   });
@@ -165,6 +190,12 @@ describe("renderCliFailure", () => {
 });
 
 describe("clackFailureForCliFailure", () => {
+  it("keeps already logged in failures concise", () => {
+    expect(new AlreadyLoggedInError({ envTokenActive: false }).message).toBe(
+      "error: already logged in\nhint: run tokenmaxxing logout first before logging in again",
+    );
+  });
+
   it("splits the redundant error prefix, context, and hint", () => {
     expect(
       clackFailureForCliFailure(

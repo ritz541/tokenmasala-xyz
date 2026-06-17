@@ -12,6 +12,10 @@ interface FormatUrlOptions {
   env?: Record<string, string | undefined>;
 }
 
+interface FormatHighlightOptions {
+  env?: Record<string, string | undefined>;
+}
+
 type HumanLogLevel = "error" | "info" | "step" | "success" | "warn";
 
 interface HumanFailureContent {
@@ -25,6 +29,17 @@ interface HumanSpinner {
   stop: (message?: string) => void;
 }
 
+const tokenmaxxingSubcommands = new Set([
+  "login",
+  "logout",
+  "service",
+  "sync",
+  "upgrade",
+  "whoami",
+]);
+
+const serviceSubcommands = new Set(["install", "run", "status", "uninstall"]);
+
 function writeJson(value: unknown) {
   return Effect.gen(function* () {
     const output = yield* Effect.service(ConsoleService);
@@ -34,8 +49,14 @@ function writeJson(value: unknown) {
 }
 
 function formatUrl(url: string, options: FormatUrlOptions = {}): string {
+  return formatHighlight(url, options);
+}
+
+function formatHighlight(value: string, options: FormatHighlightOptions = {}): string {
   const env = options.env ?? process.env;
-  return Object.prototype.hasOwnProperty.call(env, "NO_COLOR") ? url : `\x1b[36;4m${url}\x1b[0m`;
+  return Object.prototype.hasOwnProperty.call(env, "NO_COLOR")
+    ? value
+    : `\x1b[36;4m${value}\x1b[0m`;
 }
 
 function humanIntro(title: string, options: HumanOutputOptions = {}) {
@@ -89,7 +110,7 @@ function humanFailure(failure: string | HumanFailureContent, options: HumanOutpu
             prompts.log.info(formatClackRow(line));
           }
           if (failure.hint !== undefined) {
-            prompts.log.info(formatClackRow(`Hint: ${failure.hint}`));
+            prompts.log.info(formatClackHintRow(failure.hint));
           }
         }
         prompts.outro("Failed");
@@ -220,6 +241,59 @@ function formatClackRow(message: string): string {
     .join("\n");
 }
 
+function formatClackHintRow(hint: string, options: FormatHighlightOptions = {}): string {
+  return `Hint: ${formatClackRow(formatClackHintBody(hint, options))}`;
+}
+
+function formatClackHintBody(hint: string, options: FormatHighlightOptions): string {
+  const runCommandPattern = /\brun(\s+)tokenmaxxing\b/g;
+  let result = "";
+  let cursor = 0;
+
+  for (const match of hint.matchAll(runCommandPattern)) {
+    const runIndex = match.index;
+    const whitespace = match[1] ?? " ";
+    const commandStart = runIndex + "run".length + whitespace.length;
+    const commandLength = tokenmaxxingCommandLength(hint.slice(commandStart));
+    const command = hint.slice(commandStart, commandStart + commandLength);
+
+    result += hint.slice(cursor, commandStart);
+    result += formatHighlight(command, options);
+    cursor = commandStart + commandLength;
+  }
+
+  result += hint.slice(cursor);
+  return result;
+}
+
+function tokenmaxxingCommandLength(input: string): number {
+  const tokens = Array.from(input.matchAll(/[^\s,;.]+/g));
+  const firstToken = tokens[0];
+  if (firstToken === undefined || firstToken.index !== 0 || firstToken[0] !== "tokenmaxxing") {
+    return "tokenmaxxing".length;
+  }
+
+  let lastIncludedIndex = 0;
+  const command = tokens[1]?.[0];
+  if (command !== undefined && tokenmaxxingSubcommands.has(command)) {
+    lastIncludedIndex = 1;
+  }
+
+  const serviceAction = tokens[2]?.[0];
+  if (command === "service" && serviceSubcommands.has(serviceAction ?? "")) {
+    lastIncludedIndex = 2;
+  }
+
+  let cursor = lastIncludedIndex + 1;
+  while (tokens[cursor]?.[0].startsWith("-") === true) {
+    lastIncludedIndex = cursor;
+    cursor += 1;
+  }
+
+  const lastToken = tokens[lastIncludedIndex];
+  return (lastToken?.index ?? 0) + (lastToken?.[0].length ?? "tokenmaxxing".length);
+}
+
 function capitalizeClackLine(line: string): string {
   const visibleStart = firstVisibleCharacterIndex(line);
   const rest = line.slice(visibleStart);
@@ -315,6 +389,7 @@ function firstAlphabeticalCharacterIndex(line: string, start: number): number {
 }
 
 export {
+  formatClackHintRow,
   formatClackRow,
   formatUrl,
   humanFailure,

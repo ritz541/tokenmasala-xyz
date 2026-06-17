@@ -2,7 +2,14 @@ import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleService } from "./services";
-import { formatClackRow, formatUrl, humanFailure, humanFrame, humanLog } from "./output";
+import {
+  formatClackHintRow,
+  formatClackRow,
+  formatUrl,
+  humanFailure,
+  humanFrame,
+  humanLog,
+} from "./output";
 
 const promptCalls = vi.hoisted((): string[] => []);
 
@@ -197,7 +204,7 @@ describe("humanFailure", () => {
     expect(promptCalls).toEqual([
       "error:Not logged in",
       "info:Path: /usr/local/bin/tokenmaxxing",
-      "info:Hint: run tokenmaxxing login",
+      "info:Hint: Run \x1b[36;4mtokenmaxxing login\x1b[0m",
       "outro:Failed",
     ]);
   });
@@ -228,6 +235,33 @@ describe("formatClackRow", () => {
 
   it("preserves leading ANSI sequences and whitespace", () => {
     expect(formatClackRow("  \x1b[36;4mprofile\x1b[0m")).toBe("  \x1b[36;4mProfile\x1b[0m");
+  });
+});
+
+describe("formatClackHintRow", () => {
+  it("highlights copyable tokenmaxxing commands in run hints", () => {
+    expect(
+      formatClackHintRow("run tokenmaxxing logout first before logging in again", { env: {} }),
+    ).toBe("Hint: Run \x1b[36;4mtokenmaxxing logout\x1b[0m first before logging in again");
+  });
+
+  it("highlights multiple tokenmaxxing commands and preserves surrounding prose", () => {
+    expect(
+      formatClackHintRow(
+        "unset TOKENMAXXING_API_TOKEN, run tokenmaxxing login, then run tokenmaxxing service install",
+        { env: {} },
+      ),
+    ).toBe(
+      "Hint: Unset TOKENMAXXING_API_TOKEN, run \x1b[36;4mtokenmaxxing login\x1b[0m, then run \x1b[36;4mtokenmaxxing service install\x1b[0m",
+    );
+  });
+
+  it("does not highlight commands when NO_COLOR is set", () => {
+    expect(
+      formatClackHintRow("run tokenmaxxing logout first before logging in again", {
+        env: { NO_COLOR: "" },
+      }),
+    ).toBe("Hint: Run tokenmaxxing logout first before logging in again");
   });
 });
 

@@ -55,10 +55,10 @@ class AlreadyLoggedInError extends Data.TaggedError("AlreadyLoggedInError")<{
 }> {
   override get message() {
     if (this.envTokenActive) {
-      return "error: already logged in to tokenmaxxing\nhint: run tokenmaxxing logout first, or unset TOKENMAXXING_API_TOKEN before logging in again";
+      return "error: already logged in\nhint: run tokenmaxxing logout first, or unset TOKENMAXXING_API_TOKEN before logging in again";
     }
 
-    return "error: already logged in to tokenmaxxing\nhint: run tokenmaxxing logout first before logging in again";
+    return "error: already logged in\nhint: run tokenmaxxing logout first before logging in again";
   }
 }
 

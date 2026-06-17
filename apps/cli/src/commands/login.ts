@@ -12,7 +12,7 @@ import {
   ConfigService,
   TerminalService,
 } from "../services";
-import { formatUrl, humanFrame, humanLog, writeJson } from "../output";
+import { formatUrl, humanFrame, humanLog, humanSpinner, writeJson } from "../output";
 
 class StartCliLoginError extends Data.TaggedError("StartCliLoginError")<{
   readonly cause: unknown;
@@ -52,14 +52,37 @@ class LoginTimeoutError extends Data.TaggedError("LoginTimeoutError")<{}> {
 
 class AlreadyLoggedInError extends Data.TaggedError("AlreadyLoggedInError")<{
   readonly envTokenActive: boolean;
+  readonly login?: string | undefined;
+}> {
+  override get message() {
+    const message =
+      this.login === undefined ? "already logged in" : `already logged in as ${this.login}`;
+
+    if (this.envTokenActive) {
+      return `error: ${message}\nhint: run tokenmaxxing logout first, or unset TOKENMAXXING_API_TOKEN before logging in again`;
+    }
+
+    return `error: ${message}\nhint: run tokenmaxxing logout first before logging in again`;
+  }
+}
+
+class LoginTokenInvalidError extends Data.TaggedError("LoginTokenInvalidError")<{
+  readonly envTokenActive: boolean;
 }> {
   override get message() {
     if (this.envTokenActive) {
-      return "error: already logged in\nhint: run tokenmaxxing logout first, or unset TOKENMAXXING_API_TOKEN before logging in again";
+      return "error: login token is no longer valid\nhint: unset TOKENMAXXING_API_TOKEN or set a valid token";
     }
 
-    return "error: already logged in\nhint: run tokenmaxxing logout first before logging in again";
+    return "error: stored login is no longer valid\nhint: run tokenmaxxing logout, then run tokenmaxxing login";
   }
+}
+
+class LoginValidationError extends Data.TaggedError("LoginValidationError")<{
+  readonly cause: unknown;
+}> {
+  override message =
+    "error: failed to validate stored login\nhint: check your network and try again";
 }
 
 class NonInteractiveLoginError extends Data.TaggedError("NonInteractiveLoginError")<{}> {
@@ -92,11 +115,35 @@ function loginEffect(options: { json: boolean }) {
     options,
     Effect.gen(function* () {
       const config = yield* Effect.service(ConfigService);
+      const clients = yield* Effect.service(ApiClientService);
 
       const stored = yield* config.readConfig();
       const envTokenActive = yield* config.hasEnvToken();
-      if (stored.token !== undefined || envTokenActive) {
-        return yield* Effect.fail(new AlreadyLoggedInError({ envTokenActive }));
+      if (stored.token !== undefined) {
+        const client = yield* clients.make({ baseUrl: stored.apiUrl, token: stored.token });
+        const spinner = yield* humanSpinner("Checking current login...", options);
+        const validated = yield* client.me.me().pipe(
+          Effect.map((me) => ({ _tag: "valid" as const, user: me.user })),
+          Effect.catch((cause) => Effect.succeed({ _tag: "invalid" as const, cause })),
+        );
+
+        if (validated._tag === "valid") {
+          yield* Effect.sync(() => spinner.stop("Validated current login."));
+          return yield* Effect.fail(
+            new AlreadyLoggedInError({ envTokenActive, login: validated.user.login }),
+          );
+        }
+
+        yield* Effect.sync(() => spinner.error("Could not validate current login."));
+        if (isUnauthorizedError(validated.cause)) {
+          return yield* Effect.fail(new LoginTokenInvalidError({ envTokenActive }));
+        }
+
+        return yield* Effect.fail(new LoginValidationError({ cause: validated.cause }));
+      }
+
+      if (envTokenActive) {
+        return yield* Effect.fail(new LoginValidationError({ cause: "missing env token" }));
       }
 
       const login = yield* browserLoginEffect(options);
@@ -192,6 +239,14 @@ function browserLoginEffect(options: BrowserLoginOptions) {
   });
 }
 
+function isUnauthorizedError(cause: unknown): boolean {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    (cause as { _tag?: string })._tag === "Unauthorized"
+  );
+}
+
 export {
   AlreadyLoggedInError,
   browserLoginEffect,
@@ -199,6 +254,8 @@ export {
   loginEffect,
   LoginSleepError,
   LoginTimeoutError,
+  LoginTokenInvalidError,
+  LoginValidationError,
   NonInteractiveLoginError,
   OpenBrowserError,
   PollCliLoginError,

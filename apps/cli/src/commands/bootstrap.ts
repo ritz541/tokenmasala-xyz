@@ -1,7 +1,7 @@
 import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
-import { humanConfirm, humanFrame } from "../output";
+import { humanConfirm, humanFrame, humanLog } from "../output";
 import { TerminalService } from "../services";
 import { serviceInstallProgram } from "./service";
 import {
@@ -71,7 +71,13 @@ function bootstrapProgram(options: BootstrapOptions, runtime: BootstrapRuntime =
       return yield* Effect.fail(new BootstrapServiceDecisionRequiredError());
     }
 
-    const auth = yield* (runtime.resolveAuth ?? (() => resolveSyncAuth({ json: false })))();
+    const auth = yield* (
+      runtime.resolveAuth ?? (() => resolveSyncAuth({ json: false, showStoredLoginSpinner: true }))
+    )();
+    if (auth.authSource === "stored") {
+      yield* humanLog("success", `Logged in as ${auth.user.login}.`);
+    }
+
     const result = yield* (
       runtime.sync ?? ((syncAuth) => syncProgram({ auth: syncAuth, dryRun: false, json: false }))
     )(auth);

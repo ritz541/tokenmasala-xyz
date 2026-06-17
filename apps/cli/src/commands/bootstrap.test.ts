@@ -2,7 +2,7 @@ import { Cause, Effect, Layer } from "effect";
 import type { AuthUser } from "@tokenmaxxing/api-contract";
 import { describe, expect, it } from "vitest";
 
-import { TerminalService, type TokenmaxxingApiClient } from "../services";
+import { ConsoleService, TerminalService, type TokenmaxxingApiClient } from "../services";
 import {
   bootstrapProgram,
   BootstrapCancelledError,
@@ -19,6 +19,7 @@ const user: AuthUser = {
 };
 
 const auth: SyncAuth = {
+  authSource: "login",
   client: {} as TokenmaxxingApiClient,
   config: {
     apiUrl: "https://api.tokenmaxxing.example",
@@ -38,11 +39,21 @@ const syncResult: SyncResult = {
   upserted: 12,
 };
 
-function terminalLayer(interactive: boolean) {
-  return Layer.succeed(TerminalService)({
-    canOpenExternalBrowser: Effect.succeed(interactive),
-    isInteractive: Effect.succeed(interactive),
-  });
+function servicesLayer(interactive: boolean, logs: string[] = [], errors: string[] = []) {
+  return Layer.mergeAll(
+    Layer.succeed(TerminalService)({
+      canOpenExternalBrowser: Effect.succeed(interactive),
+      isInteractive: Effect.succeed(interactive),
+    }),
+    Layer.succeed(ConsoleService)({
+      error: (message?: unknown) => {
+        errors.push(String(message));
+      },
+      log: (message?: unknown) => {
+        logs.push(String(message));
+      },
+    }),
+  );
 }
 
 function failureTag(exit: Awaited<ReturnType<typeof Effect.runPromiseExit>>) {
@@ -56,6 +67,7 @@ function failureTag(exit: Awaited<ReturnType<typeof Effect.runPromiseExit>>) {
 
 function testRuntime(
   options: {
+    auth?: SyncAuth;
     confirm?: boolean | Effect.Effect<boolean, unknown>;
     sync?: SyncResult;
   } = {},
@@ -79,7 +91,7 @@ function testRuntime(
     resolveAuth: () =>
       Effect.sync(() => {
         calls.push("auth");
-        return auth;
+        return options.auth ?? auth;
       }),
     sync: (syncAuth) =>
       Effect.sync(() => {
@@ -96,7 +108,7 @@ function runBootstrap(
   options: { interactive: boolean },
 ) {
   return Effect.runPromise(
-    effect.pipe(Effect.provide(terminalLayer(options.interactive))) as Effect.Effect<
+    effect.pipe(Effect.provide(servicesLayer(options.interactive))) as Effect.Effect<
       undefined,
       unknown,
       never
@@ -109,7 +121,7 @@ function runBootstrapExit(
   options: { interactive: boolean },
 ) {
   return Effect.runPromiseExit(
-    effect.pipe(Effect.provide(terminalLayer(options.interactive))) as Effect.Effect<
+    effect.pipe(Effect.provide(servicesLayer(options.interactive))) as Effect.Effect<
       undefined,
       unknown,
       never
@@ -130,6 +142,31 @@ describe("bootstrapProgram", () => {
       "install-service",
       "open:https://tokenmaxxing.example/alex",
     ]);
+  });
+
+  it("logs the authenticated user when bootstrap starts from a stored login", async () => {
+    const logs: string[] = [];
+    const { calls, runtime } = testRuntime({
+      auth: {
+        ...auth,
+        authSource: "stored",
+      },
+      confirm: false,
+    });
+
+    await Effect.runPromise(
+      bootstrapProgram({}, runtime).pipe(
+        Effect.provide(servicesLayer(true, logs)),
+      ) as Effect.Effect<undefined, unknown, never>,
+    );
+
+    expect(calls).toEqual([
+      "auth",
+      "sync:alex",
+      "confirm",
+      "open:https://tokenmaxxing.example/alex",
+    ]);
+    expect(logs).toContain("Logged in as alex.");
   });
 
   it("uses --service yes without prompting and works in non-interactive terminals", async () => {

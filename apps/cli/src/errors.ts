@@ -19,6 +19,8 @@ const userFacingErrorTags = new Set([
   "InvalidBootstrapServiceOptionError",
   "LoginSleepError",
   "LoginTimeoutError",
+  "LoginTokenInvalidError",
+  "LoginValidationError",
   "NonInteractiveLoginError",
   "NotLoggedInError",
   "OpenBrowserError",

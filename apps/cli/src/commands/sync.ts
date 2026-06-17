@@ -119,11 +119,13 @@ interface SyncProgramOptions extends SyncOptions {
 
 interface ResolveSyncAuthOptions {
   json: boolean;
+  showStoredLoginSpinner?: boolean | undefined;
 }
 
 type AuthenticatedCliConfig = CliConfig & { token: string };
 
 interface SyncAuth {
+  authSource: "login" | "stored";
   client: TokenmaxxingApiClient;
   config: AuthenticatedCliConfig;
   user: AuthUser;
@@ -501,15 +503,26 @@ function resolveSyncAuth(options: ResolveSyncAuthOptions) {
       baseUrl: authenticatedConfig.apiUrl,
       token: authenticatedConfig.token,
     });
+    const spinner =
+      options.showStoredLoginSpinner === true
+        ? yield* humanSpinner("Checking current login...", options)
+        : undefined;
     const validated = yield* client.me.me().pipe(
       Effect.map((me) => ({ _tag: "valid" as const, user: me.user })),
       Effect.catch((cause) => Effect.succeed({ _tag: "invalid" as const, cause })),
     );
 
     if (validated._tag === "valid") {
-      return { client, config: authenticatedConfig, user: validated.user };
+      yield* Effect.sync(() => spinner?.stop("Validated current login."));
+      return {
+        authSource: "stored" as const,
+        client,
+        config: authenticatedConfig,
+        user: validated.user,
+      };
     }
 
+    yield* Effect.sync(() => spinner?.error("Could not validate current login."));
     if (!isUnauthorizedError(validated.cause)) {
       return yield* Effect.fail(new SyncAuthValidationError({ cause: validated.cause }));
     }
@@ -533,6 +546,7 @@ function loginForSync() {
     const client = yield* clients.make({ baseUrl: login.config.apiUrl, token });
 
     return {
+      authSource: "login" as const,
       client,
       config: { ...login.config, token },
       user: login.user,

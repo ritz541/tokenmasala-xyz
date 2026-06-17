@@ -458,6 +458,33 @@ describe("resolveSyncAuth", () => {
 
     expect(error.value).toBeInstanceOf(SyncAuthValidationError);
   });
+
+  it("can show a loading spinner while validating a stored login", async () => {
+    const originalNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = "";
+    const { layer, state } = makeTestLayer({
+      initialConfig: {
+        apiUrl: "https://api.tokenmaxxing.example",
+        token: "tmx_old",
+        wwwUrl: "https://tokenmaxxing.example",
+      },
+    });
+
+    try {
+      const exit = await Effect.runPromiseExit(
+        resolveSyncAuth({ json: false, showStoredLoginSpinner: true }).pipe(Effect.provide(layer)),
+      );
+
+      expect(exit._tag).toBe("Success");
+      expect(state.logs).toEqual(["Checking current login...", "Validated current login."]);
+    } finally {
+      if (originalNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = originalNoColor;
+      }
+    }
+  });
 });
 
 describe("browserLoginEffect", () => {

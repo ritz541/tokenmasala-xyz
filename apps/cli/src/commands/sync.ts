@@ -2,10 +2,20 @@ import { hostname } from "node:os";
 
 import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
-import type { AuthUser, SourceUsageStatsInput, UsageDayInput } from "@tokenmaxxing/api-contract";
+import type {
+  AuthUser,
+  RawUsageReportInput,
+  SourceUsageStatsInput,
+  UsageDayInput,
+} from "@tokenmaxxing/api-contract";
 
 import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
-import { runCcusageSessionCount, runCcusageSource } from "../ccusage/runner";
+import {
+  dailyCcusageCommand,
+  runCcusageDailyReport,
+  runCcusageSessionReport,
+  sessionCcusageCommand,
+} from "../ccusage/runner";
 import { DEFAULT_SOURCE_NAMES, resolveSources } from "../ccusage/sources";
 import {
   ApiClientService,
@@ -33,8 +43,6 @@ class UnknownSourceError extends Data.TaggedError("UnknownSourceError")<{
     return `error: unknown source${this.names.length > 1 ? "s" : ""}: ${this.names.join(", ")}\nhint: valid sources are ${DEFAULT_SOURCE_NAMES.join(", ")}`;
   }
 }
-
-const CHUNK_SIZE = 1000;
 
 const usd0 = new Intl.NumberFormat("en-US", {
   currency: "USD",
@@ -136,25 +144,39 @@ function syncEffect(options: SyncOptions) {
     const auth = options.dryRun ? undefined : yield* resolveSyncAuth({ json: options.json });
 
     const rows: UsageDayInput[] = [];
+    const rawReports: RawUsageReportInput[] = [];
     const sourceSummaries: Record<string, SyncSourceSummary | null> = {};
     const sourceResults: SyncSourceResult[] = [];
     for (const source of sources) {
       yield* Effect.sync(() => output.log(`Scanning ${source.source}...`));
-      const report = yield* runCcusageSource(source, { since: options.since });
-      if (Option.isNone(report) || report.value.length === 0) {
+      const dailyReport = yield* runCcusageDailyReport(source, { since: options.since });
+      if (Option.isNone(dailyReport) || dailyReport.value.daily.length === 0) {
         sourceSummaries[source.source] = null;
         sourceResults.push({ source: source.source, summary: null });
         continue;
       }
 
-      const sourceRows = aggregateDays(source.source, report.value);
-      const sessionCount = Option.match(
-        yield* runCcusageSessionCount(source, { since: options.since }),
-        {
-          onNone: () => null,
-          onSome: (count) => count,
-        },
-      );
+      const sourceRows = aggregateDays(source.source, dailyReport.value.daily);
+      rawReports.push({
+        command: dailyCcusageCommand(source, { since: options.since }),
+        payload: dailyReport.value,
+        reportKind: "daily",
+        source: source.source,
+      });
+
+      const sessionReport = yield* runCcusageSessionReport(source, { since: options.since });
+      const sessionCount = Option.match(sessionReport, {
+        onNone: () => null,
+        onSome: (report) => report.sessions.length,
+      });
+      if (options.since === undefined && Option.isSome(sessionReport)) {
+        rawReports.push({
+          command: sessionCcusageCommand(source),
+          payload: sessionReport.value,
+          reportKind: "session",
+          source: source.source,
+        });
+      }
       const summary = { ...summarize(sourceRows), sessions: sessionCount };
       sourceSummaries[source.source] = summary;
       sourceResults.push({ source: source.source, summary });
@@ -187,21 +209,16 @@ function syncEffect(options: SyncOptions) {
     if (auth === undefined) {
       return;
     }
-    const sourceStats = options.since === undefined ? sourceStatsForSync(sourceResults) : undefined;
 
-    for (let offset = 0; offset < rows.length; offset += CHUNK_SIZE) {
-      const chunk = rows.slice(offset, offset + CHUNK_SIZE);
-      const response = yield* auth.client.usage
-        .sync({
-          payload: {
-            days: chunk,
-            device,
-            ...(offset === 0 && sourceStats !== undefined ? { sourceStats } : {}),
-          },
-        })
-        .pipe(Effect.mapError((cause) => new SyncPushError({ cause })));
-      upserted += response.upserted;
-    }
+    const response = yield* auth.client.usage
+      .ingest({
+        payload: {
+          device,
+          reports: rawReports,
+        },
+      })
+      .pipe(Effect.mapError((cause) => new SyncPushError({ cause })));
+    upserted = response.upserted;
 
     yield* Effect.sync(() => {
       if (options.json) {

@@ -129,6 +129,31 @@ const SourceUsageStatsInput = Schema.Struct({
 
 type SourceUsageStatsInput = typeof SourceUsageStatsInput.Type;
 
+const UsageRawReportKind = Schema.Literals(["daily", "session"]);
+
+type UsageRawReportKind = typeof UsageRawReportKind.Type;
+
+const RawUsageReportInput = Schema.Struct({
+  command: Schema.Array(Schema.String),
+  payload: Schema.Unknown,
+  reportKind: UsageRawReportKind,
+  source: Schema.String,
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+type RawUsageReportInput = typeof RawUsageReportInput.Type;
+
+const IngestUsageInput = Schema.Struct({
+  device: Schema.Struct({
+    name: Schema.String,
+    platform: Schema.String,
+  }),
+  reports: Schema.Array(RawUsageReportInput),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
 const SyncUsageInput = Schema.Struct({
   days: Schema.Array(UsageDayInput),
   device: Schema.Struct({
@@ -234,6 +259,7 @@ export {
   CliTokenSummary,
   DeviceSummary,
   HealthResponse,
+  IngestUsageInput,
   LeaderboardEntry,
   LeaderboardMetric,
   LeaderboardResponse,
@@ -246,9 +272,11 @@ export {
   ProfileDailyRow,
   ProfileResponse,
   ProfileStats,
+  RawUsageReportInput,
   SourceUsageStatsInput,
   SyncUsageInput,
   SyncUsageResponse,
   UserAccountSummary,
   UsageDayInput,
+  UsageRawReportKind,
 };

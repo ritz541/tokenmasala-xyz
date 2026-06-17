@@ -22,6 +22,7 @@ import {
   CliTokenSummary,
   DeviceSummary,
   HealthResponse,
+  IngestUsageInput,
   LeaderboardMetric,
   LeaderboardResponse,
   LeaderboardWindow,
@@ -113,6 +114,15 @@ class CliLoginGroup extends HttpApiGroup.make("cliLogin")
 
 class UsageGroup extends HttpApiGroup.make("usage")
   .add(
+    HttpApiEndpoint.post("ingest", "/usage/ingest", {
+      payload: IngestUsageInput,
+      success: SyncUsageResponse,
+      error: DeviceMissing,
+    }),
+  )
+  .add(
+    // Legacy structured sync for old CLI clients. New clients send raw ccusage
+    // reports to /usage/ingest and let the API derive structured rows.
     HttpApiEndpoint.post("sync", "/usage/sync", {
       payload: SyncUsageInput,
       success: SyncUsageResponse,

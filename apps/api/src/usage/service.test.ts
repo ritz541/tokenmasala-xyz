@@ -1,4 +1,4 @@
-import { DeviceMissing } from "@tokenmaxxing/api-contract";
+import { DeviceMissing, type RawUsageReportInput } from "@tokenmaxxing/api-contract";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,8 +6,10 @@ import {
   makeUsageService,
   UsageRepository,
   type SyncResult,
+  type StoredRawUsageReport,
   type UsageRepositoryShape,
 } from "./service";
+import { RawUsageStorageError } from "./raw-store";
 
 const user = {
   avatarUrl: null,
@@ -35,6 +37,35 @@ const usageDay = {
 
 const sourceStats = [{ sessionCount: 706, source: "codex" }];
 
+const rawReports: RawUsageReportInput[] = [
+  {
+    command: ["ccusage@^20", "codex", "daily", "--json", "--breakdown", "--mode", "calculate"],
+    payload: {
+      daily: [
+        {
+          costUSD: 12.34,
+          date: "2026-06-15",
+          models: {
+            "GPT-5.5": {
+              inputTokens: 100,
+              outputTokens: 200,
+              totalTokens: 300,
+            },
+          },
+        },
+      ],
+    },
+    reportKind: "daily",
+    source: "codex",
+  },
+  {
+    command: ["ccusage@^20", "codex", "session", "--json", "--mode", "calculate"],
+    payload: { sessions: [{ sessionId: "a" }, { sessionId: "b" }] },
+    reportKind: "session",
+    source: "codex",
+  },
+];
+
 interface TestUsageService {
   syncBatch(
     identity: {
@@ -46,20 +77,39 @@ interface TestUsageService {
     days: readonly (typeof usageDay)[],
     syncSourceStats?: readonly (typeof sourceStats)[number][],
   ): Effect.Effect<SyncResult, DeviceMissing>;
+  ingestRaw(
+    identity: {
+      deviceId: string | null;
+      tokenId: string;
+      user: typeof user;
+    },
+    syncDevice: typeof device,
+    reports: readonly RawUsageReportInput[],
+  ): Effect.Effect<SyncResult, DeviceMissing>;
 }
 
-function makeRepository() {
+interface RepositoryOptions {
+  rawReportsError?: RawUsageStorageError;
+}
+
+function makeRepository(options: RepositoryOptions = {}) {
   const upsertChunk = vi.fn(() => Effect.succeed(undefined));
   const touchDevice = vi.fn(() => Effect.succeed(undefined));
   const upsertSourceStats = vi.fn(() => Effect.succeed(undefined));
+  const upsertRawReports = vi.fn(() =>
+    options.rawReportsError === undefined
+      ? Effect.succeed(undefined)
+      : Effect.fail(options.rawReportsError),
+  );
 
   const repository: UsageRepositoryShape = {
     touchDevice,
     upsertChunk,
+    upsertRawReports,
     upsertSourceStats,
   };
 
-  return { repository, touchDevice, upsertChunk, upsertSourceStats };
+  return { repository, touchDevice, upsertChunk, upsertRawReports, upsertSourceStats };
 }
 
 async function makeService(repository: UsageRepositoryShape) {
@@ -115,6 +165,86 @@ describe("UsageService.syncBatch", () => {
       ),
     ).rejects.toBeInstanceOf(DeviceMissing);
 
+    expect(upsertChunk).not.toHaveBeenCalled();
+    expect(upsertSourceStats).not.toHaveBeenCalled();
+    expect(touchDevice).not.toHaveBeenCalled();
+  });
+});
+
+describe("UsageService.ingestRaw", () => {
+  it("stores raw reports, derives structured rows, and touches the device", async () => {
+    const { repository, touchDevice, upsertChunk, upsertRawReports, upsertSourceStats } =
+      makeRepository();
+    const service = await makeService(repository);
+
+    const result = await Effect.runPromise(
+      service.ingestRaw({ deviceId: "device_123", tokenId: "token_123", user }, device, rawReports),
+    );
+
+    expect(result.received).toBe(2);
+    expect(result.upserted).toBe(1);
+    expect(upsertRawReports).toHaveBeenCalledWith(
+      "user_123",
+      "device_123",
+      expect.arrayContaining([
+        expect.objectContaining<Partial<StoredRawUsageReport>>({
+          ccusageCommand: "ccusage@^20 codex daily --json --breakdown --mode calculate",
+          objectKey: expect.stringMatching(
+            /^users\/user_123\/devices\/device_123\/ccusage\/codex\/daily\/[a-f0-9]+\.json$/,
+          ) as unknown as string,
+          payloadBytes: JSON.stringify(rawReports[0]!.payload).length,
+          payloadJson: JSON.stringify(rawReports[0]!.payload),
+          reportKind: "daily",
+          source: "codex",
+        }),
+        expect.objectContaining<Partial<StoredRawUsageReport>>({
+          ccusageCommand: "ccusage@^20 codex session --json --mode calculate",
+          objectKey: expect.stringMatching(
+            /^users\/user_123\/devices\/device_123\/ccusage\/codex\/session\/[a-f0-9]+\.json$/,
+          ) as unknown as string,
+          payloadBytes: JSON.stringify(rawReports[1]!.payload).length,
+          payloadJson: JSON.stringify(rawReports[1]!.payload),
+          reportKind: "session",
+          source: "codex",
+        }),
+      ]),
+      expect.any(Date),
+    );
+    expect(upsertChunk).toHaveBeenCalledWith(
+      "user_123",
+      "device_123",
+      [usageDay],
+      expect.any(Date),
+    );
+    expect(upsertSourceStats).toHaveBeenCalledWith(
+      "user_123",
+      "device_123",
+      [{ sessionCount: 2, source: "codex" }],
+      expect.any(Date),
+    );
+    expect(touchDevice).toHaveBeenCalledWith("device_123", device, expect.any(Date));
+    expect(upsertRawReports.mock.invocationCallOrder[0]).toBeLessThan(
+      upsertChunk.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("does not write structured rows when raw persistence fails", async () => {
+    const rawReportsError = new RawUsageStorageError({ cause: "r2 down" });
+    const { repository, touchDevice, upsertChunk, upsertRawReports, upsertSourceStats } =
+      makeRepository({ rawReportsError });
+    const service = await makeService(repository);
+
+    await expect(
+      Effect.runPromise(
+        service.ingestRaw(
+          { deviceId: "device_123", tokenId: "token_123", user },
+          device,
+          rawReports,
+        ),
+      ),
+    ).rejects.toBe(rawReportsError);
+
+    expect(upsertRawReports).toHaveBeenCalled();
     expect(upsertChunk).not.toHaveBeenCalled();
     expect(upsertSourceStats).not.toHaveBeenCalled();
     expect(touchDevice).not.toHaveBeenCalled();

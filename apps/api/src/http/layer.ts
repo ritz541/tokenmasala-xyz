@@ -121,6 +121,13 @@ const cliLoginHandlers = HttpApiBuilder.group(TokenmaxxingApi, "cliLogin", (hand
 
 const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) =>
   handlers
+    .handle("ingest", ({ payload }) =>
+      Effect.gen(function* () {
+        const identity = yield* CurrentCliIdentity;
+        const usage = yield* UsageService;
+        return yield* usage.ingestRaw(identity, payload.device, payload.reports);
+      }),
+    )
     .handle("sync", ({ payload }) =>
       Effect.gen(function* () {
         const identity = yield* CurrentCliIdentity;

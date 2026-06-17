@@ -1,4 +1,12 @@
-import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -152,6 +160,37 @@ const usageSourceStats = sqliteTable(
   ],
 );
 
+/**
+ * Raw ccusage reports as received from the CLI. Structured tables are derived
+ * from these rows so parser changes can be backfilled server-side later.
+ */
+const usageRawBatches = sqliteTable(
+  "usage_raw_batches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    deviceId: text("device_id").notNull(),
+    source: text("source").notNull(),
+    reportKind: text("report_kind", { enum: ["daily", "session"] }).notNull(),
+    ccusageCommand: text("ccusage_command").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    objectKey: text("object_key").notNull(),
+    payloadBytes: integer("payload_bytes").notNull(),
+    capturedAt: integer("captured_at", { mode: "timestamp_ms" }).notNull(),
+    processedAt: integer("processed_at", { mode: "timestamp_ms" }),
+    parserVersion: text("parser_version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("usage_raw_batches_device_payload_hash_unique").on(
+      table.deviceId,
+      table.payloadHash,
+    ),
+    index("usage_raw_batches_user_idx").on(table.userId),
+    index("usage_raw_batches_device_idx").on(table.deviceId),
+    index("usage_raw_batches_source_idx").on(table.source),
+  ],
+);
+
 type User = typeof users.$inferSelect;
 type NewUser = typeof users.$inferInsert;
 type UserAccount = typeof userAccounts.$inferSelect;
@@ -168,6 +207,8 @@ type UsageDay = typeof usageDays.$inferSelect;
 type NewUsageDay = typeof usageDays.$inferInsert;
 type UsageSourceStat = typeof usageSourceStats.$inferSelect;
 type NewUsageSourceStat = typeof usageSourceStats.$inferInsert;
+type UsageRawBatch = typeof usageRawBatches.$inferSelect;
+type NewUsageRawBatch = typeof usageRawBatches.$inferInsert;
 
 export {
   cliLoginRequests,
@@ -175,6 +216,7 @@ export {
   devices,
   sessions,
   usageDays,
+  usageRawBatches,
   usageSourceStats,
   userAccounts,
   users,
@@ -190,10 +232,12 @@ export type {
   NewSession,
   NewUserAccount,
   NewUsageDay,
+  NewUsageRawBatch,
   NewUsageSourceStat,
   NewUser,
   Session,
   UsageDay,
+  UsageRawBatch,
   UsageSourceStat,
   UserAccount,
   User,

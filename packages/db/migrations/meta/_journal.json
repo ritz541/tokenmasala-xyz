@@ -22,6 +22,13 @@
       "when": 1781589987409,
       "tag": "0002_smooth_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781677818231,
+      "tag": "0003_even_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

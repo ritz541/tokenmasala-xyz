@@ -3,14 +3,23 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { DeviceMissing } from "@tokenmaxxing/api-contract";
-import type { CliIdentity, SourceUsageStatsInput, UsageDayInput } from "@tokenmaxxing/api-contract";
+import type {
+  CliIdentity,
+  RawUsageReportInput,
+  SourceUsageStatsInput,
+  UsageDayInput,
+} from "@tokenmaxxing/api-contract";
 
+import { sha256Hex } from "../auth/crypto";
 import type { DatabaseError } from "../database";
+import { parseRawUsageReports, PARSER_VERSION } from "./ccusage";
+import type { RawUsageStorageError } from "./raw-store";
 
 /**
- * Usage ingestion: idempotent upserts keyed (deviceId, date, source, model),
- * last write wins. The deviceId always comes from the presenting token —
- * payloads cannot write into another device's history.
+ * Usage ingestion: raw reports are stored first, then current structured rows
+ * are derived and upserted idempotently by (deviceId, date, source, model).
+ * The deviceId always comes from the presenting token — payloads cannot write
+ * into another device's history.
  */
 
 interface SyncResult {
@@ -19,7 +28,25 @@ interface SyncResult {
   upserted: number;
 }
 
+interface StoredRawUsageReport {
+  ccusageCommand: string;
+  id: string;
+  objectKey: string;
+  parserVersion: string;
+  payloadBytes: number;
+  payloadHash: string;
+  payloadJson: string;
+  processedAt: Date;
+  reportKind: "daily" | "session";
+  source: string;
+}
+
 interface UsageServiceShape {
+  ingestRaw(
+    identity: typeof CliIdentity.Type,
+    device: { name: string; platform: string },
+    reports: readonly RawUsageReportInput[],
+  ): Effect.Effect<SyncResult, DeviceMissing, any>;
   syncBatch(
     identity: typeof CliIdentity.Type,
     device: { name: string; platform: string },
@@ -47,6 +74,12 @@ interface UsageRepositoryShape {
     stats: readonly SourceUsageStatsInput[],
     syncedAt: Date,
   ): Effect.Effect<void, DatabaseError, any>;
+  upsertRawReports(
+    userId: string,
+    deviceId: string,
+    reports: readonly StoredRawUsageReport[],
+    capturedAt: Date,
+  ): Effect.Effect<void, DatabaseError | RawUsageStorageError, any>;
 }
 
 class UsageService extends Context.Service<UsageService, UsageServiceShape>()(
@@ -63,36 +96,50 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
   const repository = yield* UsageRepository;
 
   return UsageService.of({
+    ingestRaw: Effect.fn("UsageService.ingestRaw")(function* (identity, device, reports) {
+      const deviceId = yield* requireDeviceId(identity);
+      const syncedAt = new Date();
+      const rawReports = yield* prepareRawReports(identity.user.id, deviceId, reports, syncedAt);
+
+      yield* repository
+        .upsertRawReports(identity.user.id, deviceId, rawReports, syncedAt)
+        .pipe(Effect.orDie);
+
+      const parsed = yield* parseRawUsageReports(reports);
+      yield* writeStructuredUsage(
+        repository,
+        identity.user.id,
+        deviceId,
+        device,
+        parsed.rows,
+        parsed.sourceStats,
+        syncedAt,
+      );
+
+      return {
+        received: reports.length,
+        syncedAt: syncedAt.toISOString(),
+        upserted: parsed.rows.length,
+      };
+    }),
     syncBatch: Effect.fn("UsageService.syncBatch")(function* (
       identity,
       device,
       days,
       sourceStats = [],
     ) {
-      const deviceId = identity.deviceId;
-      if (deviceId === null) {
-        return yield* Effect.fail(
-          new DeviceMissing({
-            message: "This token has no device; run `tokenmaxxing login` to mint a new one.",
-          }),
-        );
-      }
-
+      const deviceId = yield* requireDeviceId(identity);
       const syncedAt = new Date();
-      for (let offset = 0; offset < days.length; offset += UPSERT_CHUNK_SIZE) {
-        yield* repository
-          .upsertChunk(
-            identity.user.id,
-            deviceId,
-            days.slice(offset, offset + UPSERT_CHUNK_SIZE),
-            syncedAt,
-          )
-          .pipe(Effect.orDie);
-      }
-      yield* repository
-        .upsertSourceStats(identity.user.id, deviceId, sourceStats, syncedAt)
-        .pipe(Effect.orDie);
-      yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
+
+      yield* writeStructuredUsage(
+        repository,
+        identity.user.id,
+        deviceId,
+        device,
+        days,
+        sourceStats,
+        syncedAt,
+      );
 
       return {
         received: days.length,
@@ -103,8 +150,102 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
   });
 });
 
+function requireDeviceId(identity: typeof CliIdentity.Type): Effect.Effect<string, DeviceMissing> {
+  const deviceId = identity.deviceId;
+  if (deviceId !== null) {
+    return Effect.succeed(deviceId);
+  }
+
+  return Effect.fail(
+    new DeviceMissing({
+      message: "This token has no device; run `tokenmaxxing login` to mint a new one.",
+    }),
+  );
+}
+
+function prepareRawReports(
+  userId: string,
+  deviceId: string,
+  reports: readonly RawUsageReportInput[],
+  processedAt: Date,
+): Effect.Effect<StoredRawUsageReport[]> {
+  return Effect.forEach(reports, (report) =>
+    Effect.gen(function* () {
+      const payloadJson = JSON.stringify(report.payload) ?? "null";
+      const ccusageCommand = report.command.join(" ");
+      const payloadHash = yield* sha256Hex(
+        `${report.source}\n${report.reportKind}\n${ccusageCommand}\n${payloadJson}`,
+      );
+
+      return {
+        ccusageCommand,
+        id: `${deviceId}:${payloadHash}`,
+        objectKey: rawReportObjectKey({
+          deviceId,
+          payloadHash,
+          reportKind: report.reportKind,
+          source: report.source,
+          userId,
+        }),
+        parserVersion: PARSER_VERSION,
+        payloadBytes: textEncoder.encode(payloadJson).byteLength,
+        payloadHash,
+        payloadJson,
+        processedAt,
+        reportKind: report.reportKind,
+        source: report.source,
+      };
+    }),
+  );
+}
+
+function rawReportObjectKey(input: {
+  deviceId: string;
+  payloadHash: string;
+  reportKind: "daily" | "session";
+  source: string;
+  userId: string;
+}): string {
+  return [
+    "users",
+    encodeKeyPart(input.userId),
+    "devices",
+    encodeKeyPart(input.deviceId),
+    "ccusage",
+    encodeKeyPart(input.source),
+    input.reportKind,
+    `${input.payloadHash}.json`,
+  ].join("/");
+}
+
+function encodeKeyPart(value: string): string {
+  return encodeURIComponent(value);
+}
+
+function writeStructuredUsage(
+  repository: UsageRepositoryShape,
+  userId: string,
+  deviceId: string,
+  device: { name: string; platform: string },
+  days: readonly UsageDayInput[],
+  sourceStats: readonly SourceUsageStatsInput[],
+  syncedAt: Date,
+) {
+  return Effect.gen(function* () {
+    for (let offset = 0; offset < days.length; offset += UPSERT_CHUNK_SIZE) {
+      yield* repository
+        .upsertChunk(userId, deviceId, days.slice(offset, offset + UPSERT_CHUNK_SIZE), syncedAt)
+        .pipe(Effect.orDie);
+    }
+    yield* repository.upsertSourceStats(userId, deviceId, sourceStats, syncedAt).pipe(Effect.orDie);
+    yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
+  });
+}
+
+const textEncoder = new TextEncoder();
+
 const UsageServiceLive = Layer.effect(UsageService, makeUsageService());
 
 export { makeUsageService, UsageRepository, UsageService, UsageServiceLive };
 
-export type { SyncResult, UsageRepositoryShape, UsageServiceShape };
+export type { StoredRawUsageReport, SyncResult, UsageRepositoryShape, UsageServiceShape };

@@ -82,6 +82,12 @@ function makeTestLayer(options: TestLayerOptions) {
                 : Effect.fail(options.meError),
           },
           usage: {
+            ingest: () =>
+              Effect.succeed({
+                received: 0,
+                syncedAt: "2026-06-15T00:00:00.000Z",
+                upserted: 0,
+              }),
             sync: () => Effect.succeed({ upserted: 0 }),
           },
         } as unknown as TokenmaxxingApiClient);

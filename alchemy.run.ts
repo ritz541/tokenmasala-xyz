@@ -2,6 +2,7 @@ import { localState, Stack } from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 
+import { Bucket } from "./apps/api/src/cloudflare/bucket";
 import { Database } from "./apps/api/src/cloudflare/database";
 import ApiWorker from "./apps/api/src/worker";
 
@@ -15,6 +16,7 @@ const stack = Stack(
   },
   Effect.gen(function* () {
     const api = yield* ApiWorker;
+    const bucket = yield* Bucket;
     const db = yield* Database;
 
     const www = yield* Cloudflare.Vite("www", {
@@ -38,6 +40,7 @@ const stack = Stack(
 
     return {
       api,
+      bucket,
       db,
       www,
     };

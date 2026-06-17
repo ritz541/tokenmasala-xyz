@@ -1,13 +1,15 @@
-import { devices, usageDays, usageSourceStats } from "@tokenmaxxing/db";
+import { devices, usageDays, usageRawBatches, usageSourceStats } from "@tokenmaxxing/db";
 import { eq } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { Drizzle } from "../database";
+import { RawUsageObjectStore } from "./raw-store";
 import { UsageRepository } from "./service";
 
 const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
   const database = yield* Drizzle;
+  const rawStore = yield* RawUsageObjectStore;
 
   return UsageRepository.of({
     upsertChunk: (userId, deviceId, rows, syncedAt) =>
@@ -85,6 +87,60 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
                   userId,
                   sessionCount: stat.sessionCount,
                   syncedAt,
+                },
+              }),
+          );
+          const [first, ...rest] = statements;
+
+          return db.batch([first!, ...rest]);
+        });
+      }),
+    upsertRawReports: (userId, deviceId, reports, capturedAt) =>
+      Effect.gen(function* () {
+        if (reports.length === 0) {
+          return;
+        }
+
+        for (const report of reports) {
+          yield* rawStore.putObject({
+            key: report.objectKey,
+            payloadBytes: report.payloadBytes,
+            payloadHash: report.payloadHash,
+            payloadJson: report.payloadJson,
+          });
+        }
+
+        yield* database.use((db) => {
+          const statements = reports.map((report) =>
+            db
+              .insert(usageRawBatches)
+              .values({
+                id: report.id,
+                userId,
+                deviceId,
+                source: report.source,
+                reportKind: report.reportKind,
+                ccusageCommand: report.ccusageCommand,
+                payloadHash: report.payloadHash,
+                objectKey: report.objectKey,
+                payloadBytes: report.payloadBytes,
+                capturedAt,
+                processedAt: report.processedAt,
+                parserVersion: report.parserVersion,
+              })
+              .onConflictDoUpdate({
+                target: usageRawBatches.id,
+                set: {
+                  userId,
+                  source: report.source,
+                  reportKind: report.reportKind,
+                  ccusageCommand: report.ccusageCommand,
+                  payloadHash: report.payloadHash,
+                  objectKey: report.objectKey,
+                  payloadBytes: report.payloadBytes,
+                  capturedAt,
+                  processedAt: report.processedAt,
+                  parserVersion: report.parserVersion,
                 },
               }),
           );

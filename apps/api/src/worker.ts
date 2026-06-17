@@ -6,6 +6,7 @@ import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 
 import { AuthRepositoryLive } from "./auth/d1";
 import { AuthService, makeAuthService } from "./auth/service";
+import { Bucket } from "./cloudflare/bucket";
 import { Database } from "./cloudflare/database";
 import { CliLoginRepositoryLive } from "./clilogin/d1";
 import { CliLoginService, makeCliLoginService } from "./clilogin/service";
@@ -22,6 +23,7 @@ import { CliAuthLive } from "./http/middleware/cli-auth";
 import { makeApiHttpEffect } from "./http/layer";
 import { makeTokensService, TokensService } from "./tokens/service";
 import { TokensRepositoryLive } from "./tokens/d1";
+import { RawUsageObjectStore } from "./usage/raw-store";
 import { makeUsageService, UsageService } from "./usage/service";
 import { UsageRepositoryLive } from "./usage/d1";
 
@@ -45,6 +47,7 @@ const ApiWorker = Cloudflare.Worker(
     },
   },
   Effect.gen(function* () {
+    const bucket = yield* Cloudflare.R2Bucket.bind(Bucket);
     const connection = yield* Cloudflare.D1Connection.bind(Database);
 
     // Config reads stay in this outer Effect so alchemy's deploy-time
@@ -52,6 +55,10 @@ const ApiWorker = Cloudflare.Worker(
     const config = yield* AppConfig.fromEnv;
     const appConfigLayer = Layer.succeed(AppConfig, config);
     const drizzleLayer = Drizzle.layer(connection);
+    const rawUsageObjectStoreLayer = RawUsageObjectStore.layer(bucket);
+    const usageRepositoryLayer = UsageRepositoryLive.pipe(
+      Layer.provide(Layer.mergeAll(drizzleLayer, rawUsageObjectStoreLayer)),
+    );
 
     const auth = yield* makeAuthService().pipe(
       Effect.provide(AuthRepositoryLive.pipe(Layer.provide(drizzleLayer))),
@@ -70,9 +77,7 @@ const ApiWorker = Cloudflare.Worker(
       Effect.provide(FetchHttpClient.layer),
       Effect.provideService(AppConfig, config),
     );
-    const usage = yield* makeUsageService().pipe(
-      Effect.provide(UsageRepositoryLive.pipe(Layer.provide(drizzleLayer))),
-    );
+    const usage = yield* makeUsageService().pipe(Effect.provide(usageRepositoryLayer));
     const leaderboard = yield* makeLeaderboardService().pipe(
       Effect.provide(LeaderboardRepositoryLive.pipe(Layer.provide(drizzleLayer))),
     );
@@ -108,7 +113,14 @@ const ApiWorker = Cloudflare.Worker(
         usageServiceLayer: Layer.succeed(UsageService, usage),
       }).pipe(Effect.map((apiHttpEffect) => apiHttpEffect.pipe(Effect.provide(rawRouteServices)))),
     };
-  }).pipe(Effect.provide([Cloudflare.D1ConnectionLive, Cloudflare.D1ConnectionPolicyLive])),
+  }).pipe(
+    Effect.provide([
+      Cloudflare.D1ConnectionLive,
+      Cloudflare.D1ConnectionPolicyLive,
+      Cloudflare.R2BucketBindingLive,
+      Cloudflare.R2BucketBindingPolicyLive,
+    ]),
+  ),
 );
 
 export default ApiWorker;

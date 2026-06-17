@@ -1,19 +1,21 @@
 import { useMemo, useState } from "react";
 
-import { formatDay, formatUsd, linearScale, niceMax } from "./scale";
+import { formatDay, linearScale, niceMax } from "./scale";
 import { anchorBesideBar, ChartTooltip } from "./tooltip";
 
 /**
- * Daily spend, one bar per day stacked by model family — the centerpiece
- * chart of the profile dashboard. Hover reveals the per-family breakdown.
+ * Daily metric, one bar per day stacked by model family. Hover reveals the
+ * per-family breakdown.
  */
 
 interface StackedDay {
   date: string;
-  /** family -> spend, families pre-sorted by overall rank. */
+  /** family -> metric value, families pre-sorted by overall rank. */
   segments: { color: string; family: string; value: number }[];
   total: number;
 }
+
+type ValueFormatter = (value: number) => string;
 
 const WIDTH = 940;
 const HEIGHT = 220;
@@ -21,11 +23,15 @@ const AXIS = 44;
 const TICKS = 4;
 
 function StackedBars({
+  ariaLabel,
   days,
   highlight = null,
+  valueFormatter,
 }: {
+  ariaLabel: string;
   days: StackedDay[];
   highlight?: string | null;
+  valueFormatter: ValueFormatter;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -58,7 +64,7 @@ function StackedBars({
   return (
     <div className="relative">
       <svg
-        aria-label={`Daily spend by model family across ${days.length} days`}
+        aria-label={ariaLabel}
         className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
@@ -84,7 +90,7 @@ function StackedBars({
                 x={AXIS - 6}
                 y={yPos + 3}
               >
-                {formatUsd(value)}
+                {valueFormatter(value)}
               </text>
             </g>
           );
@@ -141,10 +147,10 @@ function StackedBars({
             .map((segment) => ({
               color: segment.color,
               label: segment.family,
-              value: formatUsd(segment.value),
+              value: valueFormatter(segment.value),
             }))}
           style={{ left: anchorBesideBar(activePosition.center, activePosition.edge), top: "50%" }}
-          subtitle={`${formatUsd(active.total)} total`}
+          subtitle={`${valueFormatter(active.total)} total`}
           title={formatDay(active.date)}
         />
       ) : null}
@@ -155,7 +161,7 @@ function StackedBars({
 interface LegendEntry {
   color: string;
   family: string;
-  /** Share of charted spend, 0–100. */
+  /** Share of charted metric, 0–100. */
   percent: number;
 }
 
@@ -192,4 +198,4 @@ function Legend({
 
 export { Legend, StackedBars };
 
-export type { LegendEntry, StackedDay };
+export type { LegendEntry, StackedDay, ValueFormatter };

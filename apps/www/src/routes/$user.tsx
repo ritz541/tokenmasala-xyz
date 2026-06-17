@@ -92,7 +92,8 @@ interface DashboardStats {
 
 function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: DashboardStats }) {
   const derived = useMemo(() => deriveCharts(rows), [rows]);
-  const [hoveredFamily, setHoveredFamily] = useState<string | null>(null);
+  const [hoveredSpendFamily, setHoveredSpendFamily] = useState<string | null>(null);
+  const [hoveredTokensFamily, setHoveredTokensFamily] = useState<string | null>(null);
 
   return (
     <div className="-mx-4 grid grid-cols-1 gap-px border-y border-border bg-border">
@@ -114,9 +115,29 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         <h2 className="font-medium">Daily Spend</h2>
         <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center">
           <div className="min-w-0 flex-1">
-            <StackedBars days={derived.stackedDays} highlight={hoveredFamily} />
+            <StackedBars
+              ariaLabel={`Daily spend by model family across ${derived.spendDays.length} days`}
+              days={derived.spendDays}
+              highlight={hoveredSpendFamily}
+              valueFormatter={formatUsd}
+            />
           </div>
-          <Legend entries={derived.legend} onHover={setHoveredFamily} />
+          <Legend entries={derived.spendLegend} onHover={setHoveredSpendFamily} />
+        </div>
+      </section>
+
+      <section className="bg-card p-5">
+        <h2 className="font-medium">Daily Tokens</h2>
+        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center">
+          <div className="min-w-0 flex-1">
+            <StackedBars
+              ariaLabel={`Daily tokens by model family across ${derived.tokenDays.length} days`}
+              days={derived.tokenDays}
+              highlight={hoveredTokensFamily}
+              valueFormatter={formatTokens}
+            />
+          </div>
+          <Legend entries={derived.tokenLegend} onHover={setHoveredTokensFamily} />
         </div>
       </section>
 
@@ -158,7 +179,9 @@ function deriveCharts(rows: readonly DailyRow[]) {
 
   // Per-day totals and per-day family segments.
   const spendByDate = new Map<string, number>();
-  const familiesByDate = new Map<string, Map<string, number>>();
+  const tokenByDate = new Map<string, number>();
+  const spendFamiliesByDate = new Map<string, Map<string, number>>();
+  const tokenFamiliesByDate = new Map<string, Map<string, number>>();
   const spendByMonth = new Map<string, number>();
   const familiesByMonth = new Map<string, Map<string, number>>();
   // Spend bucketed by weekday, Monday-first: [0]=Mon … [6]=Sun.
@@ -167,13 +190,17 @@ function deriveCharts(rows: readonly DailyRow[]) {
   for (const row of rows) {
     outputTokens += row.outputTokens;
     spendByDate.set(row.date, (spendByDate.get(row.date) ?? 0) + row.costUsd);
+    tokenByDate.set(row.date, (tokenByDate.get(row.date) ?? 0) + row.totalTokens);
     // getUTCDay() is Sunday-first; shift to Monday-first. UTC avoids tz drift.
     const weekday = (new Date(`${row.date}T00:00:00Z`).getUTCDay() + 6) % 7;
     spendByWeekday[weekday] = (spendByWeekday[weekday] ?? 0) + row.costUsd;
     const family = modelFamily(row.key);
-    const families = familiesByDate.get(row.date) ?? new Map<string, number>();
-    families.set(family, (families.get(family) ?? 0) + row.costUsd);
-    familiesByDate.set(row.date, families);
+    const spendFamilies = spendFamiliesByDate.get(row.date) ?? new Map<string, number>();
+    spendFamilies.set(family, (spendFamilies.get(family) ?? 0) + row.costUsd);
+    spendFamiliesByDate.set(row.date, spendFamilies);
+    const tokenFamilies = tokenFamiliesByDate.get(row.date) ?? new Map<string, number>();
+    tokenFamilies.set(family, (tokenFamilies.get(family) ?? 0) + row.totalTokens);
+    tokenFamiliesByDate.set(row.date, tokenFamilies);
 
     const month = row.date.slice(0, 7);
     spendByMonth.set(month, (spendByMonth.get(month) ?? 0) + row.costUsd);
@@ -195,7 +222,7 @@ function deriveCharts(rows: readonly DailyRow[]) {
 
   const familyOrder = [...colors.keys()];
   const segmentsByDate = new Map(
-    [...familiesByDate.entries()].map(([date, families]) => [
+    [...spendFamiliesByDate.entries()].map(([date, families]) => [
       date,
       familyOrder.map((family) => ({
         color: colors.get(family) ?? "#9ca3af",
@@ -205,39 +232,21 @@ function deriveCharts(rows: readonly DailyRow[]) {
     ]),
   );
 
-  const stackedDays: StackedDay[] = allDays.slice(-DAILY_WINDOW).map((date) => {
-    const families = familiesByDate.get(date);
-    return {
-      date,
-      segments: familyOrder.map((family) => ({
-        color: colors.get(family) ?? "#9ca3af",
-        family,
-        value: families?.get(family) ?? 0,
-      })),
-      total: spendByDate.get(date) ?? 0,
-    };
-  });
-
-  // Ranked legend: each family's share of spend across the charted window so the
-  // percentages line up with the bars actually shown.
-  const spendByFamily = new Map<string, number>();
-  let legendTotal = 0;
-  for (const day of stackedDays) {
-    for (const segment of day.segments) {
-      spendByFamily.set(segment.family, (spendByFamily.get(segment.family) ?? 0) + segment.value);
-      legendTotal += segment.value;
-    }
-  }
-  const legend = familyOrder
-    .map((family) => ({
-      color: colors.get(family) ?? "#9ca3af",
-      family,
-      percent: legendTotal > 0 ? ((spendByFamily.get(family) ?? 0) / legendTotal) * 100 : 0,
-      spend: spendByFamily.get(family) ?? 0,
-    }))
-    .filter((entry) => entry.spend > 0)
-    .sort((a, b) => b.spend - a.spend)
-    .map(({ color, family, percent }) => ({ color, family, percent }));
+  const chartedDays = allDays.slice(-DAILY_WINDOW);
+  const spendDays = buildStackedDays(
+    chartedDays,
+    familyOrder,
+    colors,
+    spendFamiliesByDate,
+    spendByDate,
+  );
+  const tokenDays = buildStackedDays(
+    chartedDays,
+    familyOrder,
+    colors,
+    tokenFamiliesByDate,
+    tokenByDate,
+  );
 
   const months =
     last !== null
@@ -255,18 +264,63 @@ function deriveCharts(rows: readonly DailyRow[]) {
   return {
     accent,
     heatmap: heatmapRange,
-    legend,
     months,
     outputTokens,
     segmentsByDate,
     spendByDate,
+    spendDays,
+    spendLegend: buildLegend(spendDays, colors),
     spendByWeekday,
-    stackedDays,
+    tokenDays,
+    tokenLegend: buildLegend(tokenDays, colors),
   };
+}
+
+function buildStackedDays(
+  days: readonly string[],
+  familyOrder: readonly string[],
+  colors: ReadonlyMap<string, string>,
+  familiesByDate: ReadonlyMap<string, ReadonlyMap<string, number>>,
+  totalsByDate: ReadonlyMap<string, number>,
+): StackedDay[] {
+  return days.map((date) => {
+    const families = familiesByDate.get(date);
+    return {
+      date,
+      segments: familyOrder.map((family) => ({
+        color: colors.get(family) ?? "#9ca3af",
+        family,
+        value: families?.get(family) ?? 0,
+      })),
+      total: totalsByDate.get(date) ?? 0,
+    };
+  });
+}
+
+function buildLegend(days: readonly StackedDay[], colors: ReadonlyMap<string, string>) {
+  const valueByFamily = new Map<string, number>();
+  let total = 0;
+  for (const day of days) {
+    for (const segment of day.segments) {
+      valueByFamily.set(segment.family, (valueByFamily.get(segment.family) ?? 0) + segment.value);
+      total += segment.value;
+    }
+  }
+
+  return [...colors.keys()]
+    .map((family) => ({
+      color: colors.get(family) ?? "#9ca3af",
+      family,
+      percent: total > 0 ? ((valueByFamily.get(family) ?? 0) / total) * 100 : 0,
+      value: valueByFamily.get(family) ?? 0,
+    }))
+    .filter((entry) => entry.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map(({ color, family, percent }) => ({ color, family, percent }));
 }
 
 function enumerateCalendarYearMonths(year: string): string[] {
   return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`);
 }
 
-export { Route };
+export { deriveCharts, Route };

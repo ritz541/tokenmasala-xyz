@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ProfileDailyRow } from "@tokenmaxxing/api-contract";
@@ -92,6 +92,7 @@ interface DashboardStats {
 
 function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: DashboardStats }) {
   const derived = useMemo(() => deriveCharts(rows), [rows]);
+  const [hoveredFamily, setHoveredFamily] = useState<string | null>(null);
 
   return (
     <div className="-mx-4 grid grid-cols-1 gap-px border-y border-border bg-border">
@@ -111,11 +112,11 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
 
       <section className="bg-card p-5">
         <h2 className="font-medium">Daily Spend</h2>
-        <div className="mt-3">
-          <Legend entries={derived.legend} />
-        </div>
-        <div className="mt-4">
-          <StackedBars days={derived.stackedDays} />
+        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center">
+          <div className="min-w-0 flex-1">
+            <StackedBars days={derived.stackedDays} highlight={hoveredFamily} />
+          </div>
+          <Legend entries={derived.legend} onHover={setHoveredFamily} />
         </div>
       </section>
 
@@ -217,6 +218,27 @@ function deriveCharts(rows: readonly DailyRow[]) {
     };
   });
 
+  // Ranked legend: each family's share of spend across the charted window so the
+  // percentages line up with the bars actually shown.
+  const spendByFamily = new Map<string, number>();
+  let legendTotal = 0;
+  for (const day of stackedDays) {
+    for (const segment of day.segments) {
+      spendByFamily.set(segment.family, (spendByFamily.get(segment.family) ?? 0) + segment.value);
+      legendTotal += segment.value;
+    }
+  }
+  const legend = familyOrder
+    .map((family) => ({
+      color: colors.get(family) ?? "#9ca3af",
+      family,
+      percent: legendTotal > 0 ? ((spendByFamily.get(family) ?? 0) / legendTotal) * 100 : 0,
+      spend: spendByFamily.get(family) ?? 0,
+    }))
+    .filter((entry) => entry.spend > 0)
+    .sort((a, b) => b.spend - a.spend)
+    .map(({ color, family, percent }) => ({ color, family, percent }));
+
   const months =
     last !== null
       ? enumerateCalendarYearMonths(last.slice(0, 4)).map((month) => ({
@@ -233,7 +255,7 @@ function deriveCharts(rows: readonly DailyRow[]) {
   return {
     accent,
     heatmap: heatmapRange,
-    legend: familyOrder.map((family) => ({ color: colors.get(family) ?? "#9ca3af", family })),
+    legend,
     months,
     outputTokens,
     segmentsByDate,

@@ -20,7 +20,13 @@ const HEIGHT = 220;
 const AXIS = 44;
 const TICKS = 4;
 
-function StackedBars({ days }: { days: StackedDay[] }) {
+function StackedBars({
+  days,
+  highlight = null,
+}: {
+  days: StackedDay[];
+  highlight?: string | null;
+}) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const max = useMemo(() => niceMax(Math.max(...days.map((day) => day.total), 0)), [days]);
@@ -94,12 +100,14 @@ function StackedBars({ days }: { days: StackedDay[] }) {
               {day.segments.map((segment) => {
                 const height = y(segment.value);
                 cursor -= height;
+                const dimmedByFamily = highlight !== null && segment.family !== highlight;
+                const dimmedByDay = hovered !== null && hovered !== index;
                 return (
                   <rect
                     fill={segment.color}
                     height={Math.max(height, 0)}
                     key={segment.family}
-                    opacity={hovered === null || hovered === index ? 1 : 0.45}
+                    opacity={dimmedByFamily ? 0.12 : dimmedByDay ? 0.45 : 1}
                     width={barWidth}
                     x={x}
                     y={cursor}
@@ -144,19 +152,44 @@ function StackedBars({ days }: { days: StackedDay[] }) {
   );
 }
 
-function Legend({ entries }: { entries: { color: string; family: string }[] }) {
+interface LegendEntry {
+  color: string;
+  family: string;
+  /** Share of charted spend, 0–100. */
+  percent: number;
+}
+
+/** Ranked, vertical legend that sits beside the chart: rank · dot · family · share. */
+function Legend({
+  entries,
+  onHover,
+}: {
+  entries: LegendEntry[];
+  onHover?: (family: string | null) => void;
+}) {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1">
-      {entries.map((entry) => (
-        <li className="flex items-center gap-1.5 text-xs text-muted-foreground" key={entry.family}>
-          <span className="size-2" style={{ background: entry.color }} />
-          {entry.family}
+    <ol
+      className="flex w-full select-none flex-col gap-1 lg:w-56 lg:shrink-0"
+      onPointerLeave={() => onHover?.(null)}
+    >
+      {entries.map((entry, index) => (
+        <li
+          className="flex items-center gap-3 rounded px-2 py-1 text-sm hover:bg-muted"
+          key={entry.family}
+          onPointerEnter={() => onHover?.(entry.family)}
+        >
+          <span className="w-5 shrink-0 text-right tabular-nums text-muted-foreground">
+            {index + 1}
+          </span>
+          <span className="size-2.5 shrink-0 rounded-full" style={{ background: entry.color }} />
+          <span className="flex-1 truncate">{entry.family}</span>
+          <span className="tabular-nums text-muted-foreground">{entry.percent.toFixed(1)}%</span>
         </li>
       ))}
-    </ul>
+    </ol>
   );
 }
 
 export { Legend, StackedBars };
 
-export type { StackedDay };
+export type { LegendEntry, StackedDay };

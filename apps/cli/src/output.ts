@@ -57,6 +57,24 @@ function humanOutro(message: string, options: HumanOutputOptions = {}) {
   });
 }
 
+function humanFrame<A, E, R>(
+  title: string,
+  options: HumanOutputOptions,
+  effect: Effect.Effect<A, E, R>,
+) {
+  return Effect.gen(function* () {
+    if (!shouldWriteHumanOutput(options) || !shouldUseClack()) {
+      return yield* effect;
+    }
+
+    yield* humanIntro(title, options);
+    const result = yield* effect;
+    yield* humanOutro("Done", options);
+
+    return result;
+  });
+}
+
 function humanLog(level: HumanLogLevel, message: string, options: HumanOutputOptions = {}) {
   return Effect.gen(function* () {
     if (!shouldWriteHumanOutput(options)) {
@@ -142,6 +160,7 @@ function shouldUseClack(): boolean {
 }
 
 export {
+  humanFrame,
   humanIntro,
   humanLog,
   humanNote,

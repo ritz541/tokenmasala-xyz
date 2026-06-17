@@ -26,7 +26,7 @@ import {
   TerminalService,
   type TokenmaxxingApiClient,
 } from "../services";
-import { humanLog, humanSpinner, writeJson } from "../output";
+import { humanFrame, humanLog, humanSpinner, writeJson } from "../output";
 import { browserLoginEffect } from "./login";
 import { NotLoggedInError } from "./whoami";
 
@@ -145,32 +145,36 @@ interface TableCell {
 }
 
 function syncEffect(options: SyncOptions) {
-  return Effect.gen(function* () {
-    const console = yield* Effect.service(ConsoleService);
-    const result = yield* syncProgram(options);
+  return humanFrame(
+    "Sync",
+    options,
+    Effect.gen(function* () {
+      const console = yield* Effect.service(ConsoleService);
+      const result = yield* syncProgram(options);
 
-    if (options.json) {
-      yield* writeJson(syncJsonPayload(result));
-      return;
-    }
-
-    yield* Effect.sync(() => {
-      console.log("");
-      console.log(renderSyncTable(result.sourceResults));
-      console.log("");
-      if (result.rows === 0) {
-        console.log("Nothing to sync.");
-      } else if (result.dryRun) {
-        console.log("Dry run complete. Nothing pushed.");
-      } else if (result.profileUrl !== undefined) {
-        console.log(renderSyncSuccess(result.profileUrl));
+      if (options.json) {
+        yield* writeJson(syncJsonPayload(result));
+        return;
       }
-    });
 
-    if (!result.dryRun && result.rows > 0 && result.profileUrl !== undefined) {
-      yield* openProfileIfAvailable(result.profileUrl);
-    }
-  });
+      yield* Effect.sync(() => {
+        console.log("");
+        console.log(renderSyncTable(result.sourceResults));
+        console.log("");
+        if (result.rows === 0) {
+          console.log("Nothing to sync.");
+        } else if (result.dryRun) {
+          console.log("Dry run complete. Nothing pushed.");
+        } else if (result.profileUrl !== undefined) {
+          console.log(renderSyncSuccess(result.profileUrl));
+        }
+      });
+
+      if (!result.dryRun && result.rows > 0 && result.profileUrl !== undefined) {
+        yield* openProfileIfAvailable(result.profileUrl);
+      }
+    }),
+  );
 }
 
 function syncProgram(options: SyncProgramOptions) {

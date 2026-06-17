@@ -10,7 +10,7 @@ import { Command, Flag } from "effect/unstable/cli";
 
 import { ClockService, ConfigService, ConsoleService } from "../services";
 import { getConfigPath } from "../services/config";
-import { humanLog, writeJson } from "../output";
+import { humanFrame, humanLog, writeJson } from "../output";
 import { resolveSyncAuth, syncProgram } from "./sync";
 
 const execFilePromise = promisify(execFile);
@@ -265,7 +265,7 @@ const serviceCommand = Command.make("service").pipe(
 );
 
 function serviceInstallEffect(options: ServiceInstallOptions) {
-  return serviceInstallProgram(options);
+  return humanFrame("Install automatic sync", options, serviceInstallProgram(options));
 }
 
 function serviceInstallProgram(
@@ -380,71 +380,79 @@ function serviceInstallProgram(
 }
 
 function serviceUninstallEffect(options: { json?: boolean | undefined } = {}) {
-  return Effect.gen(function* () {
-    const paths = yield* servicePathsEffect();
+  return humanFrame(
+    "Uninstall automatic sync",
+    options,
+    Effect.gen(function* () {
+      const paths = yield* servicePathsEffect();
 
-    yield* uninstallNativeScheduler(paths).pipe(
-      Effect.mapError((cause) => new ServiceUninstallError({ cause })),
-    );
-    yield* removeServiceFiles(paths).pipe(
-      Effect.mapError((cause) => new ServiceUninstallError({ cause })),
-    );
+      yield* uninstallNativeScheduler(paths).pipe(
+        Effect.mapError((cause) => new ServiceUninstallError({ cause })),
+      );
+      yield* removeServiceFiles(paths).pipe(
+        Effect.mapError((cause) => new ServiceUninstallError({ cause })),
+      );
 
-    if (options.json) {
-      yield* writeJson({ removed: true, status: "ok" });
-      return;
-    }
+      if (options.json) {
+        yield* writeJson({ removed: true, status: "ok" });
+        return;
+      }
 
-    yield* humanLog("success", "Automatic sync uninstalled.", options);
-    yield* humanLog("info", "Auth and synced usage were left untouched.", options);
-  });
+      yield* humanLog("success", "Automatic sync uninstalled.", options);
+      yield* humanLog("info", "Auth and synced usage were left untouched.", options);
+    }),
+  );
 }
 
 function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
-  return Effect.gen(function* () {
-    const console = yield* Effect.service(ConsoleService);
-    const paths = yield* servicePathsEffect();
-    const metadata = yield* readServiceMetadata(paths.metadataPath);
-    const state = yield* readServiceState(paths.statePath);
-    const installed = yield* isServiceInstalled(paths);
-    const now = new Date();
-    const lockStatus = yield* readServiceLockStatus(paths.lockPath, now);
-    const status = {
-      autoUpdate: formatServiceStatusAutoUpdate(metadata),
-      backend: paths.backend,
-      installed,
-      lastError: state?.lastError,
-      lastSuccessAt: state?.lastSuccessAt ?? null,
-      lastSuccessDate: serviceLastSuccessDate(state) ?? null,
-      lock: formatServiceLockStatus(lockStatus),
-      logPath: paths.logPath,
-      schedule: metadata?.schedule ?? scheduleDescription(),
-      status: "ok",
-      todaySynced: shouldSkipServiceRun(state, now),
-      wrapperPath: paths.wrapperPath,
-    };
+  return humanFrame(
+    "Service status",
+    options,
+    Effect.gen(function* () {
+      const console = yield* Effect.service(ConsoleService);
+      const paths = yield* servicePathsEffect();
+      const metadata = yield* readServiceMetadata(paths.metadataPath);
+      const state = yield* readServiceState(paths.statePath);
+      const installed = yield* isServiceInstalled(paths);
+      const now = new Date();
+      const lockStatus = yield* readServiceLockStatus(paths.lockPath, now);
+      const status = {
+        autoUpdate: formatServiceStatusAutoUpdate(metadata),
+        backend: paths.backend,
+        installed,
+        lastError: state?.lastError,
+        lastSuccessAt: state?.lastSuccessAt ?? null,
+        lastSuccessDate: serviceLastSuccessDate(state) ?? null,
+        lock: formatServiceLockStatus(lockStatus),
+        logPath: paths.logPath,
+        schedule: metadata?.schedule ?? scheduleDescription(),
+        status: "ok",
+        todaySynced: shouldSkipServiceRun(state, now),
+        wrapperPath: paths.wrapperPath,
+      };
 
-    if (options.json) {
-      yield* writeJson(status);
-      return;
-    }
-
-    yield* Effect.sync(() => {
-      console.log(`Installed: ${status.installed ? "yes" : "no"}`);
-      console.log(`Backend: ${status.backend}`);
-      console.log(`Schedule: ${status.schedule}`);
-      console.log(`Auto-update: ${status.autoUpdate}`);
-      console.log(`Last success: ${status.lastSuccessAt ?? "never"}`);
-      console.log(`Last success date: ${status.lastSuccessDate ?? "never"}`);
-      console.log(`Today synced: ${status.todaySynced ? "yes" : "no"}`);
-      if (status.lastError !== undefined) {
-        console.log(`Last error: ${status.lastError}`);
+      if (options.json) {
+        yield* writeJson(status);
+        return;
       }
-      console.log(`Lock: ${status.lock}`);
-      console.log(`Wrapper: ${status.wrapperPath}`);
-      console.log(`Log: ${status.logPath}`);
-    });
-  });
+
+      yield* Effect.sync(() => {
+        console.log(`Installed: ${status.installed ? "yes" : "no"}`);
+        console.log(`Backend: ${status.backend}`);
+        console.log(`Schedule: ${status.schedule}`);
+        console.log(`Auto-update: ${status.autoUpdate}`);
+        console.log(`Last success: ${status.lastSuccessAt ?? "never"}`);
+        console.log(`Last success date: ${status.lastSuccessDate ?? "never"}`);
+        console.log(`Today synced: ${status.todaySynced ? "yes" : "no"}`);
+        if (status.lastError !== undefined) {
+          console.log(`Last error: ${status.lastError}`);
+        }
+        console.log(`Lock: ${status.lock}`);
+        console.log(`Wrapper: ${status.wrapperPath}`);
+        console.log(`Log: ${status.logPath}`);
+      });
+    }),
+  );
 }
 
 function serviceRunEffect(options: ServiceRunOptions) {
@@ -482,116 +490,124 @@ function serviceRunEffect(options: ServiceRunOptions) {
 }
 
 function serviceDoctorEffect(options: { json?: boolean | undefined } = {}) {
-  return Effect.gen(function* () {
-    const config = yield* Effect.service(ConfigService);
-    const console = yield* Effect.service(ConsoleService);
-    const paths = yield* servicePathsEffect();
-    const now = new Date();
+  return humanFrame(
+    "Service doctor",
+    options,
+    Effect.gen(function* () {
+      const config = yield* Effect.service(ConfigService);
+      const console = yield* Effect.service(ConsoleService);
+      const paths = yield* servicePathsEffect();
+      const now = new Date();
 
-    const envToken = yield* config.hasEnvToken();
-    const authConfig = yield* config.readConfig().pipe(
-      Effect.match({
-        onFailure: (cause) => ({ _tag: "error" as const, cause }),
-        onSuccess: (value) => ({ _tag: "success" as const, value }),
-      }),
-    );
-    const metadata = yield* readServiceMetadata(paths.metadataPath);
-    const state = yield* readServiceState(paths.statePath);
-    const installed = yield* isServiceInstalled(paths);
-    const wrapperExists = yield* fileExists(paths.wrapperPath);
-    const definitionExists =
-      paths.definitionPath === null ? installed : yield* fileExists(paths.definitionPath);
-    const metadataCommandExists =
-      metadata?.commandPath === undefined ? false : yield* fileExists(metadata.commandPath);
-    const currentCommand = yield* findTokenmaxxingCommandInstall().pipe(
-      Effect.catch(() => Effect.succeed(null)),
-    );
-    const autoUpdateManager =
-      metadata === null
-        ? undefined
-        : (metadata.autoUpdateManager ?? currentCommand?.autoUpdateManager);
-    const autoUpdateManagerExists =
-      autoUpdateManager === undefined || autoUpdateManager === null
-        ? false
-        : yield* commandExists(autoUpdateManager);
-    const lockStatus = yield* readServiceLockStatus(paths.lockPath, now);
-    const logTail = yield* readLogTail(paths.logPath, 8);
+      const envToken = yield* config.hasEnvToken();
+      const authConfig = yield* config.readConfig().pipe(
+        Effect.match({
+          onFailure: (cause) => ({ _tag: "error" as const, cause }),
+          onSuccess: (value) => ({ _tag: "success" as const, value }),
+        }),
+      );
+      const metadata = yield* readServiceMetadata(paths.metadataPath);
+      const state = yield* readServiceState(paths.statePath);
+      const installed = yield* isServiceInstalled(paths);
+      const wrapperExists = yield* fileExists(paths.wrapperPath);
+      const definitionExists =
+        paths.definitionPath === null ? installed : yield* fileExists(paths.definitionPath);
+      const metadataCommandExists =
+        metadata?.commandPath === undefined ? false : yield* fileExists(metadata.commandPath);
+      const currentCommand = yield* findTokenmaxxingCommandInstall().pipe(
+        Effect.catch(() => Effect.succeed(null)),
+      );
+      const autoUpdateManager =
+        metadata === null
+          ? undefined
+          : (metadata.autoUpdateManager ?? currentCommand?.autoUpdateManager);
+      const autoUpdateManagerExists =
+        autoUpdateManager === undefined || autoUpdateManager === null
+          ? false
+          : yield* commandExists(autoUpdateManager);
+      const lockStatus = yield* readServiceLockStatus(paths.lockPath, now);
+      const logTail = yield* readLogTail(paths.logPath, 8);
 
-    const checks = [
-      doctorCheck(
-        installed ? "ok" : "warn",
-        "scheduler",
-        installed ? `installed (${paths.backend})` : `not installed (${paths.backend})`,
-      ),
-      doctorCheck(
-        definitionExists ? "ok" : "warn",
-        "definition",
-        paths.definitionPath ?? "tracked by Windows Task Scheduler metadata",
-      ),
-      doctorCheck(wrapperExists ? "ok" : "warn", "wrapper", paths.wrapperPath),
-      doctorCheck(metadata === null ? "warn" : "ok", "metadata", paths.metadataPath),
-      doctorCheck(
-        envToken ? "warn" : authConfig._tag === "success" && authConfig.value.token ? "ok" : "warn",
-        "auth",
-        doctorAuthDetail(envToken, authConfig),
-      ),
-      doctorCheck(
-        metadataCommandExists ? "ok" : currentCommand === null ? "warn" : "ok",
-        "binary",
-        doctorBinaryDetail(metadata, metadataCommandExists, currentCommand),
-      ),
-      doctorCheck(
-        doctorAutoUpdateStatus(metadata, autoUpdateManagerExists),
-        "auto-update",
-        doctorAutoUpdateDetail(metadata, autoUpdateManager, autoUpdateManagerExists),
-      ),
-      doctorCheck(
-        lockStatus.locked && !lockStatus.stale ? "warn" : "ok",
-        "lock",
-        formatServiceLockStatus(lockStatus),
-      ),
-      doctorCheck(
-        state?.lastSuccessAt === undefined ? "info" : "ok",
-        "last success",
-        state?.lastSuccessAt ?? "never",
-      ),
-      doctorCheck(
-        serviceLastSuccessDate(state) === undefined ? "info" : "ok",
-        "success date",
-        serviceLastSuccessDate(state) ?? "never",
-      ),
-      doctorCheck(
-        shouldSkipServiceRun(state, now) ? "ok" : "info",
-        "today synced",
-        shouldSkipServiceRun(state, now) ? "yes" : "no",
-      ),
-      doctorCheck(
-        state?.lastError === undefined ? "ok" : "warn",
-        "last error",
-        state?.lastError ?? "none",
-      ),
-    ];
+      const checks = [
+        doctorCheck(
+          installed ? "ok" : "warn",
+          "scheduler",
+          installed ? `installed (${paths.backend})` : `not installed (${paths.backend})`,
+        ),
+        doctorCheck(
+          definitionExists ? "ok" : "warn",
+          "definition",
+          paths.definitionPath ?? "tracked by Windows Task Scheduler metadata",
+        ),
+        doctorCheck(wrapperExists ? "ok" : "warn", "wrapper", paths.wrapperPath),
+        doctorCheck(metadata === null ? "warn" : "ok", "metadata", paths.metadataPath),
+        doctorCheck(
+          envToken
+            ? "warn"
+            : authConfig._tag === "success" && authConfig.value.token
+              ? "ok"
+              : "warn",
+          "auth",
+          doctorAuthDetail(envToken, authConfig),
+        ),
+        doctorCheck(
+          metadataCommandExists ? "ok" : currentCommand === null ? "warn" : "ok",
+          "binary",
+          doctorBinaryDetail(metadata, metadataCommandExists, currentCommand),
+        ),
+        doctorCheck(
+          doctorAutoUpdateStatus(metadata, autoUpdateManagerExists),
+          "auto-update",
+          doctorAutoUpdateDetail(metadata, autoUpdateManager, autoUpdateManagerExists),
+        ),
+        doctorCheck(
+          lockStatus.locked && !lockStatus.stale ? "warn" : "ok",
+          "lock",
+          formatServiceLockStatus(lockStatus),
+        ),
+        doctorCheck(
+          state?.lastSuccessAt === undefined ? "info" : "ok",
+          "last success",
+          state?.lastSuccessAt ?? "never",
+        ),
+        doctorCheck(
+          serviceLastSuccessDate(state) === undefined ? "info" : "ok",
+          "success date",
+          serviceLastSuccessDate(state) ?? "never",
+        ),
+        doctorCheck(
+          shouldSkipServiceRun(state, now) ? "ok" : "info",
+          "today synced",
+          shouldSkipServiceRun(state, now) ? "yes" : "no",
+        ),
+        doctorCheck(
+          state?.lastError === undefined ? "ok" : "warn",
+          "last error",
+          state?.lastError ?? "none",
+        ),
+      ];
 
-    if (options.json) {
-      yield* writeJson({ checks, recentLog: logTail, status: "ok" });
-      return;
-    }
-
-    yield* Effect.sync(() => {
-      console.log("Service doctor");
-      for (const check of checks) {
-        console.log(doctorLine(check));
+      if (options.json) {
+        yield* writeJson({ checks, recentLog: logTail, status: "ok" });
+        return;
       }
 
-      if (logTail.length > 0) {
-        console.log("");
-        console.log("Recent log:");
-        for (const line of logTail) {
-          console.log(`  ${line}`);
+      yield* Effect.sync(() => {
+        console.log("Service doctor");
+        for (const check of checks) {
+          console.log(doctorLine(check));
         }
-      }
-    });
-  });
+
+        if (logTail.length > 0) {
+          console.log("");
+          console.log("Recent log:");
+          for (const line of logTail) {
+            console.log(`  ${line}`);
+          }
+        }
+      });
+    }),
+  );
 }
 
 function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {

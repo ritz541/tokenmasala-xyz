@@ -1,7 +1,7 @@
 import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
-import { humanLog, writeJson } from "../output";
+import { humanFrame, humanLog, writeJson } from "../output";
 import {
   autoUpdateCommandDescription,
   type AutoUpdateManager,
@@ -67,7 +67,7 @@ const upgradeCommand = Command.make(
 ).pipe(Command.withDescription("Upgrade the globally installed CLI"));
 
 function upgradeEffect(options: { json?: boolean | undefined } = {}) {
-  return upgradeProgram({}, options);
+  return humanFrame("Upgrade", options, upgradeProgram({}, options));
 }
 
 function upgradeProgram(

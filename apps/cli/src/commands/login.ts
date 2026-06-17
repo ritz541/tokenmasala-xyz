@@ -12,7 +12,7 @@ import {
   ConfigService,
   TerminalService,
 } from "../services";
-import { humanLog, writeJson } from "../output";
+import { humanFrame, humanLog, writeJson } from "../output";
 
 class StartCliLoginError extends Data.TaggedError("StartCliLoginError")<{
   readonly cause: unknown;
@@ -87,20 +87,24 @@ const loginCommand = Command.make(
 ).pipe(Command.withDescription("Log in to tokenmaxxing via your browser"));
 
 function loginEffect(options: { json: boolean }) {
-  return Effect.gen(function* () {
-    const config = yield* Effect.service(ConfigService);
+  return humanFrame(
+    "Login",
+    options,
+    Effect.gen(function* () {
+      const config = yield* Effect.service(ConfigService);
 
-    const stored = yield* config.readConfig();
-    const envTokenActive = yield* config.hasEnvToken();
-    if (stored.token !== undefined || envTokenActive) {
-      return yield* Effect.fail(new AlreadyLoggedInError({ envTokenActive }));
-    }
+      const stored = yield* config.readConfig();
+      const envTokenActive = yield* config.hasEnvToken();
+      if (stored.token !== undefined || envTokenActive) {
+        return yield* Effect.fail(new AlreadyLoggedInError({ envTokenActive }));
+      }
 
-    const login = yield* browserLoginEffect(options);
-    if (options.json) {
-      yield* writeJson({ login: login.user.login, status: "ok" });
-    }
-  });
+      const login = yield* browserLoginEffect(options);
+      if (options.json) {
+        yield* writeJson({ login: login.user.login, status: "ok" });
+      }
+    }),
+  );
 }
 
 function browserLoginEffect(options: BrowserLoginOptions) {

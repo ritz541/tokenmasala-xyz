@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleService } from "./services";
-import { formatUrl, humanFrame, humanLog } from "./output";
+import { formatUrl, humanFailure, humanFrame, humanLog } from "./output";
 
 const promptCalls = vi.hoisted((): string[] => []);
 
@@ -166,6 +166,36 @@ describe("humanFrame", () => {
 
     expect(promptCalls).toEqual([]);
     expect(logs).toEqual([]);
+  });
+});
+
+describe("humanFailure", () => {
+  afterEach(() => {
+    promptCalls.length = 0;
+    restoreEnvironment();
+  });
+
+  it("renders Clack failures with a failed outro", async () => {
+    const { layer, logs } = testConsole();
+    setTty(true);
+    delete process.env.CI;
+    delete process.env.NO_COLOR;
+    process.env.TERM = "xterm-256color";
+
+    await Effect.runPromise(humanFailure("not logged in", {}).pipe(Effect.provide(layer)));
+
+    expect(logs).toEqual([]);
+    expect(promptCalls).toEqual(["error:not logged in", "outro:Failed"]);
+  });
+
+  it("renders plain failures without Clack", async () => {
+    const { layer, logs } = testConsole();
+    setTty(false);
+
+    await Effect.runPromise(humanFailure("not logged in", {}).pipe(Effect.provide(layer)));
+
+    expect(promptCalls).toEqual([]);
+    expect(logs).toEqual(["error:not logged in"]);
   });
 });
 

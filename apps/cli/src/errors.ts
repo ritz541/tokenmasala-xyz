@@ -1,6 +1,7 @@
 import { Cause, Effect, Option } from "effect";
 import { CliError, Flag, GlobalFlag } from "effect/unstable/cli";
 
+import { humanFailure, shouldUseClack } from "./output";
 import { ConsoleService } from "./services";
 
 /**
@@ -100,20 +101,27 @@ function renderCliFailure<E>(
     return Effect.void;
   }
 
+  if (options.json) {
+    return Effect.gen(function* () {
+      const output = yield* Effect.service(ConsoleService);
+
+      yield* Effect.sync(() => {
+        output.error(JSON.stringify(jsonFailureForCliFailure(failure)));
+      });
+    });
+  }
+
   return Effect.gen(function* () {
     const output = yield* Effect.service(ConsoleService);
+    const message = shouldUseClack() ? clackMessageForCliFailure(failure.message) : failure.message;
 
-    yield* Effect.sync(() => {
-      if (options.json) {
-        output.error(JSON.stringify(jsonFailureForCliFailure(failure)));
-      } else {
-        output.error(failure.message);
+    yield* humanFailure(message);
 
-        if (options.verbose) {
-          output.error(`debug:\n${Cause.pretty(cause)}`);
-        }
-      }
-    });
+    if (options.verbose) {
+      yield* Effect.sync(() => {
+        output.error(`debug:\n${Cause.pretty(cause)}`);
+      });
+    }
   });
 }
 
@@ -200,7 +208,17 @@ function parseCliMessage(message: string) {
   return { hint, message: parsedMessage };
 }
 
+function clackMessageForCliFailure(message: string) {
+  return message
+    .split("\n")
+    .map((line, index) =>
+      index === 0 && line.startsWith("error: ") ? line.slice("error: ".length) : line,
+    )
+    .join("\n");
+}
+
 export {
+  clackMessageForCliFailure,
   failureForCause,
   isJsonArgv,
   isUserFacingCliError,

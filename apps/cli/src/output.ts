@@ -66,6 +66,24 @@ function humanOutro(message: string, options: HumanOutputOptions = {}) {
   });
 }
 
+function humanFailure(message: string, options: HumanOutputOptions = {}) {
+  return Effect.gen(function* () {
+    if (!shouldWriteHumanOutput(options)) {
+      return;
+    }
+
+    const output = yield* Effect.service(ConsoleService);
+    yield* Effect.sync(() => {
+      if (shouldUseClack()) {
+        prompts.log.error(message);
+        prompts.outro("Failed");
+      } else {
+        output.error(message);
+      }
+    });
+  });
+}
+
 function humanFrame<A, E, R>(
   title: string,
   options: HumanOutputOptions,
@@ -170,6 +188,7 @@ function shouldUseClack(): boolean {
 
 export {
   formatUrl,
+  humanFailure,
   humanFrame,
   humanIntro,
   humanLog,

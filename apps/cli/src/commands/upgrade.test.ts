@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { ConsoleService } from "../services";
 import type { CommandInstall, ServiceMetadata } from "./service";
-import { formatServiceRefreshResult, refreshInstalledService, upgradeProgram } from "./upgrade";
+import {
+  formatServiceRefreshResult,
+  formatUpgradeSuccess,
+  refreshInstalledService,
+  upgradeProgram,
+} from "./upgrade";
 
 const install: CommandInstall = {
   autoUpdateManager: "npm",
@@ -49,7 +54,7 @@ describe("upgradeProgram", () => {
       "Using method: npm",
       "From 0.4.3 -> 0.4.4",
       "Running: npm install -g @851-labs/tokenmaxxing@latest --silent",
-      "Upgraded tokenmaxxing.",
+      "Upgraded to v0.4.4.",
       "Service: not installed.",
     ]);
   });
@@ -212,6 +217,7 @@ describe("upgradeProgram", () => {
 
     expect(exit._tag).toBe("Success");
     expect(refreshes).toEqual([{ autoUpdate: false, commandPath: "/usr/local/bin/tokenmaxxing" }]);
+    expect(logs).toContain("Upgraded to v0.4.4.");
     expect(logs).toContain("Service: refreshed.");
   });
 
@@ -275,6 +281,29 @@ describe("refreshInstalledService", () => {
     expect(formatServiceRefreshResult({ _tag: "failed", cause: "boom" })).toBe(
       "Service: refresh failed; run tokenmaxxing service install if needed.",
     );
+  });
+});
+
+describe("formatUpgradeSuccess", () => {
+  it("includes the target version when the registry check succeeded", () => {
+    expect(
+      formatUpgradeSuccess({
+        _tag: "available",
+        currentVersion: "0.4.3",
+        latestVersion: "0.4.4",
+        shouldUpdate: true,
+      }),
+    ).toBe("Upgraded to v0.4.4.");
+  });
+
+  it("keeps generic copy when the registry check was unavailable", () => {
+    expect(
+      formatUpgradeSuccess({
+        _tag: "unavailable",
+        currentVersion: "0.4.3",
+        latestVersion: null,
+      }),
+    ).toBe("Upgraded tokenmaxxing.");
   });
 });
 

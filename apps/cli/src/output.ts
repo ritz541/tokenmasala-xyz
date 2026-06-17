@@ -14,6 +14,12 @@ interface FormatUrlOptions {
 
 type HumanLogLevel = "error" | "info" | "step" | "success" | "warn";
 
+interface HumanFailureContent {
+  context?: readonly string[];
+  hint?: string | undefined;
+  message: string;
+}
+
 interface HumanSpinner {
   error: (message?: string) => void;
   stop: (message?: string) => void;
@@ -41,7 +47,7 @@ function humanIntro(title: string, options: HumanOutputOptions = {}) {
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.intro(title);
+        prompts.intro(formatClackRow(title));
       } else {
         output.log(title);
       }
@@ -58,7 +64,7 @@ function humanOutro(message: string, options: HumanOutputOptions = {}) {
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.outro(message);
+        prompts.outro(formatClackRow(message));
       } else {
         output.log(message);
       }
@@ -66,7 +72,7 @@ function humanOutro(message: string, options: HumanOutputOptions = {}) {
   });
 }
 
-function humanFailure(message: string, options: HumanOutputOptions = {}) {
+function humanFailure(failure: string | HumanFailureContent, options: HumanOutputOptions = {}) {
   return Effect.gen(function* () {
     if (!shouldWriteHumanOutput(options)) {
       return;
@@ -75,10 +81,20 @@ function humanFailure(message: string, options: HumanOutputOptions = {}) {
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.log.error(message);
+        if (typeof failure === "string") {
+          prompts.log.error(formatClackRow(failure));
+        } else {
+          prompts.log.error(formatClackRow(failure.message));
+          for (const line of failure.context ?? []) {
+            prompts.log.info(formatClackRow(line));
+          }
+          if (failure.hint !== undefined) {
+            prompts.log.info(formatClackRow(`Hint: ${failure.hint}`));
+          }
+        }
         prompts.outro("Failed");
       } else {
-        output.error(message);
+        output.error(typeof failure === "string" ? failure : plainFailureMessage(failure));
       }
     });
   });
@@ -111,7 +127,7 @@ function humanLog(level: HumanLogLevel, message: string, options: HumanOutputOpt
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.log[level](message);
+        prompts.log[level](formatClackRow(message));
       } else if (level === "error") {
         output.error(message);
       } else {
@@ -130,7 +146,7 @@ function humanNote(title: string, message: string, options: HumanOutputOptions =
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.note(message, title);
+        prompts.note(formatClackRow(message), formatClackRow(title));
       } else {
         output.log(title);
         output.log(message);
@@ -151,11 +167,13 @@ function humanSpinner(message: string, options: HumanOutputOptions = {}) {
 
     if (shouldUseClack()) {
       const spinner = prompts.spinner();
-      spinner.start(message);
+      spinner.start(formatClackRow(message));
 
       return {
-        error: (nextMessage?: string) => spinner.error(nextMessage),
-        stop: (nextMessage?: string) => spinner.stop(nextMessage),
+        error: (nextMessage?: string) =>
+          spinner.error(nextMessage === undefined ? nextMessage : formatClackRow(nextMessage)),
+        stop: (nextMessage?: string) =>
+          spinner.stop(nextMessage === undefined ? nextMessage : formatClackRow(nextMessage)),
       } satisfies HumanSpinner;
     }
 
@@ -186,7 +204,118 @@ function shouldUseClack(): boolean {
   );
 }
 
+function plainFailureMessage(failure: HumanFailureContent): string {
+  const lines = [failure.message, ...(failure.context ?? [])];
+  if (failure.hint !== undefined) {
+    lines.push(`hint: ${failure.hint}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatClackRow(message: string): string {
+  return message
+    .split("\n")
+    .map((line) => capitalizeClackLine(line))
+    .join("\n");
+}
+
+function capitalizeClackLine(line: string): string {
+  const visibleStart = firstVisibleCharacterIndex(line);
+  const rest = line.slice(visibleStart);
+  if (shouldPreserveInitialToken(rest)) {
+    return line;
+  }
+
+  const letterIndex = firstAlphabeticalCharacterIndex(line, visibleStart);
+  if (letterIndex === -1) {
+    return line;
+  }
+
+  const letter = line[letterIndex] ?? "";
+  return `${line.slice(0, letterIndex)}${letter.toLocaleUpperCase("en-US")}${line.slice(
+    letterIndex + 1,
+  )}`;
+}
+
+function firstVisibleCharacterIndex(line: string): number {
+  let index = 0;
+
+  while (index < line.length) {
+    const char = line[index];
+    if (char === " " || char === "\t") {
+      index += 1;
+      continue;
+    }
+
+    const ansiLength = ansiSequenceLengthAt(line, index);
+    if (ansiLength > 0) {
+      index += ansiLength;
+      continue;
+    }
+
+    break;
+  }
+
+  return index;
+}
+
+function ansiSequenceLengthAt(line: string, index: number): number {
+  if (line.charCodeAt(index) !== 0x1b || line[index + 1] !== "[") {
+    return 0;
+  }
+
+  let cursor = index + 2;
+  while (cursor < line.length) {
+    const code = line.charCodeAt(cursor);
+    if (code >= 0x40 && code <= 0x7e) {
+      return cursor - index + 1;
+    }
+    cursor += 1;
+  }
+
+  return 0;
+}
+
+function shouldPreserveInitialToken(rest: string): boolean {
+  return (
+    rest.startsWith("http://") ||
+    rest.startsWith("https://") ||
+    rest.startsWith("/") ||
+    rest.startsWith("./") ||
+    rest.startsWith("../") ||
+    rest.startsWith("~/") ||
+    rest.startsWith("@") ||
+    rest.startsWith("-")
+  );
+}
+
+function firstAlphabeticalCharacterIndex(line: string, start: number): number {
+  let index = start;
+
+  while (index < line.length) {
+    const ansiLength = ansiSequenceLengthAt(line, index);
+    if (ansiLength > 0) {
+      index += ansiLength;
+      continue;
+    }
+
+    if (/[a-z]/.test(line[index] ?? "")) {
+      return index;
+    }
+
+    if (/[A-Z]/.test(line[index] ?? "")) {
+      return -1;
+    }
+
+    index += 1;
+  }
+
+  return -1;
+}
+
 export {
+  formatClackRow,
   formatUrl,
   humanFailure,
   humanFrame,
@@ -200,4 +329,4 @@ export {
   writeJson,
 };
 
-export type { FormatUrlOptions, HumanOutputOptions, HumanSpinner };
+export type { FormatUrlOptions, HumanFailureContent, HumanOutputOptions, HumanSpinner };

@@ -1,7 +1,7 @@
 import { Cause, Effect, Option } from "effect";
 import { CliError, Flag, GlobalFlag } from "effect/unstable/cli";
 
-import { humanFailure, shouldUseClack } from "./output";
+import { humanFailure, type HumanFailureContent, shouldUseClack } from "./output";
 import { ConsoleService } from "./services";
 
 /**
@@ -113,9 +113,11 @@ function renderCliFailure<E>(
 
   return Effect.gen(function* () {
     const output = yield* Effect.service(ConsoleService);
-    const message = shouldUseClack() ? clackMessageForCliFailure(failure.message) : failure.message;
+    const renderedFailure = shouldUseClack()
+      ? clackFailureForCliFailure(failure.message)
+      : failure.message;
 
-    yield* humanFailure(message);
+    yield* humanFailure(renderedFailure);
 
     if (options.verbose) {
       yield* Effect.sync(() => {
@@ -208,17 +210,31 @@ function parseCliMessage(message: string) {
   return { hint, message: parsedMessage };
 }
 
-function clackMessageForCliFailure(message: string) {
-  return message
-    .split("\n")
-    .map((line, index) =>
-      index === 0 && line.startsWith("error: ") ? line.slice("error: ".length) : line,
-    )
-    .join("\n");
+function clackFailureForCliFailure(message: string): HumanFailureContent {
+  const lines = message.split("\n");
+  const first = lines[0] ?? message;
+  const parsedMessage = first.startsWith("error: ") ? first.slice("error: ".length) : first;
+  const context: string[] = [];
+  let hint: string | undefined;
+
+  for (const line of lines.slice(1)) {
+    if (hint === undefined && line.startsWith("hint: ")) {
+      hint = line.slice("hint: ".length);
+      continue;
+    }
+
+    context.push(line);
+  }
+
+  return {
+    context,
+    hint,
+    message: parsedMessage,
+  };
 }
 
 export {
-  clackMessageForCliFailure,
+  clackFailureForCliFailure,
   failureForCause,
   isJsonArgv,
   isUserFacingCliError,

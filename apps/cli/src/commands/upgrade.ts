@@ -184,7 +184,7 @@ function upgradeProgram(
       Effect.mapError((cause) => new UpgradeFailedError({ cause })),
     );
 
-    yield* humanLog("success", "Upgraded tokenmaxxing.", options);
+    yield* humanLog("success", formatUpgradeSuccess(versionCheck), options);
 
     const refreshResult = yield* refreshInstalledService(install, runtime);
     if (options.json) {
@@ -258,6 +258,12 @@ function getLatestCliVersion(): Effect.Effect<string, UpgradeVersionCheckError> 
 
     return latestVersion;
   });
+}
+
+function formatUpgradeSuccess(versionCheck: VersionCheckResult): string {
+  return versionCheck._tag === "available"
+    ? `Upgraded to v${versionCheck.latestVersion}.`
+    : "Upgraded tokenmaxxing.";
 }
 
 function registryLatestVersion(body: unknown): string | null {
@@ -371,6 +377,7 @@ function serviceRefreshJson(result: ServiceRefreshResult) {
 
 export {
   formatServiceRefreshResult,
+  formatUpgradeSuccess,
   refreshInstalledService,
   upgradeCommand,
   upgradeEffect,

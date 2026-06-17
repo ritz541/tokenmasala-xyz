@@ -147,7 +147,7 @@ describe("whoamiEffect", () => {
       "intro:Account",
       "spinner-start:Fetching account...",
       "spinner-stop:",
-      "info:alex (Alex)",
+      "info:Alex (Alex)",
       "outro:Done",
     ]);
   });

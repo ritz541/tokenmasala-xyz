@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleService } from "./services";
-import { clackMessageForCliFailure, renderCliFailure } from "./errors";
+import { clackFailureForCliFailure, renderCliFailure } from "./errors";
 import { NotLoggedInError } from "./commands/whoami";
 
 const promptCalls = vi.hoisted((): string[] => []);
@@ -14,6 +14,9 @@ vi.mock("@clack/prompts", () => ({
   log: {
     error: (message: string) => {
       promptCalls.push(`error:${message}`);
+    },
+    info: (message: string) => {
+      promptCalls.push(`info:${message}`);
     },
   },
   outro: (message: string) => {
@@ -138,7 +141,8 @@ describe("renderCliFailure", () => {
     expect(logs).toEqual([]);
     expect(errors).toEqual([]);
     expect(promptCalls).toEqual([
-      "error:not logged in\nhint: run tokenmaxxing login",
+      "error:Not logged in",
+      "info:Hint: run tokenmaxxing login",
       "outro:Failed",
     ]);
   });
@@ -160,13 +164,17 @@ describe("renderCliFailure", () => {
   });
 });
 
-describe("clackMessageForCliFailure", () => {
-  it("removes the redundant error prefix and keeps hints", () => {
+describe("clackFailureForCliFailure", () => {
+  it("splits the redundant error prefix, context, and hint", () => {
     expect(
-      clackMessageForCliFailure(
-        "error: already logged in to tokenmaxxing\nhint: run tokenmaxxing logout first",
+      clackFailureForCliFailure(
+        "error: could not detect install\npath: /usr/local/bin/tokenmaxxing\nhint: reinstall with npm",
       ),
-    ).toBe("already logged in to tokenmaxxing\nhint: run tokenmaxxing logout first");
+    ).toEqual({
+      context: ["path: /usr/local/bin/tokenmaxxing"],
+      hint: "reinstall with npm",
+      message: "could not detect install",
+    });
   });
 });
 

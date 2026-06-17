@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConsoleService } from "./services";
-import { formatUrl, humanFailure, humanFrame, humanLog } from "./output";
+import { formatClackRow, formatUrl, humanFailure, humanFrame, humanLog } from "./output";
 
 const promptCalls = vi.hoisted((): string[] => []);
 
@@ -182,10 +182,24 @@ describe("humanFailure", () => {
     delete process.env.NO_COLOR;
     process.env.TERM = "xterm-256color";
 
-    await Effect.runPromise(humanFailure("not logged in", {}).pipe(Effect.provide(layer)));
+    await Effect.runPromise(
+      humanFailure(
+        {
+          context: ["path: /usr/local/bin/tokenmaxxing"],
+          hint: "run tokenmaxxing login",
+          message: "not logged in",
+        },
+        {},
+      ).pipe(Effect.provide(layer)),
+    );
 
     expect(logs).toEqual([]);
-    expect(promptCalls).toEqual(["error:not logged in", "outro:Failed"]);
+    expect(promptCalls).toEqual([
+      "error:Not logged in",
+      "info:Path: /usr/local/bin/tokenmaxxing",
+      "info:Hint: run tokenmaxxing login",
+      "outro:Failed",
+    ]);
   });
 
   it("renders plain failures without Clack", async () => {
@@ -196,6 +210,24 @@ describe("humanFailure", () => {
 
     expect(promptCalls).toEqual([]);
     expect(logs).toEqual(["error:not logged in"]);
+  });
+});
+
+describe("formatClackRow", () => {
+  it("capitalizes the first display letter", () => {
+    expect(formatClackRow("already logged in")).toBe("Already logged in");
+    expect(formatClackRow("hint: run tokenmaxxing login")).toBe("Hint: run tokenmaxxing login");
+  });
+
+  it("preserves initial URLs, paths, packages, and command flags", () => {
+    expect(formatClackRow("https://tokenmaxxing.sh/alex")).toBe("https://tokenmaxxing.sh/alex");
+    expect(formatClackRow("/usr/local/bin/tokenmaxxing")).toBe("/usr/local/bin/tokenmaxxing");
+    expect(formatClackRow("@851-labs/tokenmaxxing")).toBe("@851-labs/tokenmaxxing");
+    expect(formatClackRow("--json")).toBe("--json");
+  });
+
+  it("preserves leading ANSI sequences and whitespace", () => {
+    expect(formatClackRow("  \x1b[36;4mprofile\x1b[0m")).toBe("  \x1b[36;4mProfile\x1b[0m");
   });
 });
 

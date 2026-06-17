@@ -204,7 +204,7 @@ describe("humanFailure", () => {
     expect(promptCalls).toEqual([
       "error:Not logged in",
       "info:Path: /usr/local/bin/tokenmaxxing",
-      "info:Hint: Run \x1b[36;4mtokenmaxxing login\x1b[0m",
+      "info:Hint: Run \x1b[36mtokenmaxxing login\x1b[0m",
       "outro:Failed",
     ]);
   });
@@ -242,7 +242,7 @@ describe("formatClackHintRow", () => {
   it("highlights copyable tokenmaxxing commands in run hints", () => {
     expect(
       formatClackHintRow("run tokenmaxxing logout first before logging in again", { env: {} }),
-    ).toBe("Hint: Run \x1b[36;4mtokenmaxxing logout\x1b[0m first before logging in again");
+    ).toBe("Hint: Run \x1b[36mtokenmaxxing logout\x1b[0m first before logging in again");
   });
 
   it("highlights multiple tokenmaxxing commands and preserves surrounding prose", () => {
@@ -252,7 +252,7 @@ describe("formatClackHintRow", () => {
         { env: {} },
       ),
     ).toBe(
-      "Hint: Unset TOKENMAXXING_API_TOKEN, run \x1b[36;4mtokenmaxxing login\x1b[0m, then run \x1b[36;4mtokenmaxxing service install\x1b[0m",
+      "Hint: Unset TOKENMAXXING_API_TOKEN, run \x1b[36mtokenmaxxing login\x1b[0m, then run \x1b[36mtokenmaxxing service install\x1b[0m",
     );
   });
 

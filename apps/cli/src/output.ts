@@ -49,14 +49,13 @@ function writeJson(value: unknown) {
 }
 
 function formatUrl(url: string, options: FormatUrlOptions = {}): string {
-  return formatHighlight(url, options);
+  const env = options.env ?? process.env;
+  return Object.prototype.hasOwnProperty.call(env, "NO_COLOR") ? url : `\x1b[36;4m${url}\x1b[0m`;
 }
 
 function formatHighlight(value: string, options: FormatHighlightOptions = {}): string {
   const env = options.env ?? process.env;
-  return Object.prototype.hasOwnProperty.call(env, "NO_COLOR")
-    ? value
-    : `\x1b[36;4m${value}\x1b[0m`;
+  return Object.prototype.hasOwnProperty.call(env, "NO_COLOR") ? value : `\x1b[36m${value}\x1b[0m`;
 }
 
 function humanIntro(title: string, options: HumanOutputOptions = {}) {

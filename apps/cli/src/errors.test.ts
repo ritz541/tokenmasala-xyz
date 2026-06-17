@@ -167,7 +167,7 @@ describe("renderCliFailure", () => {
     expect(errors).toEqual([]);
     expect(promptCalls).toEqual([
       "error:Not logged in",
-      "info:Hint: Run \x1b[36;4mtokenmaxxing login\x1b[0m",
+      "info:Hint: Run \x1b[36mtokenmaxxing login\x1b[0m",
       "outro:Failed",
     ]);
   });

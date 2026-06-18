@@ -30,13 +30,13 @@
   "scripts": {
     "prepack": "bun run build",
     "cli": "TOKENMAXXING_ENV=development bun src/index.ts",
-    "build": "bun run typecheck && bun build src/index.ts --target bun --outfile dist/index.js && chmod +x dist/index.js",
+    "build": "bun run typecheck && bun build src/index.ts --target node --outfile dist/index.js && chmod +x dist/index.js",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --project tsconfig.json"
   },
   "devDependencies": {
     "@clack/prompts": "catalog:",
-    "@effect/platform-bun": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@tokenmaxxing/api-contract": "workspace:*",
     "@types/bun": "catalog:",
     "effect": "catalog:",

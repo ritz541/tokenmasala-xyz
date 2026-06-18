@@ -1,8 +1,10 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
-import * as BunRuntime from "@effect/platform-bun/BunRuntime";
-import * as BunServices from "@effect/platform-bun/BunServices";
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Effect, Layer } from "effect";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { runTokenmaxxingCommand } from "./commands/root";
 import { isJsonArgv, isVerboseArgv, renderCliFailure } from "./errors";
@@ -29,13 +31,27 @@ function normalizeRootVersionArgv(argv: readonly string[]) {
   return argv;
 }
 
-if (import.meta.main) {
-  BunRuntime.runMain(
-    mainEffect().pipe(Effect.provide(Layer.mergeAll(CliServicesLive, BunServices.layer))),
+function realpathOrOriginal(path: string) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+function isMainModule(metaUrl = import.meta.url, argv1 = process.argv[1]) {
+  return (
+    argv1 !== undefined && realpathOrOriginal(fileURLToPath(metaUrl)) === realpathOrOriginal(argv1)
+  );
+}
+
+if (isMainModule()) {
+  NodeRuntime.runMain(
+    mainEffect().pipe(Effect.provide(Layer.mergeAll(CliServicesLive, NodeServices.layer))),
     {
       disableErrorReporting: true,
     },
   );
 }
 
-export { mainEffect, normalizeRootVersionArgv };
+export { isMainModule, mainEffect, normalizeRootVersionArgv };

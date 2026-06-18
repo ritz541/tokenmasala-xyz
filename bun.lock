@@ -38,13 +38,13 @@
     },
     "apps/cli": {
       "name": "@851-labs/tokenmaxxing",
-      "version": "0.4.3",
+      "version": "0.4.9",
       "bin": {
         "tokenmaxxing": "dist/index.js",
       },
       "devDependencies": {
         "@clack/prompts": "catalog:",
-        "@effect/platform-bun": "catalog:",
+        "@effect/platform-node": "catalog:",
         "@tokenmaxxing/api-contract": "workspace:*",
         "@types/bun": "catalog:",
         "effect": "catalog:",

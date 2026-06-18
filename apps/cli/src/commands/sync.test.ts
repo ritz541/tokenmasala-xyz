@@ -460,8 +460,13 @@ describe("resolveSyncAuth", () => {
         { baseUrl: "https://api.tokenmaxxing.example", token: "tmx_new" },
       ]);
       expect(state.logs).toContain("Not logged in; starting browser login");
+      expect(state.logs).toContain("Creating login code");
+      expect(state.logs).toContain("Code: ABC123");
       expect(state.logs).toContain(
         "Opening \x1b[36;4mhttps://tokenmaxxing.example/login/cli?code=ABC123\x1b[0m",
+      );
+      expect(state.logs).toContain(
+        "Opened \x1b[36;4mhttps://tokenmaxxing.example/login/cli?code=ABC123\x1b[0m",
       );
     } finally {
       if (originalNoColor === undefined) {
@@ -487,7 +492,10 @@ describe("resolveSyncAuth", () => {
 
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual([]);
-    expect(state.errors).toContain("Open the URL above in your browser to continue");
+    expect(state.logs).toContain(
+      "Open https://tokenmaxxing.example/login/cli?code=ABC123 in your browser to continue",
+    );
+    expect(state.errors).toEqual([]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
   });
 
@@ -506,8 +514,9 @@ describe("resolveSyncAuth", () => {
 
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
-    expect(state.errors).toContain(
-      "Could not open a browser automatically; open the URL above manually",
+    expect(state.errors).toContain("Could not open browser");
+    expect(state.logs).toContain(
+      "Open https://tokenmaxxing.example/login/cli?code=ABC123 in your browser to continue",
     );
     expect(state.writtenTokens).toEqual(["tmx_new"]);
   });
@@ -693,6 +702,7 @@ describe("openProfileIfAvailable", () => {
 
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/alex"]);
     expect(state.errors).toEqual([]);
+    expect(state.logs).toEqual(["Opening profile", "Opened https://tokenmaxxing.example/alex"]);
   });
 
   it("skips profile opening when no external browser is available", async () => {
@@ -710,6 +720,7 @@ describe("openProfileIfAvailable", () => {
 
     expect(state.browserUrls).toEqual([]);
     expect(state.errors).toEqual([]);
+    expect(state.logs).toEqual([]);
   });
 
   it("keeps sync successful when profile opening fails", async () => {
@@ -726,8 +737,7 @@ describe("openProfileIfAvailable", () => {
     );
 
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/alex"]);
-    expect(state.errors).toContain(
-      "Could not open profile automatically; open the URL above manually",
-    );
+    expect(state.errors).toContain("Could not open profile");
+    expect(state.logs).toContain("Open https://tokenmaxxing.example/alex in your browser");
   });
 });

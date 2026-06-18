@@ -12,7 +12,7 @@ import {
   ConfigService,
   TerminalService,
 } from "../services";
-import { formatUrl, humanFrame, humanLog, writeJson } from "../output";
+import { formatUrl, humanFrame, humanLog, humanSpinner, writeJson } from "../output";
 import {
   alreadyLoggedInAsMessage,
   loggedInAsMessage,
@@ -185,6 +185,7 @@ function browserLoginEffect(options: BrowserLoginOptions) {
     const deviceId = yield* config.ensureDeviceId();
     const client = yield* clients.make({ baseUrl: stored.apiUrl });
 
+    const startSpinner = yield* humanSpinner("Creating login code", options);
     const start = yield* client.cliLogin
       .start({
         payload: {
@@ -193,12 +194,22 @@ function browserLoginEffect(options: BrowserLoginOptions) {
           devicePlatform: process.platform,
         },
       })
-      .pipe(Effect.mapError((cause) => new StartCliLoginError({ cause })));
+      .pipe(
+        Effect.tap((login) => Effect.sync(() => startSpinner.stop(`Code: ${login.code}`))),
+        Effect.tapError(() => Effect.sync(() => startSpinner.error("Failed to start CLI login"))),
+        Effect.mapError((cause) => new StartCliLoginError({ cause })),
+      );
 
-    yield* humanLog("info", `Opening ${formatUrl(start.verificationUri)}`, options);
-    yield* humanLog("info", `Code: ${start.code}`, options);
     if (canOpenBrowser) {
+      const openSpinner = yield* humanSpinner(
+        `Opening ${formatUrl(start.verificationUri)}`,
+        options,
+      );
       const openResult = yield* browser.open(start.verificationUri).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => openSpinner.stop(`Opened ${formatUrl(start.verificationUri)}`)),
+        ),
+        Effect.tapError(() => Effect.sync(() => openSpinner.error("Could not open browser"))),
         Effect.match({
           onFailure: (cause) => ({ _tag: "failure" as const, cause }),
           onSuccess: () => ({ _tag: "success" as const }),
@@ -210,13 +221,17 @@ function browserLoginEffect(options: BrowserLoginOptions) {
         }
 
         yield* humanLog(
-          "error",
-          "Could not open a browser automatically; open the URL above manually",
+          "info",
+          `Open ${formatUrl(start.verificationUri)} in your browser to continue`,
           options,
         );
       }
     } else {
-      yield* humanLog("error", "Open the URL above in your browser to continue", options);
+      yield* humanLog(
+        "info",
+        `Open ${formatUrl(start.verificationUri)} in your browser to continue`,
+        options,
+      );
     }
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {

@@ -210,7 +210,7 @@ function syncEffect(options: SyncOptions) {
       }
 
       if (!result.dryRun && result.rows > 0 && result.profileUrl !== undefined) {
-        yield* openProfileIfAvailable(result.profileUrl);
+        yield* openProfileIfAvailable(result.profileUrl, options);
       }
     }),
   );
@@ -368,17 +368,22 @@ function sourceStatsForSync(
   return stats.length === 0 ? undefined : stats;
 }
 
-function openProfileIfAvailable(profileUrl: string) {
+function openProfileIfAvailable(
+  profileUrl: string,
+  options: Partial<Pick<SyncProgramOptions, "json" | "silent">> = {},
+) {
   return Effect.gen(function* () {
     const browser = yield* Effect.service(BrowserService);
-    const console = yield* Effect.service(ConsoleService);
     const terminal = yield* Effect.service(TerminalService);
 
     if (!(yield* terminal.canOpenExternalBrowser)) {
       return;
     }
 
+    const spinner = yield* humanSpinner("Opening profile", options);
     const opened = yield* browser.open(profileUrl).pipe(
+      Effect.tap(() => Effect.sync(() => spinner.stop(`Opened ${formatUrl(profileUrl)}`))),
+      Effect.tapError(() => Effect.sync(() => spinner.error("Could not open profile"))),
       Effect.match({
         onFailure: () => false,
         onSuccess: () => true,
@@ -386,9 +391,7 @@ function openProfileIfAvailable(profileUrl: string) {
     );
 
     if (!opened) {
-      yield* Effect.sync(() =>
-        console.error("Could not open profile automatically; open the URL above manually"),
-      );
+      yield* humanLog("info", `Open ${formatUrl(profileUrl)} in your browser`, options);
     }
   });
 }

@@ -51,10 +51,13 @@ describe("upgradeProgram", () => {
     expect(exit._tag).toBe("Success");
     expect(managers).toEqual(["npm"]);
     expect(logs).toEqual([
+      "Detecting install method",
       "Using method: npm",
+      "Checking latest version",
       "From 0.4.3 -> 0.4.4",
-      "Running: npm install -g @851-labs/tokenmaxxing@latest --silent",
+      "Running npm install -g @851-labs/tokenmaxxing@latest --silent",
       "Upgraded to v0.4.4",
+      "Refreshing service",
       "Service: not installed",
     ]);
   });
@@ -84,7 +87,12 @@ describe("upgradeProgram", () => {
     expect(exit._tag).toBe("Success");
     expect(managers).toEqual([]);
     expect(refreshes).toEqual([]);
-    expect(logs).toEqual(["Using method: npm", "No updates pending (0.4.3); upgrade skipped"]);
+    expect(logs).toEqual([
+      "Detecting install method",
+      "Using method: npm",
+      "Checking latest version",
+      "No updates pending (0.4.3); upgrade skipped",
+    ]);
   });
 
   it("falls back to running the upgrade when latest version lookup fails", async () => {
@@ -107,10 +115,13 @@ describe("upgradeProgram", () => {
     expect(exit._tag).toBe("Success");
     expect(managers).toEqual(["npm"]);
     expect(logs).toEqual([
+      "Detecting install method",
       "Using method: npm",
+      "Checking latest version",
       "Could not check latest version; running upgrade anyway",
-      "Running: npm install -g @851-labs/tokenmaxxing@latest --silent",
+      "Running npm install -g @851-labs/tokenmaxxing@latest --silent",
       "Upgraded tokenmaxxing",
+      "Refreshing service",
       "Service: not installed",
     ]);
   });

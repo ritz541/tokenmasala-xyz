@@ -2,7 +2,7 @@ import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 
 import packageJson from "../../package.json";
-import { humanFrame, humanLog, writeJson } from "../output";
+import { humanFrame, humanSpinner, writeJson } from "../output";
 import {
   autoUpdateCommandDescription,
   type AutoUpdateManager,
@@ -111,15 +111,20 @@ function upgradeProgram(
   return Effect.gen(function* () {
     const env = runtime.env ?? process.env;
     const platform = runtime.platform ?? process.platform;
+    const installSpinner = yield* humanSpinner("Detecting install method", options);
     const install = yield* (
       runtime.findCommandInstall ?? (() => findTokenmaxxingCommandInstall(env, platform))
     )().pipe(
       Effect.flatMap((value) =>
         value === null ? Effect.fail(new UpgradeCommandNotFoundError()) : Effect.succeed(value),
       ),
+      Effect.tapError(() =>
+        Effect.sync(() => installSpinner.error("Could not detect install method")),
+      ),
     );
 
     if (isEphemeralCommandPath(install.commandPath)) {
+      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
       return yield* Effect.fail(
         new UpgradeEphemeralCommandError({ commandPath: install.commandPath }),
       );
@@ -127,6 +132,7 @@ function upgradeProgram(
 
     const manager = install.autoUpdateManager;
     if (manager === null) {
+      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
       return yield* Effect.fail(
         new UpgradeManagerError({
           commandPath: install.commandPath,
@@ -134,17 +140,20 @@ function upgradeProgram(
         }),
       );
     }
+    yield* Effect.sync(() => installSpinner.stop(`Using method: ${manager}`));
 
     const command = autoUpdateCommandDescription(manager);
     const currentVersion = runtime.currentVersion ?? packageJson.version;
+    const versionSpinner = yield* humanSpinner("Checking latest version", options);
     const versionCheck = yield* checkLatestVersion(
       currentVersion,
       runtime.getLatestVersion ?? getLatestCliVersion,
     );
 
-    yield* humanLog("info", `Using method: ${manager}`, options);
-
     if (versionCheck._tag === "available" && !versionCheck.shouldUpdate) {
+      yield* Effect.sync(() =>
+        versionSpinner.stop(`No updates pending (${versionCheck.currentVersion}); upgrade skipped`),
+      );
       if (options.json) {
         yield* writeJson({
           command,
@@ -160,33 +169,33 @@ function upgradeProgram(
         return;
       }
 
-      yield* humanLog(
-        "info",
-        `No updates pending (${versionCheck.currentVersion}); upgrade skipped`,
-        options,
-      );
       return;
     }
 
     if (versionCheck._tag === "available") {
-      yield* humanLog(
-        "step",
-        `From ${versionCheck.currentVersion} -> ${versionCheck.latestVersion}`,
-        options,
+      yield* Effect.sync(() =>
+        versionSpinner.stop(`From ${versionCheck.currentVersion} -> ${versionCheck.latestVersion}`),
       );
     } else {
-      yield* humanLog("warn", "Could not check latest version; running upgrade anyway", options);
+      yield* Effect.sync(() =>
+        versionSpinner.stop("Could not check latest version; running upgrade anyway"),
+      );
     }
 
-    yield* humanLog("info", `Running: ${command}`, options);
-
+    const upgradeSpinner = yield* humanSpinner(`Running ${command}`, options);
     yield* (runtime.runPackageManagerUpdate ?? runPackageManagerUpdate)(manager).pipe(
+      Effect.tap(() => Effect.sync(() => upgradeSpinner.stop(formatUpgradeSuccess(versionCheck)))),
+      Effect.tapError(() => Effect.sync(() => upgradeSpinner.error("Upgrade failed"))),
       Effect.mapError((cause) => new UpgradeFailedError({ cause })),
     );
 
-    yield* humanLog("success", formatUpgradeSuccess(versionCheck), options);
-
+    const refreshSpinner = yield* humanSpinner("Refreshing service", options);
     const refreshResult = yield* refreshInstalledService(install, runtime);
+    if (refreshResult._tag === "failed") {
+      yield* Effect.sync(() => refreshSpinner.error(formatServiceRefreshResult(refreshResult)));
+    } else {
+      yield* Effect.sync(() => refreshSpinner.stop(formatServiceRefreshResult(refreshResult)));
+    }
     if (options.json) {
       yield* writeJson({
         command,
@@ -201,8 +210,6 @@ function upgradeProgram(
       });
       return;
     }
-
-    yield* humanLog("info", formatServiceRefreshResult(refreshResult), options);
   });
 }
 

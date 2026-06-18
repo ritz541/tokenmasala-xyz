@@ -10,7 +10,7 @@ import { Command, Flag } from "effect/unstable/cli";
 
 import { ClockService, ConfigService, ConsoleService } from "../services";
 import { getConfigPath } from "../services/config";
-import { humanFrame, humanLog, writeJson } from "../output";
+import { humanFrame, humanLog, humanSpinner, writeJson } from "../output";
 import { resolveSyncAuth, syncProgram } from "./sync";
 
 const execFilePromise = promisify(execFile);
@@ -298,18 +298,24 @@ function serviceInstallProgram(
     const env = runtime.env ?? process.env;
     const platform = runtime.platform ?? process.platform;
     const paths = yield* servicePathsEffect(env, runtime.home, platform);
+    const installSpinner = yield* humanSpinner("Detecting tokenmaxxing install", options);
     const commandInstall = yield* (
       runtime.findCommandInstall ?? (() => findTokenmaxxingCommandInstall(env, platform))
     )().pipe(
       Effect.flatMap((install) =>
         install === null ? Effect.fail(new ServiceCommandNotFoundError()) : Effect.succeed(install),
       ),
+      Effect.tapError(() =>
+        Effect.sync(() => installSpinner.error("Could not find tokenmaxxing install")),
+      ),
     );
     const commandPath = commandInstall.commandPath;
     if (!options.force && isEphemeralCommandPath(commandPath)) {
+      yield* Effect.sync(() => installSpinner.error("Could not use tokenmaxxing install"));
       return yield* Effect.fail(new ServiceEphemeralCommandError({ commandPath }));
     }
     if (options.autoUpdate && commandInstall.autoUpdateManager === null) {
+      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
       return yield* Effect.fail(
         new ServiceAutoUpdateManagerError({
           commandPath,
@@ -317,6 +323,7 @@ function serviceInstallProgram(
         }),
       );
     }
+    yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
 
     const serviceEnv = capturedServiceEnv(env);
     const wrapper = renderServiceWrapper({
@@ -336,10 +343,18 @@ function serviceInstallProgram(
       version: 1,
     };
 
+    const filesSpinner = yield* humanSpinner("Writing service files", options);
     yield* (runtime.writeFiles ?? writeServiceFiles)(paths, wrapper, metadata).pipe(
+      Effect.tap(() => Effect.sync(() => filesSpinner.stop("Service files written"))),
+      Effect.tapError(() => Effect.sync(() => filesSpinner.error("Failed writing service files"))),
       Effect.mapError((cause) => new ServiceInstallError({ cause })),
     );
+    const schedulerSpinner = yield* humanSpinner("Installing scheduler", options);
     yield* (runtime.installScheduler ?? installNativeScheduler)(paths).pipe(
+      Effect.tap(() => Effect.sync(() => schedulerSpinner.stop("Scheduler installed"))),
+      Effect.tapError(() =>
+        Effect.sync(() => schedulerSpinner.error("Failed installing scheduler")),
+      ),
       Effect.mapError((cause) => new ServiceInstallError({ cause })),
     );
 
@@ -386,10 +401,20 @@ function serviceUninstallEffect(options: { json?: boolean | undefined } = {}) {
     Effect.gen(function* () {
       const paths = yield* servicePathsEffect();
 
+      const schedulerSpinner = yield* humanSpinner("Unregistering scheduler", options);
       yield* uninstallNativeScheduler(paths).pipe(
+        Effect.tap(() => Effect.sync(() => schedulerSpinner.stop("Scheduler unregistered"))),
+        Effect.tapError(() =>
+          Effect.sync(() => schedulerSpinner.error("Failed unregistering scheduler")),
+        ),
         Effect.mapError((cause) => new ServiceUninstallError({ cause })),
       );
+      const filesSpinner = yield* humanSpinner("Removing service files", options);
       yield* removeServiceFiles(paths).pipe(
+        Effect.tap(() => Effect.sync(() => filesSpinner.stop("Service files removed"))),
+        Effect.tapError(() =>
+          Effect.sync(() => filesSpinner.error("Failed removing service files")),
+        ),
         Effect.mapError((cause) => new ServiceUninstallError({ cause })),
       );
 

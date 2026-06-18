@@ -500,6 +500,12 @@ describe("serviceInstallProgram", () => {
     expect(state.logs).toContain("Not logged in; starting browser login");
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
+    expect(state.logs).toContain("Detecting tokenmaxxing install");
+    expect(state.logs).toContain("Found tokenmaxxing install");
+    expect(state.logs).toContain("Writing service files");
+    expect(state.logs).toContain("Service files written");
+    expect(state.logs).toContain("Installing scheduler");
+    expect(state.logs).toContain("Scheduler installed");
     expect(state.madeClients).toEqual([
       { baseUrl: "https://api.tokenmaxxing.example" },
       { baseUrl: "https://api.tokenmaxxing.example", token: "tmx_new" },
@@ -641,6 +647,12 @@ describe("serviceInstallProgram", () => {
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual([]);
     expect(state.writtenTokens).toEqual([]);
+    expect(state.logs).toContain("Detecting tokenmaxxing install");
+    expect(state.logs).toContain("Found tokenmaxxing install");
+    expect(state.logs).toContain("Writing service files");
+    expect(state.logs).toContain("Service files written");
+    expect(state.logs).toContain("Installing scheduler");
+    expect(state.logs).toContain("Scheduler installed");
     expect(written).toHaveLength(1);
     expect(written[0]?.metadata.autoUpdate).toBe(false);
     expect(installed).toEqual([written[0]?.paths]);

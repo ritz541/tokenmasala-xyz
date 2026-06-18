@@ -363,7 +363,7 @@ function serviceInstallProgram(
       return;
     }
 
-    yield* humanLog("success", "Automatic sync installed.", options);
+    yield* humanLog("success", "Automatic sync installed", options);
     yield* humanLog("info", `Schedule: ${scheduleDescription()}`, options);
     yield* humanLog("info", `Backend: ${paths.backend}`, options);
     yield* humanLog("info", `Log: ${paths.logPath}`, options);
@@ -398,8 +398,8 @@ function serviceUninstallEffect(options: { json?: boolean | undefined } = {}) {
         return;
       }
 
-      yield* humanLog("success", "Automatic sync uninstalled.", options);
-      yield* humanLog("info", "Auth and synced usage were left untouched.", options);
+      yield* humanLog("success", "Automatic sync uninstalled", options);
+      yield* humanLog("info", "Auth and synced usage were left untouched", options);
     }),
   );
 }
@@ -622,7 +622,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
     if (!options.force && shouldSkipServiceRun(state, now)) {
       if (!options.json && !options.scheduled) {
         yield* Effect.sync(() => {
-          console.log("Sync skipped; today already synced.");
+          console.log("Sync skipped; today already synced");
         });
       }
 
@@ -687,7 +687,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
           options.json
             ? Effect.void
             : Effect.sync(() => {
-                console.log("Service refresh failed after auto-update.");
+                console.log("Service refresh failed after auto-update");
               }),
         ),
       );
@@ -695,7 +695,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
 
     if (!options.json && !options.scheduled) {
       yield* Effect.sync(() => {
-        console.log("Service run complete.");
+        console.log("Service run complete");
         console.log(`Log: ${paths.logPath}`);
       });
     }
@@ -868,10 +868,10 @@ function serviceLockStatus(lock: ServiceLock, now: Date): ServiceLockStatus {
 
 function formatServiceLockSkip(status: ServiceLockStatus): string {
   if (!status.locked) {
-    return "Sync skipped; service run is already in progress.";
+    return "Sync skipped; service run is already in progress";
   }
 
-  return `Sync skipped; service run is already in progress${formatServiceLockSince(status)}.`;
+  return `Sync skipped; service run is already in progress${formatServiceLockSince(status)}`;
 }
 
 function formatServiceLockStatus(status: ServiceLockStatus): string {
@@ -943,7 +943,7 @@ function runServiceAutoUpdate(
     if (manager === undefined || manager === null) {
       if (!options.json) {
         yield* Effect.sync(() => {
-          console.log("Auto-update skipped; package manager was not detected.");
+          console.log("Auto-update skipped; package manager was not detected");
         });
       }
       return false;
@@ -953,7 +953,7 @@ function runServiceAutoUpdate(
     if (!managerExists) {
       if (!options.json) {
         yield* Effect.sync(() => {
-          console.log(`Auto-update skipped; ${manager} not found.`);
+          console.log(`Auto-update skipped; ${manager} not found`);
         });
       }
       return false;
@@ -965,7 +965,7 @@ function runServiceAutoUpdate(
         options.json
           ? Effect.succeed(false)
           : Effect.sync(() => {
-              console.log(`Auto-update failed; continuing with sync.`);
+              console.log(`Auto-update failed; continuing with sync`);
               return false;
             }),
       ),

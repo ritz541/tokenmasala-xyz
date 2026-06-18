@@ -145,7 +145,7 @@ describe("whoamiEffect", () => {
     expect(logs).toEqual([]);
     expect(promptCalls).toEqual([
       "intro:Account",
-      "spinner-start:Fetching account...",
+      "spinner-start:Fetching account",
       "spinner-stop:Alex (Alex)",
       "outro:Done",
     ]);

@@ -263,13 +263,13 @@ describe("renderSyncSuccess", () => {
     const output = renderSyncSuccess("https://tokenmaxxing.example/alex", { env: {} });
 
     expect(output).toBe(
-      "\x1b[32mSync complete.\x1b[0m\nProfile: \x1b[36;4mhttps://tokenmaxxing.example/alex\x1b[0m",
+      "\x1b[32mSync complete\x1b[0m\nProfile: \x1b[36;4mhttps://tokenmaxxing.example/alex\x1b[0m",
     );
   });
 
   it("respects NO_COLOR", () => {
     expect(renderSyncSuccess("https://tokenmaxxing.example/alex", { env: { NO_COLOR: "" } })).toBe(
-      "Sync complete.\nProfile: https://tokenmaxxing.example/alex",
+      "Sync complete\nProfile: https://tokenmaxxing.example/alex",
     );
   });
 });
@@ -321,7 +321,7 @@ describe("resolveSyncAuth", () => {
         { baseUrl: "https://api.tokenmaxxing.example" },
         { baseUrl: "https://api.tokenmaxxing.example", token: "tmx_new" },
       ]);
-      expect(state.logs).toContain("Not logged in; starting browser login.");
+      expect(state.logs).toContain("Not logged in; starting browser login");
       expect(state.logs).toContain(
         "Opening \x1b[36;4mhttps://tokenmaxxing.example/login/cli?code=ABC123\x1b[0m",
       );
@@ -349,7 +349,7 @@ describe("resolveSyncAuth", () => {
 
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual([]);
-    expect(state.errors).toContain("Open the URL above in your browser to continue.");
+    expect(state.errors).toContain("Open the URL above in your browser to continue");
     expect(state.writtenTokens).toEqual(["tmx_new"]);
   });
 
@@ -369,7 +369,7 @@ describe("resolveSyncAuth", () => {
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.errors).toContain(
-      "Could not open a browser automatically; open the URL above manually.",
+      "Could not open a browser automatically; open the URL above manually",
     );
     expect(state.writtenTokens).toEqual(["tmx_new"]);
   });
@@ -476,7 +476,7 @@ describe("resolveSyncAuth", () => {
       );
 
       expect(exit._tag).toBe("Success");
-      expect(state.logs).toEqual(["Checking current login...", "Validated current login."]);
+      expect(state.logs).toEqual(["Checking current login", "Validated current login"]);
     } finally {
       if (originalNoColor === undefined) {
         delete process.env.NO_COLOR;
@@ -508,7 +508,7 @@ describe("resolveSyncAuth", () => {
       );
 
       expect(exit._tag).toBe("Success");
-      expect(state.logs).toEqual(["Checking current login...", "Logged in as alex"]);
+      expect(state.logs).toEqual(["Checking current login", "Logged in as alex"]);
     } finally {
       if (originalNoColor === undefined) {
         delete process.env.NO_COLOR;
@@ -589,7 +589,7 @@ describe("openProfileIfAvailable", () => {
 
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/alex"]);
     expect(state.errors).toContain(
-      "Could not open profile automatically; open the URL above manually.",
+      "Could not open profile automatically; open the URL above manually",
     );
   });
 });

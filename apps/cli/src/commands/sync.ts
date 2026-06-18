@@ -178,9 +178,9 @@ function syncEffect(options: SyncOptions) {
 
       if (shouldRenderInlineSync(options)) {
         if (result.rows === 0) {
-          yield* humanLog("info", "Nothing to sync.", options);
+          yield* humanLog("info", "Nothing to sync", options);
         } else if (result.dryRun) {
-          yield* humanLog("success", "Dry run complete. Nothing pushed.", options);
+          yield* humanLog("success", "Dry run complete; nothing pushed", options);
         } else if (result.profileUrl !== undefined) {
           yield* humanLog("info", `Profile: ${formatUrl(result.profileUrl)}`, options);
         }
@@ -190,9 +190,9 @@ function syncEffect(options: SyncOptions) {
           console.log(renderSyncTable(result.sourceResults));
           console.log("");
           if (result.rows === 0) {
-            console.log("Nothing to sync.");
+            console.log("Nothing to sync");
           } else if (result.dryRun) {
-            console.log("Dry run complete. Nothing pushed.");
+            console.log("Dry run complete; nothing pushed");
           } else if (result.profileUrl !== undefined) {
             console.log(renderSyncSuccess(result.profileUrl));
           }
@@ -224,9 +224,9 @@ function syncProgram(options: SyncProgramOptions) {
     const sourceResults: SyncSourceResult[] = [];
     const renderInlineResults = shouldRenderInlineSync(options);
     for (const source of sources) {
-      const spinner = yield* humanSpinner(`Syncing ${source.source}...`, options);
+      const spinner = yield* humanSpinner(`Syncing ${source.source}`, options);
       const dailyReport = yield* runCcusageDailyReport(source, { since: options.since }).pipe(
-        Effect.tapError(() => Effect.sync(() => spinner.error(`Failed syncing ${source.source}.`))),
+        Effect.tapError(() => Effect.sync(() => spinner.error(`Failed syncing ${source.source}`))),
       );
       if (Option.isNone(dailyReport) || dailyReport.value.daily.length === 0) {
         const result = { source: source.source, summary: null };
@@ -245,7 +245,7 @@ function syncProgram(options: SyncProgramOptions) {
       });
 
       const sessionReport = yield* runCcusageSessionReport(source, { since: options.since }).pipe(
-        Effect.tapError(() => Effect.sync(() => spinner.error(`Failed syncing ${source.source}.`))),
+        Effect.tapError(() => Effect.sync(() => spinner.error(`Failed syncing ${source.source}`))),
       );
       const sessionCount = Option.match(sessionReport, {
         onNone: () => null,
@@ -360,7 +360,7 @@ function openProfileIfAvailable(profileUrl: string) {
 
     if (!opened) {
       yield* Effect.sync(() =>
-        console.error("Could not open profile automatically; open the URL above manually."),
+        console.error("Could not open profile automatically; open the URL above manually"),
       );
     }
   });
@@ -434,7 +434,7 @@ function renderSyncTable(
 function renderSyncSuccess(profileUrl: string, options: FormatOptions = {}): string {
   const styles = makeStyles(options);
 
-  return `${styles.synced("Sync complete.")}\nProfile: ${formatUrl(profileUrl, options)}`;
+  return `${styles.synced("Sync complete")}\nProfile: ${formatUrl(profileUrl, options)}`;
 }
 
 function renderTable(
@@ -496,7 +496,7 @@ function resolveSyncAuth(options: ResolveSyncAuthOptions) {
         return yield* Effect.fail(new NotLoggedInError());
       }
 
-      yield* humanLog("info", "Not logged in; starting browser login.", options);
+      yield* humanLog("info", "Not logged in; starting browser login", options);
       return yield* loginForSync();
     }
 
@@ -529,7 +529,7 @@ function resolveSyncAuth(options: ResolveSyncAuthOptions) {
     }
 
     yield* config.clearToken();
-    yield* humanLog("info", "Stored token is no longer valid; starting browser login.", options);
+    yield* humanLog("info", "Stored token is no longer valid; starting browser login", options);
     return yield* loginForSync();
   });
 }

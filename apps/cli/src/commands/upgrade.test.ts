@@ -54,8 +54,8 @@ describe("upgradeProgram", () => {
       "Using method: npm",
       "From 0.4.3 -> 0.4.4",
       "Running: npm install -g @851-labs/tokenmaxxing@latest --silent",
-      "Upgraded to v0.4.4.",
-      "Service: not installed.",
+      "Upgraded to v0.4.4",
+      "Service: not installed",
     ]);
   });
 
@@ -84,7 +84,7 @@ describe("upgradeProgram", () => {
     expect(exit._tag).toBe("Success");
     expect(managers).toEqual([]);
     expect(refreshes).toEqual([]);
-    expect(logs).toEqual(["Using method: npm", "No updates pending (0.4.3); upgrade skipped."]);
+    expect(logs).toEqual(["Using method: npm", "No updates pending (0.4.3); upgrade skipped"]);
   });
 
   it("falls back to running the upgrade when latest version lookup fails", async () => {
@@ -108,10 +108,10 @@ describe("upgradeProgram", () => {
     expect(managers).toEqual(["npm"]);
     expect(logs).toEqual([
       "Using method: npm",
-      "Could not check latest version; running upgrade anyway.",
+      "Could not check latest version; running upgrade anyway",
       "Running: npm install -g @851-labs/tokenmaxxing@latest --silent",
-      "Upgraded tokenmaxxing.",
-      "Service: not installed.",
+      "Upgraded tokenmaxxing",
+      "Service: not installed",
     ]);
   });
 
@@ -217,8 +217,8 @@ describe("upgradeProgram", () => {
 
     expect(exit._tag).toBe("Success");
     expect(refreshes).toEqual([{ autoUpdate: false, commandPath: "/usr/local/bin/tokenmaxxing" }]);
-    expect(logs).toContain("Upgraded to v0.4.4.");
-    expect(logs).toContain("Service: refreshed.");
+    expect(logs).toContain("Upgraded to v0.4.4");
+    expect(logs).toContain("Service: refreshed");
   });
 
   it("keeps upgrade successful when service refresh fails", async () => {
@@ -236,7 +236,7 @@ describe("upgradeProgram", () => {
     );
 
     expect(exit._tag).toBe("Success");
-    expect(logs).toContain("Service: refresh failed; run tokenmaxxing service install if needed.");
+    expect(logs).toContain("Service: refresh failed; run tokenmaxxing service install if needed");
   });
 
   it("rejects ephemeral package-runner installs", async () => {
@@ -276,10 +276,10 @@ describe("refreshInstalledService", () => {
   });
 
   it("formats refresh results", () => {
-    expect(formatServiceRefreshResult({ _tag: "refreshed" })).toBe("Service: refreshed.");
-    expect(formatServiceRefreshResult({ _tag: "not-installed" })).toBe("Service: not installed.");
+    expect(formatServiceRefreshResult({ _tag: "refreshed" })).toBe("Service: refreshed");
+    expect(formatServiceRefreshResult({ _tag: "not-installed" })).toBe("Service: not installed");
     expect(formatServiceRefreshResult({ _tag: "failed", cause: "boom" })).toBe(
-      "Service: refresh failed; run tokenmaxxing service install if needed.",
+      "Service: refresh failed; run tokenmaxxing service install if needed",
     );
   });
 });
@@ -293,7 +293,7 @@ describe("formatUpgradeSuccess", () => {
         latestVersion: "0.4.4",
         shouldUpdate: true,
       }),
-    ).toBe("Upgraded to v0.4.4.");
+    ).toBe("Upgraded to v0.4.4");
   });
 
   it("keeps generic copy when the registry check was unavailable", () => {
@@ -303,7 +303,7 @@ describe("formatUpgradeSuccess", () => {
         currentVersion: "0.4.3",
         latestVersion: null,
       }),
-    ).toBe("Upgraded tokenmaxxing.");
+    ).toBe("Upgraded tokenmaxxing");
   });
 });
 

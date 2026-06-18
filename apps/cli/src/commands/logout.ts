@@ -33,9 +33,9 @@ function logoutEffect(options: { json: boolean }) {
       if (options.json) {
         yield* writeJson({ status: "ok", tokenCleared: cleared.tokenCleared });
       } else if (cleared.tokenCleared) {
-        yield* humanLog("success", "Logged out; the token was revoked.", options);
+        yield* humanLog("success", "Logged out; the token was revoked", options);
       } else {
-        yield* humanLog("info", "Not logged in; nothing to do.", options);
+        yield* humanLog("info", "Not logged in; nothing to do", options);
       }
     }),
   );

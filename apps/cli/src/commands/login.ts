@@ -178,7 +178,7 @@ function browserLoginEffect(options: BrowserLoginOptions) {
     const canOpenBrowser = yield* terminal.canOpenExternalBrowser;
     if (options.json && !canOpenBrowser) {
       return yield* Effect.fail(
-        new OpenBrowserError({ cause: "External browser launch is unavailable." }),
+        new OpenBrowserError({ cause: "External browser launch is unavailable" }),
       );
     }
 
@@ -211,12 +211,12 @@ function browserLoginEffect(options: BrowserLoginOptions) {
 
         yield* humanLog(
           "error",
-          "Could not open a browser automatically; open the URL above manually.",
+          "Could not open a browser automatically; open the URL above manually",
           options,
         );
       }
     } else {
-      yield* humanLog("error", "Open the URL above in your browser to continue.", options);
+      yield* humanLog("error", "Open the URL above in your browser to continue", options);
     }
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {

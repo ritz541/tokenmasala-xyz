@@ -38,12 +38,12 @@ function whoamiEffect(options: { json: boolean }) {
       }
 
       const client = yield* clients.make({ baseUrl: stored.apiUrl, token: stored.token });
-      const spinner = yield* humanSpinner("Fetching account...", options);
+      const spinner = yield* humanSpinner("Fetching account", options);
       const me = yield* client.me.me().pipe(
         Effect.mapError((cause) =>
           isUnauthorizedError(cause) ? new NotLoggedInError() : new WhoamiError({ cause }),
         ),
-        Effect.tapError(() => Effect.sync(() => spinner.error("Could not fetch account."))),
+        Effect.tapError(() => Effect.sync(() => spinner.error("Could not fetch account"))),
       );
 
       if (options.json) {

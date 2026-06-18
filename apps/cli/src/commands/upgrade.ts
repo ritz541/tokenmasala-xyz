@@ -162,7 +162,7 @@ function upgradeProgram(
 
       yield* humanLog(
         "info",
-        `No updates pending (${versionCheck.currentVersion}); upgrade skipped.`,
+        `No updates pending (${versionCheck.currentVersion}); upgrade skipped`,
         options,
       );
       return;
@@ -175,7 +175,7 @@ function upgradeProgram(
         options,
       );
     } else {
-      yield* humanLog("warn", "Could not check latest version; running upgrade anyway.", options);
+      yield* humanLog("warn", "Could not check latest version; running upgrade anyway", options);
     }
 
     yield* humanLog("info", `Running: ${command}`, options);
@@ -262,8 +262,8 @@ function getLatestCliVersion(): Effect.Effect<string, UpgradeVersionCheckError> 
 
 function formatUpgradeSuccess(versionCheck: VersionCheckResult): string {
   return versionCheck._tag === "available"
-    ? `Upgraded to v${versionCheck.latestVersion}.`
-    : "Upgraded tokenmaxxing.";
+    ? `Upgraded to v${versionCheck.latestVersion}`
+    : "Upgraded tokenmaxxing";
 }
 
 function registryLatestVersion(body: unknown): string | null {
@@ -361,11 +361,11 @@ function refreshInstalledService(
 function formatServiceRefreshResult(result: ServiceRefreshResult): string {
   switch (result._tag) {
     case "failed":
-      return "Service: refresh failed; run tokenmaxxing service install if needed.";
+      return "Service: refresh failed; run tokenmaxxing service install if needed";
     case "not-installed":
-      return "Service: not installed.";
+      return "Service: not installed";
     case "refreshed":
-      return "Service: refreshed.";
+      return "Service: refreshed";
   }
 }
 

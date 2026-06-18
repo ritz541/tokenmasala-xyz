@@ -213,7 +213,7 @@ describe("loginEffect", () => {
     expect(exit._tag).toBe("Failure");
     expect(promptCalls).toEqual([
       "intro:Login",
-      "spinner-start:Checking current login...",
+      "spinner-start:Checking current login",
       "spinner-error:Already logged in as \x1b[36mpondorasti\x1b[0m",
     ]);
   });

@@ -16,6 +16,10 @@ interface FormatHighlightOptions {
   env?: Record<string, string | undefined>;
 }
 
+interface FormatStatusMessageOptions {
+  stripTerminalPunctuation?: boolean | undefined;
+}
+
 type HumanLogLevel = "error" | "info" | "step" | "success" | "warn";
 
 interface HumanFailureContent {
@@ -53,6 +57,8 @@ const tokenmaxxingFlagsWithValues = new Set([
   "--since",
   "--sources",
 ]);
+const ansiControlCharacter = String.fromCharCode(27);
+const trailingAnsiPattern = new RegExp(`(?:${ansiControlCharacter}\\[[0-9;]*m)+$`);
 
 function writeJson(value: unknown) {
   return Effect.gen(function* () {
@@ -70,6 +76,17 @@ function formatUrl(url: string, options: FormatUrlOptions = {}): string {
 function formatHighlight(value: string, options: FormatHighlightOptions = {}): string {
   const env = options.env ?? process.env;
   return Object.prototype.hasOwnProperty.call(env, "NO_COLOR") ? value : `\x1b[36m${value}\x1b[0m`;
+}
+
+function formatStatusMessage(message: string, options: FormatStatusMessageOptions = {}): string {
+  if (options.stripTerminalPunctuation === false) {
+    return message;
+  }
+
+  return message
+    .split("\n")
+    .map((line) => formatStatusLine(line))
+    .join("\n");
 }
 
 function humanIntro(title: string, options: HumanOutputOptions = {}) {
@@ -98,9 +115,9 @@ function humanOutro(message: string, options: HumanOutputOptions = {}) {
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.outro(formatClackRow(message));
+        prompts.outro(formatClackRow(formatStatusMessage(message)));
       } else {
-        output.log(message);
+        output.log(formatStatusMessage(message));
       }
     });
   });
@@ -116,13 +133,13 @@ function humanFailure(failure: string | HumanFailureContent, options: HumanOutpu
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
         if (typeof failure === "string") {
-          prompts.log.error(formatClackRow(failure));
+          prompts.log.error(formatClackRow(formatStatusMessage(failure)));
         } else {
           if (failure.primaryMessageRendered !== true) {
-            prompts.log.error(formatClackRow(failure.message));
+            prompts.log.error(formatClackRow(formatStatusMessage(failure.message)));
           }
           for (const line of failure.context ?? []) {
-            prompts.log.info(formatClackRow(line));
+            prompts.log.info(formatClackRow(formatStatusMessage(line)));
           }
           if (failure.hint !== undefined) {
             prompts.log.info(formatClackHintRow(failure.hint));
@@ -130,7 +147,9 @@ function humanFailure(failure: string | HumanFailureContent, options: HumanOutpu
         }
         prompts.outro("Failed");
       } else {
-        output.error(typeof failure === "string" ? failure : plainFailureMessage(failure));
+        output.error(
+          typeof failure === "string" ? formatStatusMessage(failure) : plainFailureMessage(failure),
+        );
       }
     });
   });
@@ -163,11 +182,11 @@ function humanLog(level: HumanLogLevel, message: string, options: HumanOutputOpt
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.log[level](formatClackRow(message));
+        prompts.log[level](formatClackRow(formatStatusMessage(message)));
       } else if (level === "error") {
-        output.error(message);
+        output.error(formatStatusMessage(message));
       } else {
-        output.log(message);
+        output.log(formatStatusMessage(message));
       }
     });
   });
@@ -182,10 +201,13 @@ function humanNote(title: string, message: string, options: HumanOutputOptions =
     const output = yield* Effect.service(ConsoleService);
     yield* Effect.sync(() => {
       if (shouldUseClack()) {
-        prompts.note(formatClackRow(message), formatClackRow(title));
+        prompts.note(
+          formatClackRow(formatStatusMessage(message)),
+          formatClackRow(formatStatusMessage(title)),
+        );
       } else {
-        output.log(title);
-        output.log(message);
+        output.log(formatStatusMessage(title));
+        output.log(formatStatusMessage(message));
       }
     });
   });
@@ -203,27 +225,35 @@ function humanSpinner(message: string, options: HumanOutputOptions = {}) {
 
     if (shouldUseClack()) {
       const spinner = prompts.spinner();
-      spinner.start(formatClackRow(message));
+      spinner.start(formatClackRow(formatStatusMessage(message)));
 
       return {
         error: (nextMessage?: string) =>
-          spinner.error(nextMessage === undefined ? nextMessage : formatClackRow(nextMessage)),
+          spinner.error(
+            nextMessage === undefined
+              ? nextMessage
+              : formatClackRow(formatStatusMessage(nextMessage)),
+          ),
         stop: (nextMessage?: string) =>
-          spinner.stop(nextMessage === undefined ? nextMessage : formatClackRow(nextMessage)),
+          spinner.stop(
+            nextMessage === undefined
+              ? nextMessage
+              : formatClackRow(formatStatusMessage(nextMessage)),
+          ),
       } satisfies HumanSpinner;
     }
 
-    output.log(message);
+    output.log(formatStatusMessage(message));
 
     return {
       error: (nextMessage?: string) => {
         if (nextMessage !== undefined) {
-          output.error(nextMessage);
+          output.error(formatStatusMessage(nextMessage));
         }
       },
       stop: (nextMessage?: string) => {
         if (nextMessage !== undefined) {
-          output.log(nextMessage);
+          output.log(formatStatusMessage(nextMessage));
         }
       },
     } satisfies HumanSpinner;
@@ -277,7 +307,51 @@ function plainFailureMessage(failure: HumanFailureContent): string {
     lines.push(`hint: ${failure.hint}`);
   }
 
-  return lines.join("\n");
+  return formatStatusMessage(lines.join("\n"));
+}
+
+function formatStatusLine(line: string): string {
+  if (line.trim() === "" || hasInternalSentenceBreak(line)) {
+    return line;
+  }
+
+  const trailingWhitespace = line.match(/\s+$/)?.[0] ?? "";
+  const lineWithoutWhitespace =
+    trailingWhitespace === "" ? line : line.slice(0, -trailingWhitespace.length);
+  const trailingAnsi = lineWithoutWhitespace.match(trailingAnsiPattern)?.[0] ?? "";
+  const body =
+    trailingAnsi === ""
+      ? lineWithoutWhitespace
+      : lineWithoutWhitespace.slice(0, -trailingAnsi.length);
+
+  if (!/[.!?]$/.test(body)) {
+    return line;
+  }
+
+  return `${body.replace(/[.!?]+$/, "")}${trailingAnsi}${trailingWhitespace}`;
+}
+
+function hasInternalSentenceBreak(line: string): boolean {
+  const visible = stripAnsi(line).replace(/[.!?]+\s*$/, "");
+  return /[.!?]\s+\S/.test(visible);
+}
+
+function stripAnsi(value: string): string {
+  let result = "";
+  let index = 0;
+
+  while (index < value.length) {
+    const ansiLength = ansiSequenceLengthAt(value, index);
+    if (ansiLength > 0) {
+      index += ansiLength;
+      continue;
+    }
+
+    result += value[index] ?? "";
+    index += 1;
+  }
+
+  return result;
 }
 
 function formatClackRow(message: string): string {
@@ -288,7 +362,7 @@ function formatClackRow(message: string): string {
 }
 
 function formatClackHintRow(hint: string, options: FormatHighlightOptions = {}): string {
-  return `Hint: ${formatClackRow(formatClackHintBody(hint, options))}`;
+  return `Hint: ${formatClackRow(formatClackHintBody(formatStatusMessage(hint), options))}`;
 }
 
 function formatClackHintBody(hint: string, options: FormatHighlightOptions): string {
@@ -448,6 +522,7 @@ export {
   formatHighlight,
   formatClackHintRow,
   formatClackRow,
+  formatStatusMessage,
   formatUrl,
   humanConfirm,
   humanFailure,
@@ -464,6 +539,7 @@ export {
 
 export type {
   FormatHighlightOptions,
+  FormatStatusMessageOptions,
   FormatUrlOptions,
   HumanConfirmOptions,
   HumanFailureContent,

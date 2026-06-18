@@ -6,6 +6,7 @@ import {
   formatClackHintRow,
   formatClackRow,
   formatHighlight,
+  formatStatusMessage,
   formatUrl,
   humanConfirm,
   humanFailure,
@@ -327,6 +328,26 @@ describe("formatClackHintRow", () => {
         env: { NO_COLOR: "" },
       }),
     ).toBe("Hint: Run tokenmaxxing logout first before logging in again");
+  });
+});
+
+describe("formatStatusMessage", () => {
+  it("removes terminal punctuation from short status rows", () => {
+    expect(formatStatusMessage("Checking current login...")).toBe("Checking current login");
+    expect(formatStatusMessage("Validated current login.")).toBe("Validated current login");
+    expect(formatStatusMessage("Install automatic sync?")).toBe("Install automatic sync");
+  });
+
+  it("preserves multi-sentence explanatory copy", () => {
+    expect(formatStatusMessage("Dry run complete. Nothing pushed.")).toBe(
+      "Dry run complete. Nothing pushed.",
+    );
+  });
+
+  it("removes terminal punctuation before ANSI resets", () => {
+    expect(formatStatusMessage("\x1b[32mSync complete.\x1b[0m")).toBe(
+      "\x1b[32mSync complete\x1b[0m",
+    );
   });
 });
 

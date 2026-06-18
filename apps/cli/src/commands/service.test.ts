@@ -497,7 +497,7 @@ describe("serviceInstallProgram", () => {
     );
 
     expect(exit._tag).toBe("Success");
-    expect(state.logs).toContain("Not logged in; starting browser login.");
+    expect(state.logs).toContain("Not logged in; starting browser login");
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
     expect(state.madeClients).toEqual([
@@ -512,7 +512,7 @@ describe("serviceInstallProgram", () => {
       commandPath: "/usr/local/bin/tokenmaxxing",
       installedAt: "2026-06-16T12:00:00.000Z",
     });
-    expect(state.logs).toContain("Automatic sync installed.");
+    expect(state.logs).toContain("Automatic sync installed");
   });
 
   it("relogs in and continues installing when the stored token is revoked", async () => {
@@ -534,7 +534,7 @@ describe("serviceInstallProgram", () => {
 
     expect(exit._tag).toBe("Success");
     expect(state.clearedTokens).toBe(1);
-    expect(state.logs).toContain("Stored token is no longer valid; starting browser login.");
+    expect(state.logs).toContain("Stored token is no longer valid; starting browser login");
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
     expect(state.madeClients).toEqual([
@@ -590,7 +590,7 @@ describe("serviceInstallProgram", () => {
 
     expect(exit._tag).toBe("Failure");
     expect(failureTag(exit)).toBe("NonInteractiveLoginError");
-    expect(state.logs).toContain("Not logged in; starting browser login.");
+    expect(state.logs).toContain("Not logged in; starting browser login");
     expect(state.browserUrls).toEqual([]);
     expect(state.writtenTokens).toEqual([]);
     expect(written).toEqual([]);

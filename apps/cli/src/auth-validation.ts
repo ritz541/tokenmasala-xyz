@@ -30,7 +30,7 @@ function validateCurrentLogin(
   return Effect.gen(function* () {
     const spinner =
       options.showSpinner === true
-        ? yield* humanSpinner("Checking current login...", options)
+        ? yield* humanSpinner("Checking current login", options)
         : undefined;
     const result = yield* client.me.me().pipe(
       Effect.map((me): CurrentLoginValidation => ({ _tag: "valid", user: me.user })),
@@ -47,7 +47,7 @@ function validateCurrentLogin(
       const successMessage =
         typeof options.successMessage === "function"
           ? options.successMessage(result.user)
-          : (options.successMessage ?? "Validated current login.");
+          : (options.successMessage ?? "Validated current login");
       const successDisposition = options.successDisposition ?? "success";
       yield* Effect.sync(() => {
         if (successDisposition === "error") {
@@ -60,7 +60,7 @@ function validateCurrentLogin(
       return result;
     }
 
-    yield* Effect.sync(() => spinner?.error("Could not validate current login."));
+    yield* Effect.sync(() => spinner?.error("Could not validate current login"));
     return result;
   });
 }

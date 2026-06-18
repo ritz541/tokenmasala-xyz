@@ -13,6 +13,7 @@ import {
   TerminalService,
   type TokenmaxxingApiClient,
 } from "../services";
+import { formatUrl } from "../output";
 import { browserLoginEffect } from "./login";
 import {
   formatSyncUsd,
@@ -493,7 +494,7 @@ describe("resolveSyncAuth", () => {
     expect(exit._tag).toBe("Success");
     expect(state.browserUrls).toEqual([]);
     expect(state.logs).toContain(
-      "Open https://tokenmaxxing.example/login/cli?code=ABC123 in your browser to continue",
+      `Open ${formatUrl("https://tokenmaxxing.example/login/cli?code=ABC123")} in your browser to continue`,
     );
     expect(state.errors).toEqual([]);
     expect(state.writtenTokens).toEqual(["tmx_new"]);
@@ -516,7 +517,7 @@ describe("resolveSyncAuth", () => {
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/login/cli?code=ABC123"]);
     expect(state.errors).toContain("Could not open browser");
     expect(state.logs).toContain(
-      "Open https://tokenmaxxing.example/login/cli?code=ABC123 in your browser to continue",
+      `Open ${formatUrl("https://tokenmaxxing.example/login/cli?code=ABC123")} in your browser to continue`,
     );
     expect(state.writtenTokens).toEqual(["tmx_new"]);
   });
@@ -702,7 +703,10 @@ describe("openProfileIfAvailable", () => {
 
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/alex"]);
     expect(state.errors).toEqual([]);
-    expect(state.logs).toEqual(["Opening profile", "Opened https://tokenmaxxing.example/alex"]);
+    expect(state.logs).toEqual([
+      "Opening profile",
+      `Opened ${formatUrl("https://tokenmaxxing.example/alex")}`,
+    ]);
   });
 
   it("skips profile opening when no external browser is available", async () => {
@@ -738,6 +742,8 @@ describe("openProfileIfAvailable", () => {
 
     expect(state.browserUrls).toEqual(["https://tokenmaxxing.example/alex"]);
     expect(state.errors).toContain("Could not open profile");
-    expect(state.logs).toContain("Open https://tokenmaxxing.example/alex in your browser");
+    expect(state.logs).toContain(
+      `Open ${formatUrl("https://tokenmaxxing.example/alex")} in your browser`,
+    );
   });
 });

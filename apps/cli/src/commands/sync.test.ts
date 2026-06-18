@@ -23,6 +23,9 @@ import {
   resolveSyncAuth,
   sourceStatsForSync,
   SyncAuthValidationError,
+  SyncPushError,
+  type SyncAuth,
+  uploadUsageReports,
 } from "./sync";
 
 interface TestLayerOptions {
@@ -152,6 +155,54 @@ function unauthorizedError() {
   return Object.assign(new Error("unauthorized"), { _tag: "Unauthorized" as const });
 }
 
+function makeConsoleLayer() {
+  const state = {
+    errors: [] as string[],
+    logs: [] as string[],
+  };
+  const layer = Layer.succeed(ConsoleService)({
+    error: (message?: unknown) => {
+      state.errors.push(String(message));
+    },
+    log: (message?: unknown) => {
+      state.logs.push(String(message));
+    },
+  });
+
+  return { layer, state };
+}
+
+interface TestUsageIngestRequest {
+  payload: {
+    device: {
+      name: string;
+      platform: NodeJS.Platform;
+    };
+    reports: unknown[];
+  };
+}
+
+type TestUsageIngest = (
+  request: TestUsageIngestRequest,
+) => Effect.Effect<{ received: number; syncedAt: string; upserted: number }, unknown>;
+
+function makeUploadAuth(ingest: TestUsageIngest): SyncAuth {
+  return {
+    authSource: "stored",
+    client: {
+      usage: {
+        ingest,
+      },
+    } as unknown as TokenmaxxingApiClient,
+    config: {
+      apiUrl: "https://api.tokenmaxxing.example",
+      token: "tmx_test",
+      wwwUrl: "https://tokenmaxxing.example",
+    },
+    user,
+  };
+}
+
 describe("formatSyncUsd", () => {
   it("matches the site USD formatting for small and large values", () => {
     expect(formatSyncUsd(99.5)).toBe("$99.50");
@@ -255,6 +306,93 @@ describe("sourceStatsForSync", () => {
 
   it("returns undefined when there is nothing useful to upload", () => {
     expect(sourceStatsForSync([{ source: "gemini", summary: null }])).toBeUndefined();
+  });
+});
+
+describe("uploadUsageReports", () => {
+  it("shows upload progress while pushing usage", async () => {
+    const { layer, state } = makeConsoleLayer();
+    const payloads: unknown[] = [];
+    const auth = makeUploadAuth((request) =>
+      Effect.sync(() => {
+        payloads.push(request.payload);
+
+        return {
+          received: 1,
+          syncedAt: "2026-06-15T00:00:00.000Z",
+          upserted: 1,
+        };
+      }),
+    );
+
+    const result = await Effect.runPromise(
+      uploadUsageReports({
+        auth,
+        device: { name: "Mac.local", platform: "darwin" },
+        options: { json: false },
+        rawReports: [],
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(result.upserted).toBe(1);
+    expect(payloads).toEqual([{ device: { name: "Mac.local", platform: "darwin" }, reports: [] }]);
+    expect(state.logs).toEqual(["Uploading usage", "Usage uploaded"]);
+    expect(state.errors).toEqual([]);
+  });
+
+  it("marks the upload row as failed when ingest fails", async () => {
+    const { layer, state } = makeConsoleLayer();
+    const auth = makeUploadAuth(() => Effect.fail(new Error("network unavailable")));
+
+    const exit = await Effect.runPromiseExit(
+      uploadUsageReports({
+        auth,
+        device: { name: "Mac.local", platform: "darwin" },
+        options: { json: false },
+        rawReports: [],
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    const error = exit._tag === "Failure" ? Cause.findErrorOption(exit.cause) : Option.none();
+    expect(Option.isSome(error)).toBe(true);
+    if (Option.isNone(error)) {
+      throw new Error("expected a typed failure");
+    }
+    expect(error.value).toBeInstanceOf(SyncPushError);
+    expect(state.logs).toEqual(["Uploading usage"]);
+    expect(state.errors).toEqual(["Failed uploading usage"]);
+  });
+
+  it("does not write upload progress for json or silent output", async () => {
+    const { layer, state } = makeConsoleLayer();
+    const auth = makeUploadAuth(() =>
+      Effect.succeed({
+        received: 1,
+        syncedAt: "2026-06-15T00:00:00.000Z",
+        upserted: 1,
+      }),
+    );
+
+    await Effect.runPromise(
+      uploadUsageReports({
+        auth,
+        device: { name: "Mac.local", platform: "darwin" },
+        options: { json: true },
+        rawReports: [],
+      }).pipe(Effect.provide(layer)),
+    );
+    await Effect.runPromise(
+      uploadUsageReports({
+        auth,
+        device: { name: "Mac.local", platform: "darwin" },
+        options: { json: false, silent: true },
+        rawReports: [],
+      }).pipe(Effect.provide(layer)),
+    );
+
+    expect(state.logs).toEqual([]);
+    expect(state.errors).toEqual([]);
   });
 });
 

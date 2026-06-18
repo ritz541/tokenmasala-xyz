@@ -163,6 +163,16 @@ interface TableCell {
   value: string;
 }
 
+interface UploadUsageReportsOptions {
+  auth: SyncAuth;
+  device: {
+    name: string;
+    platform: NodeJS.Platform;
+  };
+  options: Pick<SyncProgramOptions, "json" | "silent">;
+  rawReports: RawUsageReportInput[];
+}
+
 function syncEffect(options: SyncOptions) {
   return humanFrame(
     "Sync",
@@ -289,14 +299,12 @@ function syncProgram(options: SyncProgramOptions) {
       };
     }
 
-    const response = yield* auth.client.usage
-      .ingest({
-        payload: {
-          device,
-          reports: rawReports,
-        },
-      })
-      .pipe(Effect.mapError((cause) => new SyncPushError({ cause })));
+    const response = yield* uploadUsageReports({
+      auth,
+      device,
+      options,
+      rawReports,
+    });
     upserted = response.upserted;
 
     return {
@@ -308,6 +316,25 @@ function syncProgram(options: SyncProgramOptions) {
       status: "ok" as const,
       upserted,
     };
+  });
+}
+
+function uploadUsageReports({ auth, device, options, rawReports }: UploadUsageReportsOptions) {
+  return Effect.gen(function* () {
+    const spinner = yield* humanSpinner("Uploading usage", options);
+
+    return yield* auth.client.usage
+      .ingest({
+        payload: {
+          device,
+          reports: rawReports,
+        },
+      })
+      .pipe(
+        Effect.tap(() => Effect.sync(() => spinner.stop("Usage uploaded"))),
+        Effect.tapError(() => Effect.sync(() => spinner.error("Failed uploading usage"))),
+        Effect.mapError((cause) => new SyncPushError({ cause })),
+      );
   });
 }
 
@@ -578,6 +605,7 @@ export {
   SyncAuthValidationError,
   SyncPushError,
   UnknownSourceError,
+  uploadUsageReports,
 };
 
 export type { ResolveSyncAuthOptions, SyncAuth, SyncOptions, SyncResult };

@@ -98,14 +98,11 @@ function InternalPage() {
         <table className="w-full table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="w-[18%] p-3 font-medium">User</th>
-              <th className="w-[10%] p-3 font-medium">Version</th>
-              <th className="hidden w-[8%] p-3 font-medium md:table-cell">Arch</th>
-              <th className="w-[10%] p-3 font-medium">Status</th>
-              <th className="w-[16%] p-3 font-medium">Last check-in</th>
-              <th className="w-[18%] p-3 font-medium">Device</th>
-              <th className="hidden w-[10%] p-3 text-right font-medium lg:table-cell">Tokens</th>
-              <th className="w-[12%] p-3 text-right font-medium">Usage</th>
+              <th className="w-[30%] p-3 font-medium">User</th>
+              <th className="w-[16%] p-3 font-medium">Version</th>
+              <th className="hidden w-[14%] p-3 font-medium md:table-cell">Arch</th>
+              <th className="w-[16%] p-3 font-medium">Status</th>
+              <th className="w-[24%] p-3 font-medium">Last check-in</th>
             </tr>
           </thead>
           <tbody>
@@ -113,12 +110,8 @@ function InternalPage() {
               <tr className="border-b border-border last:border-b-0" key={row.user.id}>
                 <td className="p-3 align-top">
                   <div className="font-medium">{row.user.login}</div>
-                  <div className="text-xs text-muted-foreground">{row.user.name ?? "—"}</div>
-                  <div className="mt-1 max-w-56 truncate text-xs text-muted-foreground">
-                    {row.verifiedEmails.join(", ") || "no verified email"}
-                  </div>
                 </td>
-                <td className="p-3 align-top font-mono font-semibold">
+                <td className="p-3 align-top font-medium">
                   {formatVersion(row.latestDevice?.version ?? null)}
                 </td>
                 <td className="hidden p-3 align-top font-mono text-muted-foreground md:table-cell">
@@ -133,35 +126,6 @@ function InternalPage() {
                   </div>
                   <div className="break-all text-xs text-muted-foreground">
                     {formatUtc(row.latestCheckInAt)}
-                  </div>
-                </td>
-                <td className="p-3 align-top">
-                  <div className="break-words">{row.latestDevice?.name ?? "—"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {row.latestDevice === null
-                      ? "no device"
-                      : `${row.latestDevice.platform} · ${formatInteger(row.deviceCount)} device${row.deviceCount === 1 ? "" : "s"}`}
-                  </div>
-                </td>
-                <td className="hidden p-3 text-right align-top lg:table-cell">
-                  <div>{formatInteger(row.activeTokenCount)} active</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatInteger(row.revokedTokenCount)} revoked
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    used {formatRelativeTime(row.lastTokenUsedAt, data.generatedAt)}
-                  </div>
-                </td>
-                <td className="p-3 text-right align-top">
-                  <div>{formatCompactInteger(row.totalTokens)} tokens</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatUsd(row.totalSpendUsd)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatInteger(row.activeDays)} active days
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {row.sources.length === 0 ? "no sources" : row.sources.join(", ")}
                   </div>
                 </td>
               </tr>
@@ -264,26 +228,9 @@ function formatUtc(value: string | null): string {
 }
 
 const integer = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const compactInteger = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 1,
-  notation: "compact",
-});
-const usd = new Intl.NumberFormat("en-US", {
-  currency: "USD",
-  maximumFractionDigits: 2,
-  style: "currency",
-});
 
 function formatInteger(value: number): string {
   return integer.format(value);
-}
-
-function formatCompactInteger(value: number): string {
-  return compactInteger.format(value);
-}
-
-function formatUsd(value: number): string {
-  return usd.format(value);
 }
 
 export { Route };

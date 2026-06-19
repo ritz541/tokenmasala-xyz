@@ -42,7 +42,7 @@ function ProfilePage() {
 
   if (profile.isPending || daily.isPending) {
     return (
-      <div className="px-4 pt-8">
+      <div className="px-4 py-8">
         <p className="text-sm text-muted-foreground">Loading profile…</p>
       </div>
     );
@@ -50,7 +50,7 @@ function ProfilePage() {
 
   if (profile.isError || daily.isError) {
     return (
-      <div className="flex min-h-[360px] flex-col items-center justify-center px-4 pt-8 text-center">
+      <div className="flex min-h-[360px] flex-col items-center justify-center px-4 py-8 text-center">
         <h1 className="text-xl font-semibold">No profile for “{user}”</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Either it does not exist or nothing has been synced yet.
@@ -63,20 +63,22 @@ function ProfilePage() {
   const owner = profile.data.user;
 
   return (
-    <div className="flex flex-col gap-6 px-4 pt-8">
-      <header className="flex items-center gap-4">
+    <>
+      <header className="flex items-center gap-4 px-4 py-8">
         <Avatar size={56} src={owner.avatarUrl} />
         <h1 className="text-2xl font-semibold tracking-tight">{owner.login}</h1>
       </header>
 
       {daily.data.days.length === 0 ? (
-        <Card className="p-6 text-sm text-muted-foreground">
-          No usage yet — run <Code>tokenmaxxing sync</Code> to fill this page.
-        </Card>
+        <div className="px-4">
+          <Card className="p-6 text-sm text-muted-foreground">
+            No usage yet — run <Code>tokenmaxxing sync</Code> to fill this page.
+          </Card>
+        </div>
       ) : (
         <ProfileDashboard rows={daily.data.days} stats={stats} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -100,7 +102,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
   const [hoveredTokensFamily, setHoveredTokensFamily] = useState<string | null>(null);
 
   return (
-    <div className="-mx-4 grid grid-cols-1 gap-px border-y border-border bg-border">
+    <div className="grid grid-cols-1 gap-px border-y border-border bg-border">
       <div className="grid grid-cols-2 gap-px bg-border lg:grid-cols-4">
         <StatCard label="Total spend" value={formatUsd(stats.totalSpendUsd)} />
         <StatCard label="Total tokens" value={formatTokens(stats.totalTokens)} />

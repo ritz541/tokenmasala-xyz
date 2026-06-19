@@ -142,30 +142,32 @@ function LeaderboardPage() {
   const leaderboard = useQuery(leaderboardQueryOptions(metric, window));
 
   return (
-    <div className="px-4 pt-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Who is maxxing the most tokens. Join with{" "}
-            <Code>npm install -g @851-labs/tokenmaxxing</Code>
-          </p>
+    <>
+      <header className="px-4 py-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Who is maxxing the most tokens. Join with{" "}
+              <Code>npm install -g @851-labs/tokenmaxxing</Code>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Tabs
+              onChange={(value) => navigate({ search: (prev) => ({ ...prev, metric: value }) })}
+              options={METRICS}
+              value={metric}
+            />
+            <Tabs
+              onChange={(value) => navigate({ search: (prev) => ({ ...prev, window: value }) })}
+              options={WINDOWS}
+              value={window}
+            />
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Tabs
-            onChange={(value) => navigate({ search: (prev) => ({ ...prev, metric: value }) })}
-            options={METRICS}
-            value={metric}
-          />
-          <Tabs
-            onChange={(value) => navigate({ search: (prev) => ({ ...prev, window: value }) })}
-            options={WINDOWS}
-            value={window}
-          />
-        </div>
-      </div>
+      </header>
 
-      <div className="-mx-4 mt-6 overflow-hidden border-y border-border">
+      <div className="overflow-hidden border-y border-border">
         {leaderboard.isPending ? (
           <p className="p-6 text-sm text-muted-foreground">Loading the rankings…</p>
         ) : leaderboard.isError ? (
@@ -225,17 +227,17 @@ function LeaderboardPage() {
       </div>
 
       <FaqSection />
-    </div>
+    </>
   );
 }
 
 function FaqSection() {
   return (
-    <section className="mt-10 pt-8" aria-labelledby="homepage-faq-title">
-      <h2 id="homepage-faq-title" className="text-lg font-semibold tracking-tight">
+    <section className="pt-8" aria-labelledby="homepage-faq-title">
+      <h2 id="homepage-faq-title" className="px-4 text-lg font-semibold tracking-tight">
         FAQ
       </h2>
-      <div className="-mx-4 mt-4 divide-y divide-border border-y border-border">
+      <div className="mt-4 divide-y divide-border border-y border-border">
         {FAQ_ITEMS.map((item) => (
           <Collapsible.Root className="px-4 py-4" key={item.question}>
             <Collapsible.Trigger className="group flex w-full cursor-pointer items-center gap-2 bg-transparent p-0 text-left text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent">

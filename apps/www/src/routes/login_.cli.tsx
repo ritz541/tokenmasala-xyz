@@ -38,7 +38,7 @@ function CliLoginPage() {
   }, [approve, shouldAutoApprove]);
 
   return (
-    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 pt-8">
+    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 py-8">
       <Card className="mx-auto flex w-full max-w-sm flex-col items-center p-8 text-center">
         <TerminalWindow className="size-8 text-muted-foreground" />
         <h1 className="mt-4 text-xl font-semibold tracking-tight">Connect your CLI</h1>

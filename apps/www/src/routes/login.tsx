@@ -20,7 +20,7 @@ function LoginPage() {
   const { redirect } = Route.useSearch();
 
   return (
-    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 pt-8">
+    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 py-8">
       <Card className="mx-auto flex w-full max-w-sm flex-col items-center p-8 text-center">
         <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing.sh</h1>
         <p className="mt-2 text-sm text-muted-foreground">

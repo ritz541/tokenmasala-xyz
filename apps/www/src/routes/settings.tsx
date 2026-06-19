@@ -78,7 +78,7 @@ function SettingsPage() {
 
   if (me.isPending) {
     return (
-      <div className="px-4 pt-8">
+      <div className="px-4 py-8">
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
@@ -86,7 +86,7 @@ function SettingsPage() {
 
   if (me.isError) {
     return (
-      <div className="px-4 pt-8">
+      <div className="px-4 py-8">
         <p className="text-sm text-red-500">
           {errorMessage(me.error, "Could not load your session; refresh and try again.")}
         </p>
@@ -95,7 +95,7 @@ function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-10 px-4 pt-8">
+    <div className="flex flex-col gap-10 px-4 py-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
       <ConnectedAccountsSection />
       <DevicesSection login={me.data.user.login} />

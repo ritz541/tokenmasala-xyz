@@ -1,8 +1,9 @@
 import { Collapsible } from "@base-ui-components/react/collapsible";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, stripSearchParams, useNavigate } from "@tanstack/react-router";
 import type { LeaderboardMetric, LeaderboardWindow } from "@tokenmaxxing/api-contract";
 import type { ReactNode } from "react";
+import { z } from "zod";
 
 import { formatTokens, formatUsd } from "../components/charts/scale";
 import { Avatar } from "../components/ui/avatar";
@@ -10,16 +11,26 @@ import { Code } from "../components/ui/code";
 import { Tabs } from "../components/ui/tabs";
 import { leaderboardQueryOptions } from "../lib/queries";
 
-interface LeaderboardSearch {
-  metric: typeof LeaderboardMetric.Type;
-  window: typeof LeaderboardWindow.Type;
-}
+const LEADERBOARD_METRIC_VALUES = ["spend", "tokens"] as const;
+const LEADERBOARD_WINDOW_VALUES = ["7d", "30d", "all"] as const;
+
+const leaderboardSearchSchema = z.object({
+  metric: z.enum(LEADERBOARD_METRIC_VALUES).default("spend").catch("spend"),
+  window: z.enum(LEADERBOARD_WINDOW_VALUES).default("30d").catch("30d"),
+});
+
+type LeaderboardSearch = z.infer<typeof leaderboardSearchSchema>;
+
+const DEFAULT_LEADERBOARD_SEARCH = {
+  metric: "spend",
+  window: "30d",
+} as const satisfies LeaderboardSearch;
 
 const Route = createFileRoute("/")({
-  validateSearch: (search): LeaderboardSearch => ({
-    metric: search["metric"] === "tokens" ? "tokens" : "spend",
-    window: search["window"] === "7d" ? "7d" : search["window"] === "all" ? "all" : "30d",
-  }),
+  validateSearch: leaderboardSearchSchema,
+  search: {
+    middlewares: [stripSearchParams<LeaderboardSearch>(DEFAULT_LEADERBOARD_SEARCH)],
+  },
   component: LeaderboardPage,
 });
 

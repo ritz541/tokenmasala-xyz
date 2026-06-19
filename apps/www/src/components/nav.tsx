@@ -13,17 +13,12 @@ function Nav() {
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-4 flex h-14 max-w-5xl items-center justify-between border-x border-border px-4 lg:mx-auto">
         <div className="flex items-baseline gap-6">
-          <Link
-            className="text-sm font-semibold tracking-tight"
-            search={{ metric: "spend", window: "30d" }}
-            to="/"
-          >
+          <Link className="text-sm font-semibold tracking-tight" to="/">
             tokenmaxxing.sh
           </Link>
           <Link
             activeProps={{ className: "text-foreground" }}
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            search={{ metric: "spend", window: "30d" }}
             to="/"
           >
             Leaderboard

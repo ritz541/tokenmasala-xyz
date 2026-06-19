@@ -66,6 +66,7 @@
         "effect": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@tailwindcss/vite": "catalog:",
@@ -140,6 +141,7 @@
     "typescript": "6.0.3",
     "vite": "8.0.16",
     "vitest": "4.1.8",
+    "zod": "4.4.3",
   },
   "packages": {
     "@851-labs/tokenmaxxing": ["@851-labs/tokenmaxxing@workspace:apps/cli"],

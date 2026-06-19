@@ -31,6 +31,7 @@ import {
   renderServiceWrapper,
   renderSystemdTimer,
   scheduleDescription,
+  serviceScheduledSyncSince,
   serviceInstallProgram,
   serviceLockStatus,
   serviceRunFailureState,
@@ -41,6 +42,7 @@ import {
   type ServiceState,
   servicePaths,
   serviceStateJson,
+  windowsTaskCreateArgs,
   windowsTaskNames,
 } from "./service";
 import type { SyncResult } from "./sync";
@@ -306,7 +308,7 @@ describe("renderServiceWrapper", () => {
 });
 
 describe("native scheduler templates", () => {
-  it("renders launchd and systemd hourly schedules", () => {
+  it("renders five-minute launchd, systemd, and Windows schedules", () => {
     const paths = servicePaths({
       env: { TOKENMAXXING_CONFIG_DIR: "/tmp/tokenmaxxing" },
       home: "/Users/alex",
@@ -318,11 +320,32 @@ describe("native scheduler templates", () => {
     expect(launchdPlist).toContain("<string>/tmp/tokenmaxxing/tokenmaxxing.sh</string>");
     expect(launchdPlist).not.toContain("service-sync.sh");
     expect(launchdPlist).toContain("<key>StartInterval</key>");
-    expect(launchdPlist).toContain("<integer>3600</integer>");
+    expect(launchdPlist).toContain("<integer>300</integer>");
     expect(launchdPlist).not.toContain("StartCalendarInterval");
-    expect(renderSystemdTimer()).toContain("OnCalendar=hourly");
+    expect(renderSystemdTimer()).toContain("OnBootSec=5min");
+    expect(renderSystemdTimer()).toContain("OnUnitActiveSec=5min");
     expect(renderSystemdTimer()).toContain("Persistent=true");
-    expect(scheduleDescription()).toBe("syncs hourly");
+    expect(scheduleDescription()).toBe("syncs every 5 minutes");
+
+    const windowsPaths = servicePaths({
+      env: { TOKENMAXXING_CONFIG_DIR: "C:\\Users\\alex\\AppData\\Roaming\\tokenmaxxing" },
+      home: "C:\\Users\\alex",
+      platform: "win32",
+    });
+
+    expect(windowsPaths).not.toBeNull();
+    expect(windowsTaskCreateArgs(windowsPaths!)).toEqual([
+      "/Create",
+      "/TN",
+      "tokenmaxxing-sync",
+      "/SC",
+      "MINUTE",
+      "/MO",
+      "5",
+      "/TR",
+      '"C:\\Users\\alex\\AppData\\Roaming\\tokenmaxxing/service-sync.cmd"',
+      "/F",
+    ]);
   });
 });
 
@@ -351,7 +374,7 @@ describe("legacyServiceWrapperPaths", () => {
 });
 
 describe("windowsTaskNames", () => {
-  it("includes the current hourly task and legacy daily task names for cleanup", () => {
+  it("includes the current task and legacy daily task names for cleanup", () => {
     expect(windowsTaskNames()).toEqual([
       "tokenmaxxing-sync",
       "tokenmaxxing-sync-0900",
@@ -386,6 +409,7 @@ describe("serviceStateJson", () => {
       lastCliVersion: "0.4.12",
       lastDurationMs: 1234,
       lastRows: 42,
+      lastSince: "2026-06-16",
       lastSources: [
         {
           days: 3,
@@ -403,6 +427,58 @@ describe("serviceStateJson", () => {
     };
 
     expect(serviceStateJson(state)).toEqual(state);
+  });
+});
+
+describe("serviceScheduledSyncSince", () => {
+  it("uses the previous successful local date for scheduled syncs", () => {
+    expect(
+      serviceScheduledSyncSince(
+        { lastSuccessAt: "2026-06-16T23:30:00.000Z", version: 1 },
+        new Date("2026-06-17T00:05:00.000Z"),
+        true,
+      ),
+    ).toBe("2026-06-16");
+  });
+
+  it("falls back to the legacy success date when no timestamp marker exists", () => {
+    expect(
+      serviceScheduledSyncSince(
+        { lastSuccessDate: "2026-06-15", version: 1 },
+        new Date("2026-06-17T12:00:00.000Z"),
+        true,
+      ),
+    ).toBe("2026-06-15");
+  });
+
+  it("falls back to yesterday when no reliable marker exists", () => {
+    expect(
+      serviceScheduledSyncSince({ version: 1 }, new Date("2026-06-17T12:00:00.000Z"), true),
+    ).toBe("2026-06-16");
+    expect(
+      serviceScheduledSyncSince(
+        { lastSuccessAt: "not-a-date", version: 1 },
+        new Date("2026-06-17T12:00:00.000Z"),
+        true,
+      ),
+    ).toBe("2026-06-16");
+    expect(
+      serviceScheduledSyncSince(
+        { lastSuccessAt: "2026-06-18T00:00:00.000Z", version: 1 },
+        new Date("2026-06-17T12:00:00.000Z"),
+        true,
+      ),
+    ).toBe("2026-06-16");
+  });
+
+  it("does not set since for manual service runs", () => {
+    expect(
+      serviceScheduledSyncSince(
+        { lastSuccessAt: "2026-06-16T23:30:00.000Z", version: 1 },
+        new Date("2026-06-17T00:05:00.000Z"),
+        false,
+      ),
+    ).toBeUndefined();
   });
 });
 
@@ -434,6 +510,7 @@ describe("service run state", () => {
         autoUpdated: false,
         durationMs: 1234,
         result: syncResult,
+        since: "2026-06-16",
         successAt: "2026-06-16T10:00:01.000Z",
         version: "0.4.12",
       },
@@ -447,6 +524,7 @@ describe("service run state", () => {
       lastDurationMs: 1234,
       lastError: undefined,
       lastRows: 42,
+      lastSince: "2026-06-16",
       lastSuccessAt: "2026-06-16T10:00:01.000Z",
       lastUpserted: 40,
       version: 1,
@@ -479,6 +557,7 @@ describe("service run state", () => {
         attemptAt: "2026-06-16T10:00:00.000Z",
         durationMs: 222,
         error: "network unavailable",
+        since: "2026-06-16",
         version: "0.4.12",
       },
     );
@@ -490,6 +569,7 @@ describe("service run state", () => {
       lastDurationMs: 222,
       lastError: "network unavailable",
       lastRows: 42,
+      lastSince: "2026-06-16",
       lastSuccessAt: "2026-06-16T09:00:00.000Z",
       lastUpserted: 40,
     });
@@ -503,6 +583,7 @@ describe("service run state", () => {
         lastCliVersion: "0.4.12",
         lastDurationMs: 222,
         lastError: "network unavailable",
+        lastSince: "2026-06-16",
         version: 1,
       },
       "failure",
@@ -513,6 +594,7 @@ describe("service run state", () => {
       durationMs: 222,
       error: "network unavailable",
       event: "service_run",
+      since: "2026-06-16",
       status: "failure",
       version: "0.4.12",
     });
@@ -526,7 +608,7 @@ describe("deterministicServiceJitterMs", () => {
 
     expect(first).toBe(second);
     expect(first).toBeGreaterThanOrEqual(0);
-    expect(first).toBeLessThanOrEqual(10 * 60 * 1000);
+    expect(first).toBeLessThanOrEqual(60 * 1000);
   });
 });
 

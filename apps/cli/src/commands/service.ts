@@ -24,8 +24,9 @@ const LEGACY_POSIX_WRAPPER_NAME = "service-sync.sh";
 const WINDOWS_WRAPPER_NAME = "service-sync.cmd";
 const PACKAGE_NAME = "@851-labs/tokenmaxxing";
 const SERVICE_LOCK_STALE_MS = 2 * 60 * 60 * 1000;
-const SERVICE_INTERVAL_SECONDS = 60 * 60;
-const SERVICE_JITTER_MAX_MS = 10 * 60 * 1000;
+const SERVICE_INTERVAL_MINUTES = 5;
+const SERVICE_INTERVAL_SECONDS = SERVICE_INTERVAL_MINUTES * 60;
+const SERVICE_JITTER_MAX_MS = 60 * 1000;
 const SERVICE_UPLOAD_RETRY_POLICY: UploadRetryPolicy = {
   attempts: 3,
   backoffMs: [1_000, 4_000, 16_000],
@@ -126,6 +127,7 @@ interface ServiceState {
   lastDurationMs?: number;
   lastError?: string;
   lastRows?: number;
+  lastSince?: string;
   lastSources?: ServiceSourceState[];
   lastSuccessAt?: string;
   lastSuccessDate?: string;
@@ -478,6 +480,7 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         lastDurationMs: state?.lastDurationMs ?? null,
         lastError: state?.lastError,
         lastRows: state?.lastRows ?? null,
+        lastSince: state?.lastSince ?? null,
         lastSources: state?.lastSources ?? [],
         lastSuccessAt: state?.lastSuccessAt ?? null,
         lastSuccessDate: serviceLastSuccessDate(state) ?? null,
@@ -507,6 +510,9 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         }
         if (status.lastRows !== null) {
           console.log(`Last rows: ${status.lastRows}`);
+        }
+        if (status.lastSince !== null) {
+          console.log(`Last since: ${status.lastSince}`);
         }
         if (status.lastUpserted !== null) {
           console.log(`Last upserted: ${status.lastUpserted}`);
@@ -689,6 +695,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
     const startedAtMs = startedAt.getTime();
     const cliVersion = packageJson.version;
     const cliArch = arch();
+    const scheduledSince = serviceScheduledSyncSince(currentState, startedAt, options.scheduled);
 
     if (options.scheduled) {
       const stored = yield* config.readConfig();
@@ -708,6 +715,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       lastAttemptAt: startedAtIso,
       lastCliVersion: cliVersion,
       lastError: undefined,
+      lastSince: scheduledSince,
       version: 1,
     }).pipe(Effect.mapError((cause) => new ServiceRunError({ cause })));
 
@@ -715,6 +723,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       dryRun: false,
       json: true,
       silent: true,
+      ...(scheduledSince === undefined ? {} : { since: scheduledSince }),
       ...(options.scheduled ? { uploadPolicy: SERVICE_UPLOAD_RETRY_POLICY } : {}),
     }).pipe(
       Effect.match({
@@ -729,6 +738,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
         attemptAt: startedAtIso,
         durationMs: Date.now() - startedAtMs,
         error: String(result.cause),
+        since: scheduledSince,
         version: cliVersion,
       });
       yield* writeServiceState(paths.statePath, failedState).pipe(Effect.ignore);
@@ -743,6 +753,7 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       autoUpdated,
       durationMs: Date.now() - startedAtMs,
       result: result.value,
+      since: scheduledSince,
       successAt,
       version: cliVersion,
     });
@@ -791,6 +802,7 @@ function serviceRunSuccessState(
     autoUpdated: boolean;
     durationMs: number;
     result: SyncResult;
+    since?: string | undefined;
     successAt: string;
     version: string;
   },
@@ -804,6 +816,7 @@ function serviceRunSuccessState(
     lastDurationMs: input.durationMs,
     lastError: undefined,
     lastRows: input.result.rows,
+    lastSince: input.since,
     lastSources: serviceSourcesForState(input.result),
     lastSuccessAt: input.successAt,
     lastUpserted: input.result.upserted ?? 0,
@@ -818,6 +831,7 @@ function serviceRunFailureState(
     attemptAt: string;
     durationMs: number;
     error: string;
+    since?: string | undefined;
     version: string;
   },
 ): ServiceState {
@@ -828,6 +842,7 @@ function serviceRunFailureState(
     lastCliVersion: input.version,
     lastDurationMs: input.durationMs,
     lastError: input.error,
+    lastSince: input.since,
     version: 1,
   };
 }
@@ -862,6 +877,7 @@ function serviceRunLogLine(state: ServiceState, status: "failure" | "success") {
     error: status === "failure" ? state.lastError : undefined,
     event: "service_run",
     rows: state.lastRows,
+    since: state.lastSince,
     sources: state.lastSources,
     status,
     timestamp: new Date().toISOString(),
@@ -904,12 +920,48 @@ function serviceLastSuccessDate(state: ServiceState | null): string | undefined 
   return Number.isNaN(lastSuccessAt.getTime()) ? undefined : localDateKey(lastSuccessAt);
 }
 
+function serviceScheduledSyncSince(
+  state: ServiceState,
+  now: Date,
+  scheduled: boolean,
+): string | undefined {
+  if (!scheduled) {
+    return undefined;
+  }
+
+  if (state.lastSuccessAt !== undefined) {
+    const lastSuccessAt = new Date(state.lastSuccessAt);
+    if (!Number.isNaN(lastSuccessAt.getTime()) && lastSuccessAt.getTime() <= now.getTime()) {
+      return localDateKey(lastSuccessAt);
+    }
+  }
+
+  const today = localDateKey(now);
+  if (
+    state.lastSuccessDate !== undefined &&
+    isLocalDateKey(state.lastSuccessDate) &&
+    state.lastSuccessDate <= today
+  ) {
+    return state.lastSuccessDate;
+  }
+
+  return previousLocalDateKey(now);
+}
+
 function localDateKey(date: Date): string {
   return [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+function previousLocalDateKey(date: Date): string {
+  return localDateKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1));
+}
+
+function isLocalDateKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function deterministicServiceJitterMs(seed: string): number {
@@ -1096,6 +1148,7 @@ function serviceStateJson(state: ServiceState): Partial<ServiceState> {
     ...(state.lastDurationMs === undefined ? {} : { lastDurationMs: state.lastDurationMs }),
     ...(state.lastError === undefined ? {} : { lastError: state.lastError }),
     ...(state.lastRows === undefined ? {} : { lastRows: state.lastRows }),
+    ...(state.lastSince === undefined ? {} : { lastSince: state.lastSince }),
     ...(state.lastSources === undefined ? {} : { lastSources: state.lastSources }),
     ...(state.lastSuccessAt === undefined ? {} : { lastSuccessAt: state.lastSuccessAt }),
     ...(state.lastUpserted === undefined ? {} : { lastUpserted: state.lastUpserted }),
@@ -1300,8 +1353,11 @@ function renderLaunchdStartInterval(): string {
   return String(SERVICE_INTERVAL_SECONDS);
 }
 
-function renderSystemdOnCalendar(): string {
-  return "OnCalendar=hourly";
+function renderSystemdTimerSchedule(): string {
+  return [
+    `OnBootSec=${SERVICE_INTERVAL_MINUTES}min`,
+    `OnUnitActiveSec=${SERVICE_INTERVAL_MINUTES}min`,
+  ].join("\n");
 }
 
 function formatScheduleTime(time: ScheduleTime): string {
@@ -1309,7 +1365,7 @@ function formatScheduleTime(time: ScheduleTime): string {
 }
 
 function scheduleDescription(): string {
-  return "syncs hourly";
+  return `syncs every ${SERVICE_INTERVAL_MINUTES} minutes`;
 }
 
 function servicePathsEffect(
@@ -1502,7 +1558,7 @@ function renderSystemdTimer(): string {
 Description=Run tokenmaxxing automatic usage sync
 
 [Timer]
-${renderSystemdOnCalendar()}
+${renderSystemdTimerSchedule()}
 Persistent=true
 
 [Install]
@@ -1597,19 +1653,23 @@ function installNativeScheduler(paths: ServicePaths): Effect.Effect<void, unknow
     for (const taskName of windowsTaskNames()) {
       yield* runExecutable("schtasks", ["/Delete", "/TN", taskName, "/F"]).pipe(Effect.ignore);
     }
-    yield* runExecutable("schtasks", [
-      "/Create",
-      "/TN",
-      windowsTaskName(),
-      "/SC",
-      "HOURLY",
-      "/MO",
-      "1",
-      "/TR",
-      cmdQuote(paths.wrapperPath),
-      "/F",
-    ]);
+    yield* runExecutable("schtasks", windowsTaskCreateArgs(paths));
   });
+}
+
+function windowsTaskCreateArgs(paths: ServicePaths): string[] {
+  return [
+    "/Create",
+    "/TN",
+    windowsTaskName(),
+    "/SC",
+    "MINUTE",
+    "/MO",
+    String(SERVICE_INTERVAL_MINUTES),
+    "/TR",
+    cmdQuote(paths.wrapperPath),
+    "/F",
+  ];
 }
 
 function uninstallNativeScheduler(paths: ServicePaths): Effect.Effect<void, unknown> {
@@ -1962,6 +2022,7 @@ export {
   renderSystemdTimer,
   refreshServiceAfterUpdate,
   scheduleDescription,
+  serviceScheduledSyncSince,
   serviceCommand,
   serviceDoctorEffect,
   serviceInstallEffect,
@@ -1979,6 +2040,7 @@ export {
   runPackageManagerUpdate,
   runExecutable,
   windowsTaskNames,
+  windowsTaskCreateArgs,
   ServiceAutoUpdateManagerError,
   ServiceCommandNotFoundError,
   ServiceEnvTokenError,

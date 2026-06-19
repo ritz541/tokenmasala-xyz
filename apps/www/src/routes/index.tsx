@@ -18,7 +18,7 @@ interface LeaderboardSearch {
 const Route = createFileRoute("/")({
   validateSearch: (search): LeaderboardSearch => ({
     metric: search["metric"] === "tokens" ? "tokens" : "spend",
-    window: search["window"] === "7d" ? "7d" : search["window"] === "30d" ? "30d" : "all",
+    window: search["window"] === "7d" ? "7d" : search["window"] === "all" ? "all" : "30d",
   }),
   component: LeaderboardPage,
 });

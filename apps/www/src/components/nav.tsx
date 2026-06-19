@@ -15,7 +15,7 @@ function Nav() {
         <div className="flex items-baseline gap-6">
           <Link
             className="text-sm font-semibold tracking-tight"
-            search={{ metric: "spend", window: "all" }}
+            search={{ metric: "spend", window: "30d" }}
             to="/"
           >
             tokenmaxxing.sh
@@ -23,7 +23,7 @@ function Nav() {
           <Link
             activeProps={{ className: "text-foreground" }}
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-            search={{ metric: "spend", window: "all" }}
+            search={{ metric: "spend", window: "30d" }}
             to="/"
           >
             Leaderboard

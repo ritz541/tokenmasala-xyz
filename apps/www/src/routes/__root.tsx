@@ -41,10 +41,10 @@ function RootDocument() {
       </head>
       <body className="min-h-screen antialiased">
         <Nav />
-        <main className="mx-4 min-h-screen max-w-5xl border-x border-border px-4 pb-16 pt-10 lg:mx-auto">
+        <main className="mx-4 max-w-5xl border-x border-border lg:mx-auto">
           <Outlet />
-          <Footer />
         </main>
+        <Footer />
         <Scripts />
       </body>
     </html>

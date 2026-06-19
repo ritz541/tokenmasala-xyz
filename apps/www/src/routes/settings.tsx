@@ -77,19 +77,25 @@ function SettingsPage() {
   const me = useQuery(meQueryOptions);
 
   if (me.isPending) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>;
+    return (
+      <div className="px-4 pt-8">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
   }
 
   if (me.isError) {
     return (
-      <p className="text-sm text-red-500">
-        {errorMessage(me.error, "Could not load your session; refresh and try again.")}
-      </p>
+      <div className="px-4 pt-8">
+        <p className="text-sm text-red-500">
+          {errorMessage(me.error, "Could not load your session; refresh and try again.")}
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10 px-4 pt-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
       <ConnectedAccountsSection />
       <DevicesSection login={me.data.user.login} />

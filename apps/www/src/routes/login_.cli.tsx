@@ -38,62 +38,64 @@ function CliLoginPage() {
   }, [approve, shouldAutoApprove]);
 
   return (
-    <Card className="mx-auto mt-24 flex max-w-sm flex-col items-center p-8 text-center">
-      <TerminalWindow className="size-8 text-muted-foreground" />
-      <h1 className="mt-4 text-xl font-semibold tracking-tight">Connect your CLI</h1>
+    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 pt-8">
+      <Card className="mx-auto flex w-full max-w-sm flex-col items-center p-8 text-center">
+        <TerminalWindow className="size-8 text-muted-foreground" />
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Connect your CLI</h1>
 
-      {code === "" ? (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Missing login code. Run <Code>tokenmaxxing login</Code> and follow the link it prints.
-        </p>
-      ) : me.isPending ? (
-        <p className="mt-2 text-sm text-muted-foreground">Checking your session…</p>
-      ) : me.isError ? (
-        <>
+        {code === "" ? (
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to approve code <Code>{code}</Code>.
+            Missing login code. Run <Code>tokenmaxxing login</Code> and follow the link it prints.
           </p>
-          <OAuthProviderButtons
-            className="mt-6"
-            providers={LOGIN_OAUTH_PROVIDERS}
-            redirect={cliLoginRedirectPath(code)}
-          />
-        </>
-      ) : approve.isSuccess ? (
-        <>
-          <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle className="size-4 text-accent" />
-            Approved <span className="font-medium">{approve.data.deviceName}</span>.
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Head back to your terminal — the CLI is signing in now.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Approve the device showing code <Code>{code}</Code> as{" "}
-            <span className="font-medium">{me.data.user.login}</span>? It will be able to push usage
-            data to your profile until you revoke it.
-          </p>
-          {approve.isError ? (
-            <p className="mt-3 text-sm text-red-500">
-              {errorMessage(approve.error, "Approval failed; run `tokenmaxxing login` again.")}
+        ) : me.isPending ? (
+          <p className="mt-2 text-sm text-muted-foreground">Checking your session…</p>
+        ) : me.isError ? (
+          <>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Sign in to approve code <Code>{code}</Code>.
             </p>
-          ) : null}
-          <Button
-            className="mt-6"
-            disabled={approve.isPending || shouldAutoApprove}
-            fullWidth
-            onClick={() => approve.mutate()}
-            size="md"
-            variant="primary"
-          >
-            {approve.isPending ? "Approving…" : "Approve device"}
-          </Button>
-        </>
-      )}
-    </Card>
+            <OAuthProviderButtons
+              className="mt-6"
+              providers={LOGIN_OAUTH_PROVIDERS}
+              redirect={cliLoginRedirectPath(code)}
+            />
+          </>
+        ) : approve.isSuccess ? (
+          <>
+            <p className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckCircle className="size-4 text-accent" />
+              Approved <span className="font-medium">{approve.data.deviceName}</span>.
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Head back to your terminal — the CLI is signing in now.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Approve the device showing code <Code>{code}</Code> as{" "}
+              <span className="font-medium">{me.data.user.login}</span>? It will be able to push
+              usage data to your profile until you revoke it.
+            </p>
+            {approve.isError ? (
+              <p className="mt-3 text-sm text-red-500">
+                {errorMessage(approve.error, "Approval failed; run `tokenmaxxing login` again.")}
+              </p>
+            ) : null}
+            <Button
+              className="mt-6"
+              disabled={approve.isPending || shouldAutoApprove}
+              fullWidth
+              onClick={() => approve.mutate()}
+              size="md"
+              variant="primary"
+            >
+              {approve.isPending ? "Approving…" : "Approve device"}
+            </Button>
+          </>
+        )}
+      </Card>
+    </div>
   );
 }
 

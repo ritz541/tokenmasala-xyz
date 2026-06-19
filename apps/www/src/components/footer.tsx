@@ -32,12 +32,12 @@ function useGithubStars() {
   });
 }
 
-/** Edge-to-edge footer: equal cells split by hairlines, flush to the page rails. */
+/** Footer cells split by hairlines, with page breathing room after the footer. */
 function Footer() {
   const stars = useGithubStars();
 
   return (
-    <footer className="-mx-4 -mt-px grid grid-cols-2 gap-px border-y border-border bg-border font-mono sm:grid-cols-4">
+    <footer className="mx-4 mb-16 max-w-5xl border-x border-border lg:mx-auto -mt-px grid grid-cols-2 gap-px border-y bg-border font-mono sm:grid-cols-4">
       <FooterLink href={GITHUB_URL}>
         GitHub
         {stars.data === undefined ? null : (

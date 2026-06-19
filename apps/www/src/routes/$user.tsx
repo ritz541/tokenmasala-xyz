@@ -41,12 +41,16 @@ function ProfilePage() {
   const daily = useQuery(profileDailyQueryOptions(user));
 
   if (profile.isPending || daily.isPending) {
-    return <p className="text-sm text-muted-foreground">Loading profile…</p>;
+    return (
+      <div className="px-4 pt-8">
+        <p className="text-sm text-muted-foreground">Loading profile…</p>
+      </div>
+    );
   }
 
   if (profile.isError || daily.isError) {
     return (
-      <div className="mt-24 text-center">
+      <div className="flex min-h-[360px] flex-col items-center justify-center px-4 pt-8 text-center">
         <h1 className="text-xl font-semibold">No profile for “{user}”</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Either it does not exist or nothing has been synced yet.
@@ -59,7 +63,7 @@ function ProfilePage() {
   const owner = profile.data.user;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 px-4 pt-8">
       <header className="flex items-center gap-4">
         <Avatar size={56} src={owner.avatarUrl} />
         <h1 className="text-2xl font-semibold tracking-tight">{owner.login}</h1>

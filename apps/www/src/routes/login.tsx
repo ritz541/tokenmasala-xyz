@@ -20,17 +20,19 @@ function LoginPage() {
   const { redirect } = Route.useSearch();
 
   return (
-    <Card className="mx-auto mt-24 flex max-w-sm flex-col items-center p-8 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing.sh</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Choose an OAuth provider to create or access your profile.
-      </p>
-      <OAuthProviderButtons
-        className="mt-6"
-        providers={LOGIN_OAUTH_PROVIDERS}
-        redirect={redirect}
-      />
-    </Card>
+    <div className="flex min-h-[calc(100vh-12rem)] items-center px-4 pt-8">
+      <Card className="mx-auto flex w-full max-w-sm flex-col items-center p-8 text-center">
+        <h1 className="text-xl font-semibold tracking-tight">Sign in to tokenmaxxing.sh</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Choose an OAuth provider to create or access your profile.
+        </p>
+        <OAuthProviderButtons
+          className="mt-6"
+          providers={LOGIN_OAUTH_PROVIDERS}
+          redirect={redirect}
+        />
+      </Card>
+    </div>
   );
 }
 

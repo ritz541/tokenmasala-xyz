@@ -107,7 +107,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         <StatCard label="Total spend" value={formatUsd(stats.totalSpendUsd)} />
         <StatCard label="Total tokens" value={formatTokens(stats.totalTokens)} />
         <StatCard label="Sessions" value={formatCount(stats.sessionCount)} />
-        <div aria-hidden="true" className="order-last bg-card" />
+        <div aria-hidden="true" className="order-last bg-background" />
         <StatCard
           label="Top model"
           value={stats.topModel === null ? "—" : modelFamily(stats.topModel.model)}
@@ -117,7 +117,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         <StatCard label="Active days" value={formatCount(stats.activeDays)} />
       </div>
 
-      <section className="bg-card p-5">
+      <section className="bg-background p-5">
         <h2 className="font-medium">Daily Spend</h2>
         <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center">
           <div className="min-w-0 flex-1">
@@ -132,7 +132,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         </div>
       </section>
 
-      <section className="bg-card p-5">
+      <section className="bg-background p-5">
         <h2 className="font-medium">Daily Tokens</h2>
         <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-center">
           <div className="min-w-0 flex-1">
@@ -147,7 +147,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         </div>
       </section>
 
-      <section className="bg-card p-5">
+      <section className="bg-background p-5">
         <h2 className="font-medium">Activity Heatmap</h2>
         <div className="mt-4">
           {derived.heatmap !== null ? (
@@ -162,14 +162,14 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
         </div>
       </section>
 
-      <section className="bg-card p-5">
+      <section className="bg-background p-5">
         <h2 className="font-medium">Most Active Time</h2>
         <div className="mt-4">
           <WeekdayBars accent={derived.accent} spend={derived.spendByWeekday} />
         </div>
       </section>
 
-      <section className="bg-card p-5">
+      <section className="bg-background p-5">
         <h2 className="font-medium">Monthly Spend</h2>
         <div className="mt-4">
           <MonthBars months={derived.months} />

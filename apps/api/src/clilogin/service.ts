@@ -27,9 +27,11 @@ const LOGIN_REQUEST_TTL_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_SECONDS = 2;
 
 interface StartInput {
+  deviceArch?: string | undefined;
   deviceId: string;
   deviceName: string;
   devicePlatform: string;
+  deviceVersion?: string | undefined;
 }
 
 interface StartResult {
@@ -55,9 +57,11 @@ interface CliLoginServiceShape {
 interface CliLoginRepositoryShape {
   insertRequest(input: {
     code: string;
+    deviceArch?: string | undefined;
     deviceId: string;
     deviceName: string;
     devicePlatform: string;
+    deviceVersion?: string | undefined;
     expiresAt: Date;
     id: string;
   }): Effect.Effect<void, DatabaseError, any>;
@@ -70,9 +74,11 @@ interface CliLoginRepositoryShape {
    * insert the hashed CLI token, and park the raw token on the request row.
    */
   approveRequest(input: {
+    deviceArch: string | null;
     deviceId: string;
     deviceName: string;
     devicePlatform: string;
+    deviceVersion: string | null;
     rawToken: string;
     requestId: string;
     tokenHash: string;
@@ -115,9 +121,11 @@ const makeCliLoginService = Effect.fn("makeCliLoginService")(function* () {
       yield* repository
         .insertRequest({
           code,
+          deviceArch: input.deviceArch,
           deviceId: input.deviceId,
           deviceName: input.deviceName,
           devicePlatform: input.devicePlatform,
+          deviceVersion: input.deviceVersion,
           expiresAt,
           id: crypto.randomUUID(),
         })
@@ -157,9 +165,11 @@ const makeCliLoginService = Effect.fn("makeCliLoginService")(function* () {
       const tokenHash = yield* hashCliToken(rawToken);
       yield* repository
         .approveRequest({
+          deviceArch: request.deviceArch,
           deviceId: request.deviceId,
           deviceName: request.deviceName,
           devicePlatform: request.devicePlatform,
+          deviceVersion: request.deviceVersion,
           rawToken,
           requestId: request.id,
           tokenHash,

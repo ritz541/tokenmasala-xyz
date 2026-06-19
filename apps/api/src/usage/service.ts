@@ -44,15 +44,22 @@ interface StoredRawUsageReport {
 interface UsageServiceShape {
   ingestRaw(
     identity: typeof CliIdentity.Type,
-    device: { name: string; platform: string },
+    device: UsageDevice,
     reports: readonly RawUsageReportInput[],
   ): Effect.Effect<SyncResult, DeviceMissing, any>;
   syncBatch(
     identity: typeof CliIdentity.Type,
-    device: { name: string; platform: string },
+    device: UsageDevice,
     days: readonly UsageDayInput[],
     sourceStats?: readonly SourceUsageStatsInput[],
   ): Effect.Effect<SyncResult, DeviceMissing, any>;
+}
+
+interface UsageDevice {
+  arch?: string | undefined;
+  name: string;
+  platform: string;
+  version?: string | undefined;
 }
 
 interface UsageRepositoryShape {
@@ -65,7 +72,7 @@ interface UsageRepositoryShape {
   ): Effect.Effect<void, DatabaseError, any>;
   touchDevice(
     deviceId: string,
-    device: { name: string; platform: string },
+    device: UsageDevice,
     syncedAt: Date,
   ): Effect.Effect<void, DatabaseError, any>;
   upsertSourceStats(
@@ -226,7 +233,7 @@ function writeStructuredUsage(
   repository: UsageRepositoryShape,
   userId: string,
   deviceId: string,
-  device: { name: string; platform: string },
+  device: UsageDevice,
   days: readonly UsageDayInput[],
   sourceStats: readonly SourceUsageStatsInput[],
   syncedAt: Date,
@@ -248,4 +255,10 @@ const UsageServiceLive = Layer.effect(UsageService, makeUsageService());
 
 export { makeUsageService, UsageRepository, UsageService, UsageServiceLive };
 
-export type { StoredRawUsageReport, SyncResult, UsageRepositoryShape, UsageServiceShape };
+export type {
+  StoredRawUsageReport,
+  SyncResult,
+  UsageDevice,
+  UsageRepositoryShape,
+  UsageServiceShape,
+};

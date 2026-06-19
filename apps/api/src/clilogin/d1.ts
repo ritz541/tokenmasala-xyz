@@ -25,9 +25,11 @@ const makeD1CliLoginRepository = Effect.fn("makeD1CliLoginRepository")(function*
             id: input.id,
             code: input.code,
             status: "pending",
+            deviceArch: input.deviceArch ?? null,
             deviceId: input.deviceId,
             deviceName: input.deviceName,
             devicePlatform: input.devicePlatform,
+            deviceVersion: input.deviceVersion ?? null,
             expiresAt: input.expiresAt,
             createdAt: new Date(),
           }),
@@ -65,18 +67,22 @@ const makeD1CliLoginRepository = Effect.fn("makeD1CliLoginRepository")(function*
             db
               .insert(devices)
               .values({
+                arch: input.deviceArch,
                 id: input.deviceId,
                 userId: input.userId,
                 name: input.deviceName,
                 platform: input.devicePlatform,
+                version: input.deviceVersion,
                 createdAt: now,
               })
               .onConflictDoUpdate({
                 target: devices.id,
                 set: {
+                  arch: input.deviceArch,
                   userId: input.userId,
                   name: input.deviceName,
                   platform: input.devicePlatform,
+                  version: input.deviceVersion,
                 },
               }),
             // Account switch on a shared machine: history follows the

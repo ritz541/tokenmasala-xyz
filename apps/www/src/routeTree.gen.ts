@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as InternalRouteImport } from './routes/internal'
 import { Route as DesignRouteImport } from './routes/design'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
@@ -24,6 +25,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InternalRoute = InternalRouteImport.update({
+  id: '/internal',
+  path: '/internal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DesignRoute = DesignRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/design': typeof DesignRoute
+  '/internal': typeof InternalRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/login/cli': typeof LoginCliRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/design': typeof DesignRoute
+  '/internal': typeof InternalRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/login/cli': typeof LoginCliRoute
@@ -68,20 +76,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$user': typeof UserRoute
   '/design': typeof DesignRoute
+  '/internal': typeof InternalRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/login_/cli': typeof LoginCliRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$user' | '/design' | '/login' | '/settings' | '/login/cli'
+  fullPaths:
+    | '/'
+    | '/$user'
+    | '/design'
+    | '/internal'
+    | '/login'
+    | '/settings'
+    | '/login/cli'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$user' | '/design' | '/login' | '/settings' | '/login/cli'
+  to:
+    | '/'
+    | '/$user'
+    | '/design'
+    | '/internal'
+    | '/login'
+    | '/settings'
+    | '/login/cli'
   id:
     | '__root__'
     | '/'
     | '/$user'
     | '/design'
+    | '/internal'
     | '/login'
     | '/settings'
     | '/login_/cli'
@@ -91,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   UserRoute: typeof UserRoute
   DesignRoute: typeof DesignRoute
+  InternalRoute: typeof InternalRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   LoginCliRoute: typeof LoginCliRoute
@@ -110,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/internal': {
+      id: '/internal'
+      path: '/internal'
+      fullPath: '/internal'
+      preLoaderRoute: typeof InternalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/design': {
@@ -147,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   UserRoute: UserRoute,
   DesignRoute: DesignRoute,
+  InternalRoute: InternalRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   LoginCliRoute: LoginCliRoute,

@@ -60,7 +60,13 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
         yield* database.use((db) =>
           db
             .update(devices)
-            .set({ lastSyncAt: syncedAt, name: device.name, platform: device.platform })
+            .set({
+              arch: device.arch ?? null,
+              lastSyncAt: syncedAt,
+              name: device.name,
+              platform: device.platform,
+              version: device.version ?? null,
+            })
             .where(eq(devices.id, deviceId)),
         );
       }),

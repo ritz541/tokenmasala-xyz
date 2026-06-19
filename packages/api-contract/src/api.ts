@@ -6,6 +6,7 @@ import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
 import {
   DeviceNotFound,
   DeviceMissing,
+  Forbidden,
   LoginCodeExpired,
   LoginCodeNotFound,
   TokenNotFound,
@@ -13,6 +14,7 @@ import {
 } from "./errors";
 import { Authorization, CliAuth } from "./middleware";
 import {
+  AdminUsersResponse,
   CliLoginApproveInput,
   CliLoginApproveResponse,
   CliLoginPollInput,
@@ -171,15 +173,26 @@ class ProfilesGroup extends HttpApiGroup.make("profiles")
     }),
   ) {}
 
+class AdminGroup extends HttpApiGroup.make("admin")
+  .add(
+    HttpApiEndpoint.get("listUsers", "/admin/users", {
+      success: AdminUsersResponse,
+      error: Forbidden,
+    }),
+  )
+  .middleware(Authorization) {}
+
 class TokenmaxxingApi extends HttpApi.make("tokenmaxxing")
   .add(HealthGroup)
   .add(MeGroup)
   .add(CliLoginGroup)
   .add(UsageGroup)
   .add(LeaderboardGroup)
-  .add(ProfilesGroup) {}
+  .add(ProfilesGroup)
+  .add(AdminGroup) {}
 
 export {
+  AdminGroup,
   CliLoginGroup,
   HealthGroup,
   LeaderboardGroup,

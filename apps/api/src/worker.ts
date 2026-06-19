@@ -4,6 +4,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 
+import { AdminRepositoryLive } from "./admin/d1";
+import { AdminService, makeAdminService } from "./admin/service";
 import { AuthRepositoryLive } from "./auth/d1";
 import { AuthService, makeAuthService } from "./auth/service";
 import { Bucket } from "./cloudflare/bucket";
@@ -78,6 +80,9 @@ const ApiWorker = Cloudflare.Worker(
       Effect.provideService(AppConfig, config),
     );
     const usage = yield* makeUsageService().pipe(Effect.provide(usageRepositoryLayer));
+    const admin = yield* makeAdminService().pipe(
+      Effect.provide(AdminRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
     const leaderboard = yield* makeLeaderboardService().pipe(
       Effect.provide(LeaderboardRepositoryLive.pipe(Layer.provide(drizzleLayer))),
     );
@@ -89,6 +94,7 @@ const ApiWorker = Cloudflare.Worker(
     // time, not layer-build time — this context rides along with every
     // routed request.
     const rawRouteServices = Context.empty().pipe(
+      Context.add(AdminService, admin),
       Context.add(AppConfig, config),
       Context.add(AuthService, auth),
       Context.add(CliLoginService, cliLogin),
@@ -102,6 +108,7 @@ const ApiWorker = Cloudflare.Worker(
 
     return {
       fetch: makeApiHttpEffect({
+        adminServiceLayer: Layer.succeed(AdminService, admin),
         appConfigLayer,
         authServiceLayer: Layer.succeed(AuthService, auth),
         cliLoginServiceLayer: Layer.succeed(CliLoginService, cliLogin),

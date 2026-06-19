@@ -30,6 +30,12 @@ const tokensQueryOptions = queryOptions({
   queryFn: () => runApi((client) => client.me.listTokens()),
 });
 
+const adminUsersQueryOptions = queryOptions({
+  queryKey: ["admin", "users"],
+  queryFn: () => runApi((client) => client.admin.listUsers()),
+  staleTime: 30_000,
+});
+
 function leaderboardQueryOptions(
   metric: typeof LeaderboardMetric.Type,
   window: typeof LeaderboardWindow.Type,
@@ -59,6 +65,7 @@ function profileDailyQueryOptions(login: string) {
 }
 
 export {
+  adminUsersQueryOptions,
   accountsQueryOptions,
   devicesQueryOptions,
   leaderboardQueryOptions,

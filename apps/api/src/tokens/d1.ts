@@ -55,11 +55,13 @@ const makeD1TokensRepository = Effect.fn("makeD1TokensRepository")(function* () 
         );
 
         return rows.map((row) => ({
+          arch: row.arch,
           createdAt: row.createdAt.toISOString(),
           id: row.id,
           lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
           name: row.name,
           platform: row.platform,
+          version: row.version,
         }));
       }),
     listTokens: (userId) =>

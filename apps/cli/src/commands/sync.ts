@@ -1,4 +1,4 @@
-import { hostname } from "node:os";
+import { arch, hostname } from "node:os";
 
 import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
@@ -9,6 +9,7 @@ import type {
   UsageDayInput,
 } from "@tokenmaxxing/api-contract";
 
+import packageJson from "../../package.json";
 import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
 import {
   dailyCcusageCommand,
@@ -166,8 +167,10 @@ interface TableCell {
 interface UploadUsageReportsOptions {
   auth: SyncAuth;
   device: {
+    arch?: string | undefined;
     name: string;
     platform: NodeJS.Platform;
+    version?: string | undefined;
   };
   options: Pick<SyncProgramOptions, "json" | "silent">;
   rawReports: RawUsageReportInput[];
@@ -287,7 +290,12 @@ function syncProgram(options: SyncProgramOptions) {
       };
     }
 
-    const device = { name: hostname(), platform: process.platform };
+    const device = {
+      arch: arch(),
+      name: hostname(),
+      platform: process.platform,
+      version: packageJson.version,
+    };
     let upserted = 0;
     if (auth === undefined) {
       return {

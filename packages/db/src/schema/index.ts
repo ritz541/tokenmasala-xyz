@@ -70,6 +70,8 @@ const cliLoginRequests = sqliteTable("cli_login_requests", {
   deviceId: text("device_id").notNull(),
   deviceName: text("device_name").notNull(),
   devicePlatform: text("device_platform").notNull(),
+  deviceArch: text("device_arch"),
+  deviceVersion: text("device_version"),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
@@ -105,6 +107,8 @@ const devices = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     platform: text("platform").notNull(),
+    arch: text("arch"),
+    version: text("version"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     lastSyncAt: integer("last_sync_at", { mode: "timestamp_ms" }),
   },

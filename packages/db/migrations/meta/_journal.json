@@ -29,6 +29,13 @@
       "when": 1781677818231,
       "tag": "0003_even_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781901344399,
+      "tag": "0004_unique_lightspeed",
+      "breakpoints": true
     }
   ]
 }

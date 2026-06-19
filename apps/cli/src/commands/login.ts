@@ -1,9 +1,10 @@
-import { hostname } from "node:os";
+import { arch, hostname } from "node:os";
 
 import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
 import type { AuthUser } from "@tokenmaxxing/api-contract";
 
+import packageJson from "../../package.json";
 import {
   ApiClientService,
   BrowserService,
@@ -189,9 +190,11 @@ function browserLoginEffect(options: BrowserLoginOptions) {
     const start = yield* client.cliLogin
       .start({
         payload: {
+          deviceArch: arch(),
           deviceId,
           deviceName: hostname(),
           devicePlatform: process.platform,
+          deviceVersion: packageJson.version,
         },
       })
       .pipe(

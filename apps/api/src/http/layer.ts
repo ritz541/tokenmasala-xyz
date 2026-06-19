@@ -18,6 +18,7 @@ import type { Authorization, CliAuth } from "@tokenmaxxing/api-contract";
 
 import { AppConfig } from "../config";
 import { cookieScopeFor } from "../auth/cookies";
+import { AdminService } from "../admin/service";
 import { AuthService } from "../auth/service";
 import { CliLoginService } from "../clilogin/service";
 import type { Drizzle } from "../database";
@@ -182,7 +183,18 @@ const profilesHandlers = HttpApiBuilder.group(TokenmaxxingApi, "profiles", (hand
     ),
 );
 
+const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) =>
+  handlers.handle("listUsers", () =>
+    Effect.gen(function* () {
+      const user = yield* CurrentUser;
+      const admin = yield* AdminService;
+      return yield* admin.listUsers(user.id);
+    }),
+  ),
+);
+
 const handlersLayer = Layer.mergeAll(
+  adminHandlers,
   healthHandlers,
   meHandlers,
   cliLoginHandlers,
@@ -192,6 +204,7 @@ const handlersLayer = Layer.mergeAll(
 );
 
 interface ApiLayerOptions {
+  adminServiceLayer: Layer.Layer<AdminService>;
   appConfigLayer: Layer.Layer<AppConfig>;
   authServiceLayer: Layer.Layer<AuthService>;
   cliLoginServiceLayer: Layer.Layer<CliLoginService>;
@@ -215,6 +228,7 @@ function makeApiLayer(options: ApiLayerOptions) {
     Layer.provide(requestIdLayer),
     Layer.provide(corsLayer),
     Layer.provide(options.cliLoginServiceLayer),
+    Layer.provide(options.adminServiceLayer),
     Layer.provide(options.leaderboardServiceLayer),
     Layer.provide(options.profilesServiceLayer),
     Layer.provide(options.tokensServiceLayer),

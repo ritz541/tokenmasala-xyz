@@ -15,6 +15,12 @@ class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()(
   { httpApiStatus: 401 },
 ) {}
 
+class Forbidden extends Schema.TaggedErrorClass<Forbidden>()(
+  "Forbidden",
+  { message: Schema.String },
+  { httpApiStatus: 403 },
+) {}
+
 class UserNotFound extends Schema.TaggedErrorClass<UserNotFound>()(
   "UserNotFound",
   { login: Schema.String },
@@ -54,6 +60,7 @@ class DeviceMissing extends Schema.TaggedErrorClass<DeviceMissing>()(
 export {
   DeviceNotFound,
   DeviceMissing,
+  Forbidden,
   LoginCodeExpired,
   LoginCodeNotFound,
   TokenNotFound,

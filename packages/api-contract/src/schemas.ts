@@ -43,11 +43,13 @@ const CliIdentity = Schema.Struct({
 type CliIdentity = typeof CliIdentity.Type;
 
 const DeviceSummary = Schema.Struct({
+  arch: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
   id: Schema.String,
   lastSyncAt: Schema.NullOr(Schema.String),
   name: Schema.String,
   platform: Schema.String,
+  version: Schema.NullOr(Schema.String),
 });
 
 const CliTokenSummary = Schema.Struct({
@@ -60,9 +62,11 @@ const CliTokenSummary = Schema.Struct({
 });
 
 const CliLoginStartInput = Schema.Struct({
+  deviceArch: Schema.optional(Schema.String),
   deviceId: Schema.String,
   deviceName: Schema.String,
   devicePlatform: Schema.String,
+  deviceVersion: Schema.optional(Schema.String),
 }).annotate({
   parseOptions: { onExcessProperty: "error" },
 });
@@ -146,8 +150,10 @@ type RawUsageReportInput = typeof RawUsageReportInput.Type;
 
 const IngestUsageInput = Schema.Struct({
   device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
     name: Schema.String,
     platform: Schema.String,
+    version: Schema.optional(Schema.String),
   }),
   reports: Schema.Array(RawUsageReportInput),
 }).annotate({
@@ -157,8 +163,10 @@ const IngestUsageInput = Schema.Struct({
 const SyncUsageInput = Schema.Struct({
   days: Schema.Array(UsageDayInput),
   device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
     name: Schema.String,
     platform: Schema.String,
+    version: Schema.optional(Schema.String),
   }),
   sourceStats: Schema.optional(Schema.Array(SourceUsageStatsInput)),
 }).annotate({
@@ -247,7 +255,72 @@ const OkResponse = Schema.Struct({
   ok: Schema.Boolean,
 });
 
+const AdminDeviceStatus = Schema.Literals(["latest", "outdated", "stale", "unknown"]);
+
+type AdminDeviceStatus = typeof AdminDeviceStatus.Type;
+
+const AdminLatestDevice = Schema.Struct({
+  arch: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+  id: Schema.String,
+  lastSyncAt: Schema.NullOr(Schema.String),
+  name: Schema.String,
+  platform: Schema.String,
+  version: Schema.NullOr(Schema.String),
+});
+
+const AdminAccountDebugSummary = Schema.Struct({
+  email: Schema.NullOr(Schema.String),
+  emailVerified: Schema.Boolean,
+  login: Schema.NullOr(Schema.String),
+  provider: OAuthProviderId,
+});
+
+const AdminUserDebugRow = Schema.Struct({
+  accounts: Schema.Array(AdminAccountDebugSummary),
+  activeDays: Schema.Number,
+  activeTokenCount: Schema.Number,
+  createdAt: Schema.String,
+  deviceCount: Schema.Number,
+  lastTokenUsedAt: Schema.NullOr(Schema.String),
+  lastUsageDate: Schema.NullOr(Schema.String),
+  latestCheckInAt: Schema.NullOr(Schema.String),
+  latestDevice: Schema.NullOr(AdminLatestDevice),
+  providers: Schema.Array(OAuthProviderId),
+  revokedTokenCount: Schema.Number,
+  sources: Schema.Array(Schema.String),
+  status: AdminDeviceStatus,
+  tokenCount: Schema.Number,
+  totalSpendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  updatedAt: Schema.String,
+  user: AuthUser,
+  verifiedEmails: Schema.Array(Schema.String),
+});
+
+type AdminUserDebugRow = typeof AdminUserDebugRow.Type;
+
+const AdminUsersResponse = Schema.Struct({
+  generatedAt: Schema.String,
+  latestCliVersion: Schema.NullOr(Schema.String),
+  staleThresholdHours: Schema.Number,
+  summary: Schema.Struct({
+    latest: Schema.Number,
+    outdated: Schema.Number,
+    stale: Schema.Number,
+    totalDevices: Schema.Number,
+    totalUsers: Schema.Number,
+    unknown: Schema.Number,
+  }),
+  users: Schema.Array(AdminUserDebugRow),
+});
+
+type AdminUsersResponse = typeof AdminUsersResponse.Type;
+
 export {
+  AdminDeviceStatus,
+  AdminUserDebugRow,
+  AdminUsersResponse,
   AuthUser,
   CliIdentity,
   CliLoginApproveInput,

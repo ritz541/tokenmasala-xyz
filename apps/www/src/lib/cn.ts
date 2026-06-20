@@ -1,6 +1,8 @@
-/** Joins truthy class strings — a zero-dep stand-in for clsx. */
-function cn(...parts: (string | false | null | undefined)[]): string {
-  return parts.filter(Boolean).join(" ");
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs));
 }
 
 export { cn };

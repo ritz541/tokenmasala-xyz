@@ -20,9 +20,11 @@
     "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tokenmaxxing/api-contract": "workspace:*",
+    "clsx": "^2.1.1",
     "effect": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "tailwind-merge": "^3.6.0",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -125,7 +125,7 @@ function makeAdminService(options: AdminServiceOptions = {}) {
           latestCliVersion: latestCliRelease.version,
           rolloutGraceHours: ROLLOUT_GRACE_MS / (60 * 60 * 1000),
           staleThresholdHours: STALE_THRESHOLD_MS / (60 * 60 * 1000),
-          summary: adminSummary(users),
+          summary: adminSummary(users, latestCliRelease),
           users,
         };
       }),
@@ -197,7 +197,7 @@ function adminUserDebugRow(
 
 function adminDeviceStatus(
   device: AdminDeviceSnapshot | null,
-  latestCliRelease: LatestCliRelease,
+  _latestCliRelease: LatestCliRelease,
   now: Date,
 ): AdminDeviceStatus {
   if (device === null || device.lastSyncAt === null) {
@@ -233,32 +233,18 @@ function adminDeviceStatus(
     return "stale";
   }
 
-  if (
-    latestCliRelease.version !== null &&
-    device.version !== null &&
-    normalizeVersion(device.version) !== normalizeVersion(latestCliRelease.version)
-  ) {
-    const publishedAt =
-      latestCliRelease.publishedAt === null ? Number.NaN : Date.parse(latestCliRelease.publishedAt);
-    if (!Number.isFinite(publishedAt)) {
-      return elapsedMs <= ROLLOUT_GRACE_MS ? "outdated" : "stale";
-    }
-
-    return now.getTime() - publishedAt <= ROLLOUT_GRACE_MS ? "outdated" : "stale";
-  }
-
-  return "latest";
+  return "healthy";
 }
 
-function adminSummary(users: readonly (typeof AdminUserDebugRow.Type)[]) {
+function adminSummary(
+  users: readonly (typeof AdminUserDebugRow.Type)[],
+  latestCliRelease: LatestCliRelease,
+) {
   return users.reduce(
     (summary, user) => {
       switch (user.status) {
-        case "latest":
-          summary.latest += 1;
-          break;
-        case "outdated":
-          summary.outdated += 1;
+        case "healthy":
+          summary.healthy += 1;
           break;
         case "repair-needed":
           summary.repairNeeded += 1;
@@ -270,13 +256,16 @@ function adminSummary(users: readonly (typeof AdminUserDebugRow.Type)[]) {
           summary.unknown += 1;
           break;
       }
+      if (deviceVersionIsOutdated(user.latestDevice, latestCliRelease.version)) {
+        summary.outdated += 1;
+      }
       summary.totalDevices += user.deviceCount;
       summary.totalUsers += 1;
 
       return summary;
     },
     {
-      latest: 0,
+      healthy: 0,
       outdated: 0,
       repairNeeded: 0,
       stale: 0,
@@ -285,6 +274,17 @@ function adminSummary(users: readonly (typeof AdminUserDebugRow.Type)[]) {
       unknown: 0,
     },
   );
+}
+
+function deviceVersionIsOutdated(
+  device: { version: string | null } | null,
+  latestVersion: string | null,
+): boolean {
+  if (device === null || device.version === null || latestVersion === null) {
+    return false;
+  }
+
+  return normalizeVersion(device.version) !== normalizeVersion(latestVersion);
 }
 
 function latestDeviceFor(devices: readonly AdminDeviceSnapshot[]): AdminDeviceSnapshot | null {

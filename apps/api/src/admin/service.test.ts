@@ -114,7 +114,7 @@ describe("AdminService.listUsers", () => {
     const response = await Effect.runPromise(service.listUsers("user_123"));
 
     expect(response.summary).toEqual({
-      latest: 1,
+      healthy: 1,
       outdated: 0,
       repairNeeded: 0,
       stale: 0,
@@ -129,9 +129,51 @@ describe("AdminService.listUsers", () => {
       deviceCount: 1,
       latestCheckInAt: "2026-06-19T19:30:00.000Z",
       revokedTokenCount: 1,
-      status: "latest",
+      status: "healthy",
       verifiedEmails: ["alexandru@851.sh"],
     });
+  });
+
+  it("counts outdated versions separately from health status", async () => {
+    const service = await makeService(
+      makeRepository({
+        allowedEmails: ["alexandru@851.sh"],
+        snapshots: [
+          snapshot({
+            devices: [device({ version: "0.5.3" })],
+            user: {
+              avatarUrl: null,
+              createdAt: "2026-06-18T00:00:00.000Z",
+              id: "user_1",
+              login: "active-old",
+              name: null,
+              updatedAt: "2026-06-19T00:00:00.000Z",
+            },
+          }),
+          snapshot({
+            devices: [device({ lastSyncAt: "2026-06-19T12:00:00.000Z", version: "0.5.3" })],
+            user: {
+              avatarUrl: null,
+              createdAt: "2026-06-18T00:00:00.000Z",
+              id: "user_2",
+              login: "stale-old",
+              name: null,
+              updatedAt: "2026-06-19T00:00:00.000Z",
+            },
+          }),
+        ],
+      }),
+    );
+
+    const response = await Effect.runPromise(service.listUsers("user_123"));
+
+    expect(response.summary).toMatchObject({
+      healthy: 1,
+      outdated: 2,
+      stale: 1,
+      totalUsers: 2,
+    });
+    expect(response.users.map((user) => user.status).sort()).toEqual(["healthy", "stale"]);
   });
 
   it("allows the pondorasti Gmail address as an internal admin email", async () => {
@@ -144,8 +186,8 @@ describe("AdminService.listUsers", () => {
 });
 
 describe("adminDeviceStatus", () => {
-  it("classifies latest, outdated, stale, and unknown devices", () => {
-    expect(adminDeviceStatus(device(), latestRelease, now)).toBe("latest");
+  it("classifies healthy, repair-needed, stale, and unknown devices", () => {
+    expect(adminDeviceStatus(device(), latestRelease, now)).toBe("healthy");
     expect(
       adminDeviceStatus(
         device({
@@ -164,14 +206,14 @@ describe("adminDeviceStatus", () => {
         now,
       ),
     ).toBe("repair-needed");
-    expect(adminDeviceStatus(device({ version: "0.5.3" }), latestRelease, now)).toBe("outdated");
+    expect(adminDeviceStatus(device({ version: "0.5.3" }), latestRelease, now)).toBe("healthy");
     expect(
       adminDeviceStatus(
         device({ version: "0.5.3" }),
         { publishedAt: "2026-06-19T17:59:59.000Z", version: "0.5.4" },
         now,
       ),
-    ).toBe("stale");
+    ).toBe("healthy");
     expect(
       adminDeviceStatus(device({ lastSyncAt: "2026-06-19T12:00:00.000Z" }), latestRelease, now),
     ).toBe("stale");

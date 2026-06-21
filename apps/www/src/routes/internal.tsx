@@ -60,9 +60,11 @@ function InternalPage() {
               <th className="w-[15%] p-3 font-medium">User</th>
               <th className="w-[13%] p-3 font-medium">Version</th>
               <th className="hidden w-[8%] p-3 font-medium lg:table-cell">Arch</th>
-              <th className="w-[24%] p-3 font-medium">Status</th>
+              <th className="w-[22%] p-3 font-medium">Status</th>
               <th className="w-[12%] p-3 font-medium">Last check-in</th>
-              <th className="hidden w-[8%] p-3 font-medium md:table-cell">Last usage</th>
+              <th className="hidden w-[10%] whitespace-nowrap p-3 font-medium md:table-cell">
+                Last usage
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -104,7 +106,7 @@ function InternalPage() {
                     {formatRelativeTime(row.latestCheckInAt, data.generatedAt)}
                   </div>
                 </td>
-                <td className="hidden p-3 align-top font-mono text-muted-foreground md:table-cell">
+                <td className="hidden whitespace-nowrap p-3 align-top font-mono text-muted-foreground md:table-cell">
                   {row.lastUsageDate ?? "—"}
                 </td>
               </tr>

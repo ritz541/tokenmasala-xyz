@@ -25,6 +25,11 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
               serviceBackend: service.backend ?? null,
               serviceError: service.error ?? null,
               serviceReloadRequired: service.reloadRequired ?? null,
+              serviceRepairAttemptedAt: optionalDate(service.repairAttemptedAt),
+              serviceRepairCompletedAt: optionalDate(service.repairCompletedAt),
+              serviceRepairError: service.repairError ?? null,
+              serviceRepairReason: service.repairReason ?? null,
+              serviceRepairStatus: service.repairStatus ?? null,
               serviceSchedulerActive: service.schedulerActive ?? null,
               serviceStatus: service.status,
               serviceTemplateVersion: service.templateVersion ?? null,
@@ -180,5 +185,15 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
 });
 
 const UsageRepositoryLive = Layer.effect(UsageRepository, makeD1UsageRepository());
+
+function optionalDate(value: string | undefined): Date | null {
+  if (value === undefined) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  return Number.isFinite(date.getTime()) ? date : null;
+}
 
 export { UsageRepositoryLive };

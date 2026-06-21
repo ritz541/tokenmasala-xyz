@@ -6,6 +6,8 @@ import type {
   CliIdentity,
   RawUsageReportInput,
   ServiceCheckInStatusValue,
+  ServiceRepairReasonValue,
+  ServiceRepairStatusValue,
   SourceUsageStatsInput,
   UsageDayInput,
 } from "@tokenmaxxing/api-contract";
@@ -71,6 +73,11 @@ interface UsageServiceCheckIn {
   backend?: string | undefined;
   error?: string | undefined;
   reloadRequired?: boolean | undefined;
+  repairAttemptedAt?: string | undefined;
+  repairCompletedAt?: string | undefined;
+  repairError?: string | undefined;
+  repairReason?: ServiceRepairReasonValue | undefined;
+  repairStatus?: ServiceRepairStatusValue | undefined;
   schedulerActive?: boolean | undefined;
   status: ServiceCheckInStatusValue;
   templateVersion?: number | undefined;

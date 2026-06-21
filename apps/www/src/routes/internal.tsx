@@ -1,6 +1,10 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
-import type { AdminDeviceStatus, AdminUsersResponse } from "@tokenmaxxing/api-contract";
+import type {
+  AdminDeviceStatus,
+  AdminUsersResponse,
+  ServiceRepairReasonValue,
+} from "@tokenmaxxing/api-contract";
 
 import { Avatar } from "../components/ui/avatar";
 import { isApiError } from "../lib/api";
@@ -145,6 +149,7 @@ function StatusCell({
   title?: string | undefined;
 }) {
   const outdated = isOutdatedVersion(row.latestDevice?.version ?? null, latestVersion);
+  const repairReason = repairReasonForDevice(row.latestDevice);
   const statusTitle = [title, outdated ? `latest: ${formatVersion(latestVersion)}` : undefined]
     .filter((part): part is string => part !== undefined && part.length > 0)
     .join(" · ");
@@ -152,6 +157,11 @@ function StatusCell({
   return (
     <div className="flex flex-nowrap items-center gap-2" title={statusTitle || undefined}>
       <StatusPill status={row.status} />
+      {row.status === "repair-needed" && repairReason !== null ? (
+        <span className="inline-flex shrink-0 items-center border border-red-500/40 bg-red-500/10 px-2 py-0.5 font-mono text-xs text-red-600 dark:text-red-400">
+          {repairReasonLabel(repairReason)}
+        </span>
+      ) : null}
       {outdated ? (
         <span className="inline-flex shrink-0 items-center border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 font-mono text-xs text-blue-600 dark:text-blue-400">
           outdated
@@ -186,10 +196,62 @@ function serviceStatusTitle(row: AdminUsersData["users"][number]): string | unde
     device.serviceReloadRequired === null
       ? undefined
       : `reload: ${device.serviceReloadRequired ? "required" : "not required"}`,
+    device.serviceRepairStatus === null
+      ? undefined
+      : `repair: ${device.serviceRepairStatus}${
+          device.serviceRepairReason === null
+            ? ""
+            : ` (${repairReasonLabel(device.serviceRepairReason)})`
+        }`,
+    device.serviceRepairAttemptedAt === null
+      ? undefined
+      : `repair attempt: ${device.serviceRepairAttemptedAt}`,
+    device.serviceRepairCompletedAt === null
+      ? undefined
+      : `repair completed: ${device.serviceRepairCompletedAt}`,
+    device.serviceRepairError === null ? undefined : `repair error: ${device.serviceRepairError}`,
+    repairReasonForDevice(device) === null
+      ? undefined
+      : "manual repair: tokenmaxxing service repair",
     device.serviceError === null ? undefined : `error: ${device.serviceError}`,
   ]
     .filter((part): part is string => part !== undefined)
     .join(" · ");
+}
+
+function repairReasonForDevice(
+  device: AdminUsersData["users"][number]["latestDevice"],
+): ServiceRepairReasonValue | null {
+  if (device === null) {
+    return null;
+  }
+
+  if (device.serviceStatus === "failure") {
+    return "service-failure";
+  }
+  if (device.serviceSchedulerActive === false) {
+    return "scheduler-inactive";
+  }
+  if (device.serviceReloadRequired === true) {
+    return "reload-required";
+  }
+  if (
+    (device.serviceRepairStatus === "scheduled" || device.serviceRepairStatus === "failure") &&
+    device.serviceRepairReason !== null
+  ) {
+    return device.serviceRepairReason;
+  }
+
+  return null;
+}
+
+function repairReasonLabel(reason: ServiceRepairReasonValue): string {
+  return {
+    "auto-updated": "auto updated",
+    "reload-required": "reload required",
+    "scheduler-inactive": "scheduler inactive",
+    "service-failure": "service failure",
+  }[reason];
 }
 
 function formatVersion(version: string | null): string {

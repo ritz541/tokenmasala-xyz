@@ -8,6 +8,8 @@ import {
   type AdminUsersResponse,
   type OAuthProviderId,
   type ServiceCheckInStatusValue,
+  type ServiceRepairReasonValue,
+  type ServiceRepairStatusValue,
 } from "@tokenmaxxing/api-contract";
 
 import type { DatabaseError } from "../database";
@@ -41,6 +43,11 @@ interface AdminDeviceSnapshot {
   serviceBackend: string | null;
   serviceError: string | null;
   serviceReloadRequired: boolean | null;
+  serviceRepairAttemptedAt: string | null;
+  serviceRepairCompletedAt: string | null;
+  serviceRepairError: string | null;
+  serviceRepairReason: ServiceRepairReasonValue | null;
+  serviceRepairStatus: ServiceRepairStatusValue | null;
   serviceSchedulerActive: boolean | null;
   serviceStatus: ServiceCheckInStatusValue | null;
   serviceTemplateVersion: number | null;
@@ -320,10 +327,29 @@ function latestDeviceCheckIn(device: AdminDeviceSnapshot): string | null {
 }
 
 function deviceNeedsRepair(device: AdminDeviceSnapshot): boolean {
+  return adminDeviceRepairReason(device) !== null;
+}
+
+function adminDeviceRepairReason(
+  device: AdminDeviceSnapshot | null,
+): ServiceRepairReasonValue | null {
+  if (device === null) {
+    return null;
+  }
+
+  if (device.serviceStatus === "failure") {
+    return "service-failure";
+  }
+  if (device.serviceSchedulerActive === false) {
+    return "scheduler-inactive";
+  }
+  if (device.serviceReloadRequired === true) {
+    return "reload-required";
+  }
   return (
-    device.serviceReloadRequired === true ||
-    device.serviceSchedulerActive === false ||
-    device.serviceStatus === "failure"
+    (device.serviceRepairStatus === "scheduled" || device.serviceRepairStatus === "failure"
+      ? device.serviceRepairReason
+      : null) ?? null
   );
 }
 
@@ -404,6 +430,7 @@ function latestReleaseFromRegistryBody(body: unknown): LatestCliRelease {
 export {
   AdminRepository,
   AdminService,
+  adminDeviceRepairReason,
   adminDeviceStatus,
   latestReleaseFromRegistryBody,
   makeAdminService,

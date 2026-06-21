@@ -152,6 +152,19 @@ const ServiceCheckInStatus = Schema.Literals(["started", "success", "failure"]);
 
 type ServiceCheckInStatusValue = typeof ServiceCheckInStatus.Type;
 
+const ServiceRepairReason = Schema.Literals([
+  "auto-updated",
+  "reload-required",
+  "scheduler-inactive",
+  "service-failure",
+]);
+
+type ServiceRepairReasonValue = typeof ServiceRepairReason.Type;
+
+const ServiceRepairStatus = Schema.Literals(["failure", "scheduled", "success"]);
+
+type ServiceRepairStatusValue = typeof ServiceRepairStatus.Type;
+
 const UsageCheckInInput = Schema.Struct({
   device: Schema.Struct({
     arch: Schema.optional(Schema.String),
@@ -163,6 +176,11 @@ const UsageCheckInInput = Schema.Struct({
     backend: Schema.optional(Schema.String),
     error: Schema.optional(Schema.String),
     reloadRequired: Schema.optional(Schema.Boolean),
+    repairAttemptedAt: Schema.optional(Schema.String),
+    repairCompletedAt: Schema.optional(Schema.String),
+    repairError: Schema.optional(Schema.String),
+    repairReason: Schema.optional(ServiceRepairReason),
+    repairStatus: Schema.optional(ServiceRepairStatus),
     schedulerActive: Schema.optional(Schema.Boolean),
     status: ServiceCheckInStatus,
     templateVersion: Schema.optional(Schema.Number),
@@ -303,6 +321,11 @@ const AdminLatestDevice = Schema.Struct({
   serviceBackend: Schema.NullOr(Schema.String),
   serviceError: Schema.NullOr(Schema.String),
   serviceReloadRequired: Schema.NullOr(Schema.Boolean),
+  serviceRepairAttemptedAt: Schema.NullOr(Schema.String),
+  serviceRepairCompletedAt: Schema.NullOr(Schema.String),
+  serviceRepairError: Schema.NullOr(Schema.String),
+  serviceRepairReason: Schema.NullOr(ServiceRepairReason),
+  serviceRepairStatus: Schema.NullOr(ServiceRepairStatus),
   serviceSchedulerActive: Schema.NullOr(Schema.Boolean),
   serviceStatus: Schema.NullOr(ServiceCheckInStatus),
   serviceTemplateVersion: Schema.NullOr(Schema.Number),
@@ -391,6 +414,8 @@ export {
   ProfileStats,
   RawUsageReportInput,
   ServiceCheckInStatus,
+  ServiceRepairReason,
+  ServiceRepairStatus,
   SourceUsageStatsInput,
   SyncUsageInput,
   SyncUsageResponse,
@@ -401,4 +426,4 @@ export {
   UsageRawReportKind,
 };
 
-export type { ServiceCheckInStatusValue };
+export type { ServiceCheckInStatusValue, ServiceRepairReasonValue, ServiceRepairStatusValue };

@@ -8,6 +8,7 @@ import {
   type SyncResult,
   type StoredRawUsageReport,
   type UsageRepositoryShape,
+  type UsageServiceCheckIn,
 } from "./service";
 import { RawUsageStorageError } from "./raw-store";
 
@@ -74,10 +75,7 @@ interface TestUsageService {
       user: typeof user;
     },
     syncDevice: typeof device,
-    service: {
-      schedulerActive?: boolean;
-      status: "started" | "success" | "failure";
-    },
+    service: UsageServiceCheckIn,
   ): Effect.Effect<{ checkedInAt: string }, DeviceMissing>;
   syncBatch(
     identity: {
@@ -147,6 +145,9 @@ describe("UsageService.checkIn", () => {
 
     const result = await Effect.runPromise(
       service.checkIn({ deviceId: "device_123", tokenId: "token_123", user }, device, {
+        repairAttemptedAt: "2026-06-21T18:00:00.000Z",
+        repairReason: "scheduler-inactive",
+        repairStatus: "scheduled",
         schedulerActive: true,
         status: "success",
       }),
@@ -156,7 +157,13 @@ describe("UsageService.checkIn", () => {
     expect(checkInDevice).toHaveBeenCalledWith(
       "device_123",
       device,
-      { schedulerActive: true, status: "success" },
+      {
+        repairAttemptedAt: "2026-06-21T18:00:00.000Z",
+        repairReason: "scheduler-inactive",
+        repairStatus: "scheduled",
+        schedulerActive: true,
+        status: "success",
+      },
       expect.any(Date),
     );
     expect(upsertChunk).not.toHaveBeenCalled();

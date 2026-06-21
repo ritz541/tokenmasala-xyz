@@ -5,9 +5,13 @@ import { arch, homedir, hostname } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { Data, Effect } from "effect";
+import { Data, Effect, Option } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
-import type { ServiceCheckInStatusValue } from "@tokenmaxxing/api-contract";
+import type {
+  ServiceCheckInStatusValue,
+  ServiceRepairReasonValue,
+  ServiceRepairStatusValue,
+} from "@tokenmaxxing/api-contract";
 
 import { ClockService, ConfigService, ConsoleService } from "../services";
 import { getConfigPath } from "../services/config";
@@ -130,6 +134,12 @@ interface ServiceRunOptions {
   scheduled: boolean;
 }
 
+interface ServiceRepairOptions {
+  deferred?: boolean | undefined;
+  json?: boolean | undefined;
+  reason?: string | undefined;
+}
+
 interface ServiceState {
   lastArch?: string;
   lastAttemptAt?: string;
@@ -137,6 +147,11 @@ interface ServiceState {
   lastCliVersion?: string;
   lastDurationMs?: number;
   lastError?: string;
+  lastRepairAttemptAt?: string;
+  lastRepairCompletedAt?: string;
+  lastRepairError?: string;
+  lastRepairReason?: ServiceRepairReasonValue;
+  lastRepairStatus?: ServiceRepairStatusValue;
   lastRows?: number;
   lastSchedulerActive?: boolean;
   lastSince?: string;
@@ -172,8 +187,21 @@ interface ServiceCheckIn {
   backend: ServiceBackend;
   error?: string | undefined;
   reloadRequired: boolean;
+  repairAttemptedAt?: string | undefined;
+  repairCompletedAt?: string | undefined;
+  repairError?: string | undefined;
+  repairReason?: ServiceRepairReasonValue | undefined;
+  repairStatus?: ServiceRepairStatusValue | undefined;
   schedulerActive: boolean;
   status: ServiceCheckInStatusValue;
+}
+
+interface ServiceRepairReport {
+  attemptedAt: string;
+  completedAt?: string | undefined;
+  error?: string | undefined;
+  reason: ServiceRepairReasonValue;
+  status: ServiceRepairStatusValue;
 }
 
 type DoctorAuthConfig =
@@ -305,8 +333,10 @@ const repairCommand = Command.make(
   {
     deferred: Flag.boolean("deferred").pipe(Flag.withHidden),
     json: Flag.boolean("json").pipe(Flag.withDescription("Output machine-readable JSON")),
+    reason: Flag.string("reason").pipe(Flag.optional, Flag.withHidden),
   },
-  ({ deferred, json }) => serviceRepairEffect({ deferred, json }),
+  ({ deferred, json, reason }) =>
+    serviceRepairEffect({ deferred, json, reason: Option.getOrUndefined(reason) }),
 ).pipe(Command.withDescription("Repair automatic sync scheduling"));
 
 const runCommand = Command.make(
@@ -499,101 +529,165 @@ function serviceUninstallEffect(options: { json?: boolean | undefined } = {}) {
   );
 }
 
-function serviceRepairEffect(
-  options: {
-    deferred?: boolean | undefined;
-    json?: boolean | undefined;
-  } = {},
-) {
+function serviceRepairEffect(options: ServiceRepairOptions = {}) {
   const program = repairServiceProgram(options);
 
   return options.deferred ? program : humanFrame("Repair automatic sync", options, program);
 }
 
-function repairServiceProgram(options: { json?: boolean | undefined } = {}) {
+function repairServiceProgram(options: ServiceRepairOptions = {}) {
   return Effect.gen(function* () {
     const env = process.env;
     const platform = process.platform;
     const paths = yield* servicePathsEffect(env, undefined, platform);
+    const currentState = (yield* readServiceState(paths.statePath)) ?? { version: 1 as const };
     const existingMetadata = yield* readServiceMetadata(paths.metadataPath);
+    const initialNativeStatus = yield* readNativeSchedulerStatus(paths);
     const autoUpdate = existingMetadata?.autoUpdate ?? true;
+    const repairReason =
+      parseServiceRepairReason(options.reason) ??
+      serviceRepairReason({
+        reloadRequired: serviceReloadRequired(existingMetadata, currentState),
+        schedulerActive: initialNativeStatus.active,
+      }) ??
+      currentState.lastRepairReason ??
+      "reload-required";
+    const attemptedAt = new Date().toISOString();
 
-    const installSpinner = yield* humanSpinner("Detecting tokenmaxxing install", options);
-    const commandInstall = yield* findTokenmaxxingCommandInstall(env, platform).pipe(
-      Effect.flatMap((install) =>
-        install === null ? Effect.fail(new ServiceCommandNotFoundError()) : Effect.succeed(install),
-      ),
-      Effect.tapError(() =>
-        Effect.sync(() => installSpinner.error("Could not find tokenmaxxing install")),
-      ),
-    );
-    if (isEphemeralCommandPath(commandInstall.commandPath)) {
-      yield* Effect.sync(() => installSpinner.error("Could not use tokenmaxxing install"));
-      return yield* Effect.fail(
-        new ServiceEphemeralCommandError({ commandPath: commandInstall.commandPath }),
-      );
-    }
-    if (autoUpdate && commandInstall.autoUpdateManager === null) {
-      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
-      return yield* Effect.fail(
-        new ServiceAutoUpdateManagerError({
-          commandPath: commandInstall.commandPath,
-          resolvedCommandPath: commandInstall.resolvedCommandPath,
+    if (options.deferred === true) {
+      yield* writeServiceState(
+        paths.statePath,
+        serviceRepairState(currentState, {
+          attemptedAt,
+          reason: repairReason,
+          status: "scheduled",
         }),
-      );
+      ).pipe(Effect.ignore);
     }
-    yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
 
-    const wrapper = renderServiceWrapper({
-      commandPath: commandInstall.commandPath,
-      env: capturedServiceEnv(env),
-      logPath: paths.logPath,
-      platform,
-    });
-    const metadata: ServiceMetadata = {
-      autoUpdate,
-      autoUpdateManager: commandInstall.autoUpdateManager,
-      backend: paths.backend,
-      commandPath: commandInstall.commandPath,
-      resolvedCommandPath: commandInstall.resolvedCommandPath,
-      installedAt: new Date().toISOString(),
-      schedule: scheduleDescription(),
-      templateVersion: SERVICE_TEMPLATE_VERSION,
-      version: 1,
+    const repairResult = yield* Effect.gen(function* () {
+      const installSpinner = yield* humanSpinner("Detecting tokenmaxxing install", options);
+      const commandInstall = yield* findTokenmaxxingCommandInstall(env, platform).pipe(
+        Effect.flatMap((install) =>
+          install === null
+            ? Effect.fail(new ServiceCommandNotFoundError())
+            : Effect.succeed(install),
+        ),
+        Effect.tapError(() =>
+          Effect.sync(() => installSpinner.error("Could not find tokenmaxxing install")),
+        ),
+      );
+      if (isEphemeralCommandPath(commandInstall.commandPath)) {
+        yield* Effect.sync(() => installSpinner.error("Could not use tokenmaxxing install"));
+        return yield* Effect.fail(
+          new ServiceEphemeralCommandError({ commandPath: commandInstall.commandPath }),
+        );
+      }
+      if (autoUpdate && commandInstall.autoUpdateManager === null) {
+        yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
+        return yield* Effect.fail(
+          new ServiceAutoUpdateManagerError({
+            commandPath: commandInstall.commandPath,
+            resolvedCommandPath: commandInstall.resolvedCommandPath,
+          }),
+        );
+      }
+      yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
+
+      const wrapper = renderServiceWrapper({
+        commandPath: commandInstall.commandPath,
+        env: capturedServiceEnv(env),
+        logPath: paths.logPath,
+        platform,
+      });
+      const metadata: ServiceMetadata = {
+        autoUpdate,
+        autoUpdateManager: commandInstall.autoUpdateManager,
+        backend: paths.backend,
+        commandPath: commandInstall.commandPath,
+        resolvedCommandPath: commandInstall.resolvedCommandPath,
+        installedAt: new Date().toISOString(),
+        schedule: scheduleDescription(),
+        templateVersion: SERVICE_TEMPLATE_VERSION,
+        version: 1,
+      };
+
+      const filesSpinner = yield* humanSpinner("Writing service files", options);
+      yield* writeServiceFiles(paths, wrapper, metadata).pipe(
+        Effect.tap(() => Effect.sync(() => filesSpinner.stop("Service files written"))),
+        Effect.tapError(() =>
+          Effect.sync(() => filesSpinner.error("Failed writing service files")),
+        ),
+        Effect.mapError((cause) => new ServiceRepairError({ cause })),
+      );
+      const schedulerSpinner = yield* humanSpinner("Repairing scheduler", options);
+      yield* installNativeScheduler(paths).pipe(
+        Effect.tap(() => Effect.sync(() => schedulerSpinner.stop("Scheduler repaired"))),
+        Effect.tapError(() =>
+          Effect.sync(() => schedulerSpinner.error("Failed repairing scheduler")),
+        ),
+        Effect.mapError((cause) => new ServiceRepairError({ cause })),
+      );
+
+      const nativeStatus = yield* readNativeSchedulerStatus(paths);
+      if (!nativeStatus.active) {
+        return yield* Effect.fail(new ServiceRepairError({ cause: nativeStatus.detail }));
+      }
+
+      return nativeStatus;
+    }).pipe(
+      Effect.match({
+        onFailure: (cause) => ({ _tag: "failure" as const, cause }),
+        onSuccess: (nativeStatus) => ({ _tag: "success" as const, nativeStatus }),
+      }),
+    );
+
+    if (repairResult._tag === "failure") {
+      const failureReport: ServiceRepairReport = {
+        attemptedAt,
+        completedAt: new Date().toISOString(),
+        error: String(repairResult.cause),
+        reason: repairReason,
+        status: "failure",
+      };
+      if (options.deferred === true) {
+        yield* writeServiceState(
+          paths.statePath,
+          serviceRepairState(currentState, failureReport),
+        ).pipe(Effect.ignore);
+        yield* writeServiceRepairCheckIn(paths, failureReport).pipe(Effect.ignore);
+      }
+
+      return yield* Effect.fail(repairResult.cause);
+    }
+
+    const successReport: ServiceRepairReport = {
+      attemptedAt,
+      completedAt: new Date().toISOString(),
+      reason: repairReason,
+      status: "success",
     };
-
-    const filesSpinner = yield* humanSpinner("Writing service files", options);
-    yield* writeServiceFiles(paths, wrapper, metadata).pipe(
-      Effect.tap(() => Effect.sync(() => filesSpinner.stop("Service files written"))),
-      Effect.tapError(() => Effect.sync(() => filesSpinner.error("Failed writing service files"))),
-      Effect.mapError((cause) => new ServiceRepairError({ cause })),
-    );
-    const schedulerSpinner = yield* humanSpinner("Repairing scheduler", options);
-    yield* installNativeScheduler(paths).pipe(
-      Effect.tap(() => Effect.sync(() => schedulerSpinner.stop("Scheduler repaired"))),
-      Effect.tapError(() =>
-        Effect.sync(() => schedulerSpinner.error("Failed repairing scheduler")),
-      ),
-      Effect.mapError((cause) => new ServiceRepairError({ cause })),
-    );
-
-    const nativeStatus = yield* readNativeSchedulerStatus(paths);
-    if (!nativeStatus.active) {
-      return yield* Effect.fail(new ServiceRepairError({ cause: nativeStatus.detail }));
+    if (options.deferred === true) {
+      yield* writeServiceState(
+        paths.statePath,
+        serviceRepairState(currentState, successReport),
+      ).pipe(Effect.ignore);
+      yield* writeServiceRepairCheckIn(paths, successReport).pipe(Effect.ignore);
     }
 
     if (options.json) {
       yield* writeJson({
-        active: nativeStatus.active,
+        active: repairResult.nativeStatus.active,
         backend: paths.backend,
-        detail: nativeStatus.detail,
+        detail: repairResult.nativeStatus.detail,
+        repair: successReport,
         status: "ok",
       });
       return;
     }
 
     yield* humanLog("success", "Automatic sync repaired", options);
-    yield* humanLog("info", `Scheduler: ${nativeStatus.detail}`, options);
+    yield* humanLog("info", `Scheduler: ${repairResult.nativeStatus.detail}`, options);
   });
 }
 
@@ -619,6 +713,11 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         lastAutoUpdated: state?.lastAutoUpdated ?? null,
         lastDurationMs: state?.lastDurationMs ?? null,
         lastError: state?.lastError,
+        lastRepairAttemptAt: state?.lastRepairAttemptAt ?? null,
+        lastRepairCompletedAt: state?.lastRepairCompletedAt ?? null,
+        lastRepairError: state?.lastRepairError ?? null,
+        lastRepairReason: state?.lastRepairReason ?? null,
+        lastRepairStatus: state?.lastRepairStatus ?? null,
         lastRows: state?.lastRows ?? null,
         lastSchedulerActive: state?.lastSchedulerActive ?? null,
         lastSince: state?.lastSince ?? null,
@@ -672,6 +771,22 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         }
         if (status.lastError !== undefined) {
           console.log(`Last error: ${status.lastError}`);
+        }
+        if (status.lastRepairStatus !== null) {
+          console.log(
+            `Last repair: ${status.lastRepairStatus}${
+              status.lastRepairReason === null ? "" : ` (${status.lastRepairReason})`
+            }`,
+          );
+        }
+        if (status.lastRepairAttemptAt !== null) {
+          console.log(`Last repair attempt: ${status.lastRepairAttemptAt}`);
+        }
+        if (status.lastRepairCompletedAt !== null) {
+          console.log(`Last repair completed: ${status.lastRepairCompletedAt}`);
+        }
+        if (status.lastRepairError !== null) {
+          console.log(`Last repair error: ${status.lastRepairError}`);
         }
         console.log(`Lock: ${status.lock}`);
         console.log(`Wrapper: ${status.wrapperPath}`);
@@ -815,6 +930,15 @@ function serviceDoctorEffect(options: { json?: boolean | undefined } = {}) {
           "last error",
           state?.lastError ?? "none",
         ),
+        doctorCheck(
+          state?.lastRepairStatus === "failure" ? "warn" : "info",
+          "last repair",
+          state?.lastRepairStatus === undefined
+            ? "none"
+            : `${state.lastRepairStatus}${
+                state.lastRepairReason === undefined ? "" : ` (${state.lastRepairReason})`
+              }${state.lastRepairError === undefined ? "" : `; ${state.lastRepairError}`}`,
+        ),
       ];
 
       if (options.json) {
@@ -895,14 +1019,30 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
         since: scheduledSince,
         version: cliVersion,
       });
-      yield* writeServiceState(paths.statePath, failedState).pipe(Effect.ignore);
-      yield* writeScheduledServiceLog(console, options, serviceRunLogLine(failedState, "failure"));
+      const repairReport = yield* maybeScheduleDeferredServiceRepair({
+        commandPath: metadata?.commandPath,
+        reason: serviceRepairReason({ serviceFailed: true }),
+        scheduled: options.scheduled,
+      });
+      const finalFailedState =
+        repairReport === undefined ? failedState : serviceRepairState(failedState, repairReport);
+      yield* writeServiceState(paths.statePath, finalFailedState).pipe(Effect.ignore);
+      yield* writeScheduledServiceLog(
+        console,
+        options,
+        serviceRunLogLine(finalFailedState, "failure"),
+      );
       return yield* Effect.fail(new ServiceRunError({ cause: authResult.cause }));
     }
 
     const auth = authResult.value;
+    const existingRepairReason = serviceRepairReason({
+      reloadRequired,
+      schedulerActive: nativeStatus.active,
+    });
     yield* writeServiceCheckIn(auth, {
       ...baseCheckIn,
+      ...(existingRepairReason === undefined ? {} : serviceRepairCheckInFromState(currentState)),
       status: "started",
     }).pipe(Effect.ignore);
 
@@ -945,11 +1085,23 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
         since: scheduledSince,
         version: cliVersion,
       });
-      yield* writeServiceState(paths.statePath, failedState).pipe(Effect.ignore);
-      yield* writeScheduledServiceLog(console, options, serviceRunLogLine(failedState, "failure"));
+      const repairReport = yield* maybeScheduleDeferredServiceRepair({
+        commandPath: metadata?.commandPath,
+        reason: serviceRepairReason({ serviceFailed: true }),
+        scheduled: options.scheduled,
+      });
+      const finalFailedState =
+        repairReport === undefined ? failedState : serviceRepairState(failedState, repairReport);
+      yield* writeServiceState(paths.statePath, finalFailedState).pipe(Effect.ignore);
+      yield* writeScheduledServiceLog(
+        console,
+        options,
+        serviceRunLogLine(finalFailedState, "failure"),
+      );
       yield* writeServiceCheckIn(auth, {
         ...baseCheckIn,
-        error: failedState.lastError,
+        ...serviceRepairCheckIn(repairReport),
+        error: finalFailedState.lastError,
         status: "failure",
       }).pipe(Effect.ignore);
       return yield* Effect.fail(new ServiceRunError({ cause: result.cause }));
@@ -968,34 +1120,44 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       successAt,
       version: cliVersion,
     });
-    yield* writeServiceState(paths.statePath, successState).pipe(
+    const repairReport = yield* maybeScheduleDeferredServiceRepair({
+      commandPath: metadata?.commandPath,
+      reason: serviceRepairReason({
+        autoUpdated,
+        reloadRequired,
+        schedulerActive: nativeStatus.active,
+      }),
+      scheduled: options.scheduled,
+    });
+    const finalSuccessState =
+      repairReport === undefined ? successState : serviceRepairState(successState, repairReport);
+    yield* writeServiceState(paths.statePath, finalSuccessState).pipe(
       Effect.mapError((cause) => new ServiceRunError({ cause })),
     );
-    yield* writeScheduledServiceLog(console, options, serviceRunLogLine(successState, "success"));
+    yield* writeScheduledServiceLog(
+      console,
+      options,
+      serviceRunLogLine(finalSuccessState, "success"),
+    );
     yield* writeServiceCheckIn(auth, {
       ...baseCheckIn,
+      ...serviceRepairCheckIn(repairReport),
       status: "success",
     }).pipe(Effect.ignore);
 
-    if (autoUpdated && metadata !== null) {
-      if (options.scheduled) {
-        yield* scheduleDeferredServiceRepair(metadata.commandPath).pipe(Effect.ignore);
-      } else {
-        yield* refreshServiceAfterUpdate({
-          autoUpdate: metadata.autoUpdate,
-          commandPath: metadata.commandPath,
-        }).pipe(
-          Effect.catch(() =>
-            options.json
-              ? Effect.void
-              : Effect.sync(() => {
-                  console.log("Service refresh failed after auto-update");
-                }),
-          ),
-        );
-      }
-    } else if (options.scheduled && reloadRequired && metadata !== null) {
-      yield* scheduleDeferredServiceRepair(metadata.commandPath).pipe(Effect.ignore);
+    if (autoUpdated && metadata !== null && !options.scheduled) {
+      yield* refreshServiceAfterUpdate({
+        autoUpdate: metadata.autoUpdate,
+        commandPath: metadata.commandPath,
+      }).pipe(
+        Effect.catch(() =>
+          options.json
+            ? Effect.void
+            : Effect.sync(() => {
+                console.log("Service refresh failed after auto-update");
+              }),
+        ),
+      );
     }
 
     if (!options.json && !options.scheduled) {
@@ -1028,6 +1190,11 @@ function writeServiceCheckIn(auth: SyncAuth, checkIn: ServiceCheckIn) {
         backend: checkIn.backend,
         error: checkIn.error,
         reloadRequired: checkIn.reloadRequired,
+        repairAttemptedAt: checkIn.repairAttemptedAt,
+        repairCompletedAt: checkIn.repairCompletedAt,
+        repairError: checkIn.repairError,
+        repairReason: checkIn.repairReason,
+        repairStatus: checkIn.repairStatus,
         schedulerActive: checkIn.schedulerActive,
         status: checkIn.status,
         templateVersion: SERVICE_TEMPLATE_VERSION,
@@ -1040,38 +1207,218 @@ function serviceReloadRequired(metadata: ServiceMetadata | null, _state?: Servic
   return metadata !== null && metadata.templateVersion !== SERVICE_TEMPLATE_VERSION;
 }
 
+function serviceRepairReason(input: {
+  autoUpdated?: boolean | undefined;
+  reloadRequired?: boolean | undefined;
+  schedulerActive?: boolean | undefined;
+  serviceFailed?: boolean | undefined;
+}): ServiceRepairReasonValue | undefined {
+  if (input.serviceFailed === true) {
+    return "service-failure";
+  }
+  if (input.schedulerActive === false) {
+    return "scheduler-inactive";
+  }
+  if (input.reloadRequired === true) {
+    return "reload-required";
+  }
+  if (input.autoUpdated === true) {
+    return "auto-updated";
+  }
+
+  return undefined;
+}
+
+function parseServiceRepairReason(value: string | undefined): ServiceRepairReasonValue | undefined {
+  if (
+    value === "auto-updated" ||
+    value === "reload-required" ||
+    value === "scheduler-inactive" ||
+    value === "service-failure"
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function serviceRepairState(currentState: ServiceState, report: ServiceRepairReport): ServiceState {
+  return {
+    ...currentState,
+    lastRepairAttemptAt: report.attemptedAt,
+    lastRepairCompletedAt: report.completedAt,
+    lastRepairError: report.error,
+    lastRepairReason: report.reason,
+    lastRepairStatus: report.status,
+    version: 1,
+  };
+}
+
+function serviceRepairCheckIn(
+  report: ServiceRepairReport | undefined,
+): Pick<
+  ServiceCheckIn,
+  "repairAttemptedAt" | "repairCompletedAt" | "repairError" | "repairReason" | "repairStatus"
+> {
+  if (report === undefined) {
+    return {};
+  }
+
+  return {
+    repairAttemptedAt: report.attemptedAt,
+    repairCompletedAt: report.completedAt,
+    repairError: report.error,
+    repairReason: report.reason,
+    repairStatus: report.status,
+  };
+}
+
+function serviceRepairCheckInFromState(
+  state: ServiceState,
+): ReturnType<typeof serviceRepairCheckIn> {
+  if (state.lastRepairReason === undefined || state.lastRepairStatus === undefined) {
+    return {};
+  }
+  if (state.lastRepairStatus === "success") {
+    return {};
+  }
+
+  return {
+    repairAttemptedAt: state.lastRepairAttemptAt,
+    repairCompletedAt: state.lastRepairCompletedAt,
+    repairError: state.lastRepairError,
+    repairReason: state.lastRepairReason,
+    repairStatus: state.lastRepairStatus,
+  };
+}
+
 function serviceRepairCommand(): string {
   return "tokenmaxxing service repair";
 }
 
-function scheduleDeferredServiceRepair(commandPath: string): Effect.Effect<void, never> {
-  return Effect.tryPromise({
-    try: async () => {
-      const child = spawnDeferredServiceRepair(commandPath);
-      child.unref();
-    },
-    catch: (cause) => cause,
-  }).pipe(Effect.catch(() => Effect.void));
+function scheduleDeferredServiceRepair(
+  commandPath: string,
+  reason: ServiceRepairReasonValue,
+): Effect.Effect<ServiceRepairReport, never> {
+  const attemptedAt = new Date().toISOString();
+
+  return Effect.sync(() => {
+    const child = spawnDeferredServiceRepair(commandPath, reason);
+    child.unref();
+
+    return {
+      attemptedAt,
+      reason,
+      status: "scheduled" as const,
+    };
+  }).pipe(
+    Effect.catch((cause) =>
+      Effect.succeed({
+        attemptedAt,
+        error: String(cause),
+        reason,
+        status: "failure" as const,
+      }),
+    ),
+  );
 }
 
-function spawnDeferredServiceRepair(commandPath: string) {
-  if (process.platform === "win32") {
-    return spawn(
-      "cmd",
-      [
+function spawnDeferredServiceRepair(
+  commandPath: string,
+  reason: ServiceRepairReasonValue,
+  platform = process.platform,
+) {
+  const invocation = deferredServiceRepairInvocation(commandPath, reason, platform);
+
+  return spawn(invocation.command, invocation.args, invocation.options);
+}
+
+function deferredServiceRepairInvocation(
+  commandPath: string,
+  reason: ServiceRepairReasonValue,
+  platform: NodeJS.Platform,
+): {
+  args: string[];
+  command: string;
+  options: Parameters<typeof spawn>[2];
+} {
+  if (platform === "win32") {
+    return {
+      args: [
         "/d",
         "/s",
         "/c",
-        `timeout /t 2 /nobreak >nul & ${cmdQuote(commandPath)} service repair --deferred`,
+        `timeout /t 2 /nobreak >nul & ${cmdQuote(
+          commandPath,
+        )} service repair --deferred --json --reason ${cmdQuote(reason)}`,
       ],
-      { detached: true, stdio: "ignore", windowsHide: true },
-    );
+      command: "cmd",
+      options: { detached: true, stdio: "ignore", windowsHide: true },
+    };
   }
 
-  return spawn("sh", ["-c", `sleep 2; exec ${shellQuote(commandPath)} service repair --deferred`], {
-    detached: true,
-    stdio: "ignore",
-  });
+  return {
+    args: [
+      "-c",
+      `sleep 2; exec ${shellQuote(
+        commandPath,
+      )} service repair --deferred --json --reason ${shellQuote(reason)}`,
+    ],
+    command: "sh",
+    options: {
+      detached: true,
+      stdio: "ignore",
+    },
+  };
+}
+
+function maybeScheduleDeferredServiceRepair(input: {
+  commandPath: string | undefined;
+  reason: ServiceRepairReasonValue | undefined;
+  scheduled: boolean;
+}): Effect.Effect<ServiceRepairReport | undefined, never> {
+  if (!input.scheduled || input.commandPath === undefined || input.reason === undefined) {
+    return Effect.succeed(undefined);
+  }
+
+  return scheduleDeferredServiceRepair(input.commandPath, input.reason);
+}
+
+function writeServiceRepairCheckIn(paths: ServicePaths, report: ServiceRepairReport) {
+  return Effect.gen(function* () {
+    const authResult = yield* resolveSyncAuth({ json: true }).pipe(
+      Effect.match({
+        onFailure: () => null,
+        onSuccess: (value) => value,
+      }),
+    );
+    if (authResult === null) {
+      return;
+    }
+
+    const metadata = yield* readServiceMetadata(paths.metadataPath);
+    const state = yield* readServiceState(paths.statePath);
+    const nativeStatus = yield* readNativeSchedulerStatus(paths);
+
+    yield* writeServiceCheckIn(authResult, {
+      backend: paths.backend,
+      error: report.status === "failure" ? report.error : undefined,
+      reloadRequired: serviceReloadRequired(metadata, state),
+      schedulerActive: nativeStatus.active,
+      status: report.status === "failure" ? "failure" : "success",
+      ...serviceRepairCheckIn(report),
+    }).pipe(Effect.ignore);
+  }).pipe(Effect.catch(() => Effect.void));
+}
+
+function serviceRepairLogFields(state: ServiceState) {
+  return {
+    repairAttemptedAt: state.lastRepairAttemptAt,
+    repairCompletedAt: state.lastRepairCompletedAt,
+    repairError: state.lastRepairError,
+    repairReason: state.lastRepairReason,
+    repairStatus: state.lastRepairStatus,
+  };
 }
 
 function readNativeSchedulerStatus(
@@ -1238,6 +1585,7 @@ function serviceRunLogLine(state: ServiceState, status: "failure" | "success") {
     error: status === "failure" ? state.lastError : undefined,
     event: "service_run",
     reloadRequired: state.reloadRequired,
+    ...serviceRepairLogFields(state),
     rows: state.lastRows,
     schedulerActive: state.lastSchedulerActive,
     since: state.lastSince,
@@ -1510,6 +1858,15 @@ function serviceStateJson(state: ServiceState): Partial<ServiceState> {
     ...(state.lastCliVersion === undefined ? {} : { lastCliVersion: state.lastCliVersion }),
     ...(state.lastDurationMs === undefined ? {} : { lastDurationMs: state.lastDurationMs }),
     ...(state.lastError === undefined ? {} : { lastError: state.lastError }),
+    ...(state.lastRepairAttemptAt === undefined
+      ? {}
+      : { lastRepairAttemptAt: state.lastRepairAttemptAt }),
+    ...(state.lastRepairCompletedAt === undefined
+      ? {}
+      : { lastRepairCompletedAt: state.lastRepairCompletedAt }),
+    ...(state.lastRepairError === undefined ? {} : { lastRepairError: state.lastRepairError }),
+    ...(state.lastRepairReason === undefined ? {} : { lastRepairReason: state.lastRepairReason }),
+    ...(state.lastRepairStatus === undefined ? {} : { lastRepairStatus: state.lastRepairStatus }),
     ...(state.lastRows === undefined ? {} : { lastRows: state.lastRows }),
     ...(state.lastSchedulerActive === undefined
       ? {}
@@ -2433,6 +2790,7 @@ export {
   autoUpdateCommandDescription,
   backendForPlatform,
   capturedServiceEnv,
+  deferredServiceRepairInvocation,
   durableTokenmaxxingCommandPath,
   detectAutoUpdateManager,
   findCommandOnPath,
@@ -2451,6 +2809,8 @@ export {
   refreshServiceAfterUpdate,
   scheduleDeferredServiceRepair,
   scheduleDescription,
+  serviceRepairReason,
+  serviceRepairState,
   serviceScheduledSyncSince,
   serviceCommand,
   serviceInstallProgram,
@@ -2482,5 +2842,6 @@ export type {
   ServiceInstallOptions,
   ServiceMetadata,
   ServicePaths,
+  ServiceRepairReport,
   ServiceState,
 };

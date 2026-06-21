@@ -20,6 +20,7 @@ import {
   autoUpdateCommandDescription,
   backendForPlatform,
   capturedServiceEnv,
+  deferredServiceRepairInvocation,
   detectAutoUpdateManager,
   deterministicServiceJitterMs,
   durableTokenmaxxingCommandPath,
@@ -33,6 +34,8 @@ import {
   renderServiceWrapper,
   renderSystemdTimer,
   scheduleDescription,
+  serviceRepairReason,
+  serviceRepairState,
   serviceScheduledSyncSince,
   serviceInstallProgram,
   serviceLockStatus,
@@ -432,6 +435,10 @@ describe("serviceStateJson", () => {
       lastCliVersion: "0.4.12",
       lastDurationMs: 1234,
       lastRows: 42,
+      lastRepairAttemptAt: "2026-06-16T10:00:02.000Z",
+      lastRepairCompletedAt: "2026-06-16T10:00:04.000Z",
+      lastRepairReason: "reload-required",
+      lastRepairStatus: "success",
       lastSince: "2026-06-16",
       lastSources: [
         {
@@ -450,6 +457,65 @@ describe("serviceStateJson", () => {
     };
 
     expect(serviceStateJson(state)).toEqual(state);
+  });
+});
+
+describe("service repair helpers", () => {
+  it("prioritizes the reason that should drive automatic repair", () => {
+    expect(
+      serviceRepairReason({
+        autoUpdated: true,
+        reloadRequired: true,
+        schedulerActive: false,
+        serviceFailed: true,
+      }),
+    ).toBe("service-failure");
+    expect(serviceRepairReason({ schedulerActive: false })).toBe("scheduler-inactive");
+    expect(serviceRepairReason({ reloadRequired: true })).toBe("reload-required");
+    expect(serviceRepairReason({ autoUpdated: true })).toBe("auto-updated");
+    expect(serviceRepairReason({ schedulerActive: true })).toBeUndefined();
+  });
+
+  it("records repair attempts in service state", () => {
+    expect(
+      serviceRepairState(
+        {
+          lastAttemptAt: "2026-06-16T10:00:00.000Z",
+          version: 1,
+        },
+        {
+          attemptedAt: "2026-06-16T10:00:02.000Z",
+          completedAt: "2026-06-16T10:00:04.000Z",
+          reason: "scheduler-inactive",
+          status: "success",
+        },
+      ),
+    ).toMatchObject({
+      lastAttemptAt: "2026-06-16T10:00:00.000Z",
+      lastRepairAttemptAt: "2026-06-16T10:00:02.000Z",
+      lastRepairCompletedAt: "2026-06-16T10:00:04.000Z",
+      lastRepairReason: "scheduler-inactive",
+      lastRepairStatus: "success",
+    });
+  });
+
+  it("spawns deferred repairs quietly with json output and a reason", () => {
+    expect(
+      deferredServiceRepairInvocation("/usr/local/bin/tokenmaxxing", "reload-required", "darwin"),
+    ).toMatchObject({
+      args: [
+        "-c",
+        "sleep 2; exec '/usr/local/bin/tokenmaxxing' service repair --deferred --json --reason 'reload-required'",
+      ],
+      command: "sh",
+    });
+    expect(
+      deferredServiceRepairInvocation(
+        "C:\\Users\\alex\\AppData\\Roaming\\npm\\tokenmaxxing.cmd",
+        "auto-updated",
+        "win32",
+      ).args.at(-1),
+    ).toContain('service repair --deferred --json --reason "auto-updated"');
   });
 });
 

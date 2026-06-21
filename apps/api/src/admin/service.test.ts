@@ -5,6 +5,7 @@ import { Forbidden, type AdminUsersResponse } from "@tokenmaxxing/api-contract";
 
 import {
   AdminRepository,
+  adminDeviceRepairReason,
   adminDeviceStatus,
   latestReleaseFromRegistryBody,
   makeAdminService,
@@ -36,6 +37,11 @@ function device(input: Partial<AdminDeviceSnapshot> = {}): AdminDeviceSnapshot {
     serviceBackend: null,
     serviceError: null,
     serviceReloadRequired: null,
+    serviceRepairAttemptedAt: null,
+    serviceRepairCompletedAt: null,
+    serviceRepairError: null,
+    serviceRepairReason: null,
+    serviceRepairStatus: null,
     serviceSchedulerActive: null,
     serviceStatus: null,
     serviceTemplateVersion: null,
@@ -221,6 +227,34 @@ describe("adminDeviceStatus", () => {
       "unknown",
     );
     expect(adminDeviceStatus(device({ lastSyncAt: null }), latestRelease, now)).toBe("unknown");
+  });
+});
+
+describe("adminDeviceRepairReason", () => {
+  it("explains why a device needs repair", () => {
+    expect(adminDeviceRepairReason(device({ serviceStatus: "failure" }))).toBe("service-failure");
+    expect(adminDeviceRepairReason(device({ serviceSchedulerActive: false }))).toBe(
+      "scheduler-inactive",
+    );
+    expect(adminDeviceRepairReason(device({ serviceReloadRequired: true }))).toBe(
+      "reload-required",
+    );
+    expect(
+      adminDeviceRepairReason(
+        device({
+          serviceRepairReason: "auto-updated",
+          serviceRepairStatus: "scheduled",
+        }),
+      ),
+    ).toBe("auto-updated");
+    expect(
+      adminDeviceRepairReason(
+        device({
+          serviceRepairReason: "auto-updated",
+          serviceRepairStatus: "success",
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

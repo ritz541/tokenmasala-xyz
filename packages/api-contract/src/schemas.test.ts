@@ -46,11 +46,21 @@ describe("device telemetry inputs", () => {
     await expect(
       Schema.decodeUnknownPromise(UsageCheckInInput)({
         device: { name: "Mac.localdomain", platform: "darwin" },
-        service: { status: "success" },
+        service: {
+          repairAttemptedAt: "2026-06-21T18:00:00.000Z",
+          repairReason: "scheduler-inactive",
+          repairStatus: "scheduled",
+          status: "success",
+        },
       }),
     ).resolves.toEqual({
       device: { name: "Mac.localdomain", platform: "darwin" },
-      service: { status: "success" },
+      service: {
+        repairAttemptedAt: "2026-06-21T18:00:00.000Z",
+        repairReason: "scheduler-inactive",
+        repairStatus: "scheduled",
+        status: "success",
+      },
     });
   });
 });

@@ -5,6 +5,20 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.4.14 - 2026-06-21
+
+### Added
+
+- Added automatic service repair telemetry for scheduled sync check-ins and internal fleet details.
+
+### Changed
+
+- Made scheduled service runs retry deferred scheduler repair when the scheduler is inactive, the service template is stale, auto-update changes the CLI, or the service run fails.
+
+### Fixed
+
+- Fixed inline command snippets so CLI flags render with visible spacing instead of font ligatures.
+
 ## 0.4.13 - 2026-06-21
 
 ### Added

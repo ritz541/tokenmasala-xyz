@@ -17,6 +17,7 @@ function createRouter() {
     context: {
       queryClient,
     },
+    defaultHashScrollIntoView: { behavior: "smooth", block: "start" },
     defaultPreload: "intent",
     routeTree,
     scrollRestoration: true,

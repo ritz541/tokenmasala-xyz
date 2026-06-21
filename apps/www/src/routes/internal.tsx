@@ -163,7 +163,6 @@ function StatusCell({
 
 function fleetSummary(data: AdminUsersData): string {
   return [
-    `User fleet`,
     `${formatInteger(data.summary.healthy)} healthy`,
     `${formatInteger(data.summary.outdated)} outdated`,
     `${formatInteger(data.summary.repairNeeded)} repair needed`,

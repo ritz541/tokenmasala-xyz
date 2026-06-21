@@ -73,16 +73,17 @@ function InternalPage() {
                   </Link>
                 </td>
                 <td className="p-3 align-top font-medium">
-                  <VersionCell
-                    latestVersion={data.latestCliVersion}
-                    version={row.latestDevice?.version ?? null}
-                  />
+                  {formatVersion(row.latestDevice?.version ?? null)}
                 </td>
                 <td className="hidden p-3 align-top font-mono text-muted-foreground md:table-cell">
                   {row.latestDevice?.arch ?? "—"}
                 </td>
                 <td className="p-3 align-top">
-                  <StatusPill status={row.status} title={serviceStatusTitle(row)} />
+                  <StatusCell
+                    latestVersion={data.latestCliVersion}
+                    row={row}
+                    title={serviceStatusTitle(row)}
+                  />
                 </td>
                 <td className="p-3 align-top">
                   <div title={row.latestCheckInAt ?? undefined}>
@@ -134,21 +135,23 @@ function StatusPill({ status, title }: { status: AdminDeviceStatus; title?: stri
   );
 }
 
-function VersionCell({
+function StatusCell({
   latestVersion,
-  version,
+  row,
+  title,
 }: {
   latestVersion: string | null;
-  version: string | null;
+  row: AdminUsersData["users"][number];
+  title?: string | undefined;
 }) {
-  const outdated = isOutdatedVersion(version, latestVersion);
+  const outdated = isOutdatedVersion(row.latestDevice?.version ?? null, latestVersion);
+  const statusTitle = [title, outdated ? `latest: ${formatVersion(latestVersion)}` : undefined]
+    .filter((part): part is string => part !== undefined && part.length > 0)
+    .join(" · ");
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-2"
-      title={outdated ? `latest: ${formatVersion(latestVersion)}` : undefined}
-    >
-      <span>{formatVersion(version)}</span>
+    <div className="flex flex-wrap items-center gap-2" title={statusTitle || undefined}>
+      <StatusPill status={row.status} />
       {outdated ? (
         <span className="inline-flex items-center border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] leading-none text-blue-600 dark:text-blue-400">
           outdated

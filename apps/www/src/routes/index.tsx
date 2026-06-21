@@ -2,9 +2,11 @@ import { Collapsible } from "@base-ui-components/react/collapsible";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, stripSearchParams, useNavigate } from "@tanstack/react-router";
 import type { LeaderboardMetric, LeaderboardWindow } from "@tokenmaxxing/api-contract";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Check, Copy } from "@phosphor-icons/react/ssr";
 import { z } from "zod";
 
+import { Button } from "../components/ui/button";
 import { formatTokens, formatUsd } from "../components/charts/scale";
 import { Avatar } from "../components/ui/avatar";
 import { Code } from "../components/ui/code";
@@ -25,6 +27,8 @@ const DEFAULT_LEADERBOARD_SEARCH = {
   metric: "spend",
   window: "30d",
 } as const satisfies LeaderboardSearch;
+
+const BOOTSTRAP_COMMAND = "npm install -g @851-labs/tokenmaxxing && tokenmaxxing bootstrap";
 
 const Route = createFileRoute("/")({
   validateSearch: leaderboardSearchSchema,
@@ -158,85 +162,125 @@ function LeaderboardPage() {
 
   return (
     <>
-      <header className="px-4 py-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Who is maxxing the most tokens. Join with{" "}
-              <Code>npm install -g @851-labs/tokenmaxxing</Code>
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Tabs
-              onChange={(value) => navigate({ search: (prev) => ({ ...prev, metric: value }) })}
-              options={METRICS}
-              value={metric}
-            />
-            <Tabs
-              onChange={(value) => navigate({ search: (prev) => ({ ...prev, window: value }) })}
-              options={WINDOWS}
-              value={window}
-            />
-          </div>
-        </div>
-      </header>
+      <HeroSection />
 
-      <div className="overflow-hidden border-y border-border">
-        {data.entries.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            Nobody on the board yet — be the first to sync.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <th className="w-12 p-3 font-medium">#</th>
-                <th className="p-3 font-medium">User</th>
-                <th className="p-3 text-right font-medium">Spend</th>
-                <th className="p-3 text-right font-medium">Tokens</th>
-                <th className="hidden p-3 text-right font-medium sm:table-cell">Active days</th>
-                <th className="hidden p-3 text-right font-medium sm:table-cell">Last active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.entries.map((entry) => (
-                <tr
-                  className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/40"
-                  key={entry.user.id}
-                >
-                  <td className="p-3 font-mono text-muted-foreground">{entry.rank}</td>
-                  <td className="p-3">
-                    <Link
-                      className="flex items-center gap-2.5 font-medium hover:underline"
-                      params={{ user: entry.user.login }}
-                      to="/$user"
-                    >
-                      <Avatar size={24} src={entry.user.avatarUrl} />
-                      {entry.user.login}
-                    </Link>
-                  </td>
-                  <td className="p-3 text-right font-mono tabular-nums">
-                    {formatUsd(entry.spendUsd)}
-                  </td>
-                  <td className="p-3 text-right font-mono tabular-nums">
-                    {formatTokens(entry.totalTokens)}
-                  </td>
-                  <td className="hidden p-3 text-right tabular-nums text-muted-foreground sm:table-cell">
-                    {entry.activeDays}
-                  </td>
-                  <td className="hidden p-3 text-right text-muted-foreground sm:table-cell">
-                    {entry.lastDate ?? "—"}
-                  </td>
+      <section aria-labelledby="homepage-leaderboard-title">
+        <header className="px-4 pt-8 pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight" id="homepage-leaderboard-title">
+                Leaderboard
+              </h2>
+            </div>
+            <div className="flex gap-2">
+              <Tabs
+                onChange={(value) => navigate({ search: (prev) => ({ ...prev, metric: value }) })}
+                options={METRICS}
+                value={metric}
+              />
+              <Tabs
+                onChange={(value) => navigate({ search: (prev) => ({ ...prev, window: value }) })}
+                options={WINDOWS}
+                value={window}
+              />
+            </div>
+          </div>
+        </header>
+
+        <div className="overflow-hidden border-y border-border">
+          {data.entries.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">
+              Nobody on the board yet — be the first to sync.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="w-12 p-3 font-medium">#</th>
+                  <th className="p-3 font-medium">User</th>
+                  <th className="p-3 text-right font-medium">Spend</th>
+                  <th className="p-3 text-right font-medium">Tokens</th>
+                  <th className="hidden p-3 text-right font-medium sm:table-cell">Active days</th>
+                  <th className="hidden p-3 text-right font-medium sm:table-cell">Last active</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {data.entries.map((entry) => (
+                  <tr
+                    className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/40"
+                    key={entry.user.id}
+                  >
+                    <td className="p-3 font-mono text-muted-foreground">{entry.rank}</td>
+                    <td className="p-3">
+                      <Link
+                        className="flex items-center gap-2.5 font-medium hover:underline"
+                        params={{ user: entry.user.login }}
+                        to="/$user"
+                      >
+                        <Avatar size={24} src={entry.user.avatarUrl} />
+                        {entry.user.login}
+                      </Link>
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums">
+                      {formatUsd(entry.spendUsd)}
+                    </td>
+                    <td className="p-3 text-right font-mono tabular-nums">
+                      {formatTokens(entry.totalTokens)}
+                    </td>
+                    <td className="hidden p-3 text-right tabular-nums text-muted-foreground sm:table-cell">
+                      {entry.activeDays}
+                    </td>
+                    <td className="hidden p-3 text-right text-muted-foreground sm:table-cell">
+                      {entry.lastDate ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
 
       <FaqSection />
     </>
+  );
+}
+
+function HeroSection() {
+  const [copied, setCopied] = useState(false);
+
+  const copyBootstrapCommand = async () => {
+    if (navigator.clipboard === undefined) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(BOOTSTRAP_COMMAND);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      return;
+    }
+  };
+
+  return (
+    <section className="border-b border-border px-4 py-10 sm:py-14" aria-labelledby="hero-title">
+      <h1 className="max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl" id="hero-title">
+        Welcome to tokenmaxxing
+      </h1>
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+        Sync local agent usage, publish your profile, and climb the leaderboard.
+      </p>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <code className="block min-w-0 overflow-x-auto border border-border bg-muted px-3 py-2 font-mono text-sm sm:flex-1">
+          {BOOTSTRAP_COMMAND}
+        </code>
+        <Button className="shrink-0" onClick={() => void copyBootstrapCommand()} size="md">
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          {copied ? "Copied" : "Copy bootstrap command"}
+        </Button>
+      </div>
+    </section>
   );
 }
 

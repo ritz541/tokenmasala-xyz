@@ -6,6 +6,7 @@ import { UserNotFound } from "@tokenmaxxing/api-contract";
 import type {
   AuthUser,
   ProfileDailyGroupBy,
+  ProfileDailyResponse,
   ProfileDailyRow,
   ProfileResponse,
   ProfileStats,
@@ -18,6 +19,8 @@ import type { DatabaseError } from "../database";
  * per-day series the charts consume, grouped by model, source, or device.
  */
 
+const PROFILE_CHART_START = "2026-01-01";
+
 interface DailyQuery {
   groupBy: typeof ProfileDailyGroupBy.Type;
   since?: string | undefined;
@@ -29,7 +32,7 @@ interface ProfilesServiceShape {
   getDaily(
     login: string,
     query: DailyQuery,
-  ): Effect.Effect<(typeof ProfileDailyRow.Type)[], UserNotFound, any>;
+  ): Effect.Effect<typeof ProfileDailyResponse.Type, UserNotFound, any>;
 }
 
 interface ProfilesRepositoryShape {
@@ -72,12 +75,34 @@ const makeProfilesService = Effect.fn("makeProfilesService")(function* () {
     }),
     getDaily: Effect.fn("ProfilesService.getDaily")(function* (login, query) {
       const user = yield* requireUser(login);
+      const days = yield* repository.daily(user.id, query).pipe(Effect.orDie);
 
-      return yield* repository.daily(user.id, query).pipe(Effect.orDie);
+      return {
+        days,
+        range: profileDailyRange(query, new Date()),
+      };
     }),
   });
 });
 
-export { makeProfilesService, ProfilesRepository, ProfilesService };
+function profileDailyRange(query: Pick<DailyQuery, "since" | "until">, now: Date) {
+  return {
+    first: query.since ?? PROFILE_CHART_START,
+    last: query.until ?? todayKeyUtc(now),
+  };
+}
+
+function todayKeyUtc(now: Date): string {
+  return now.toISOString().slice(0, 10);
+}
+
+export {
+  makeProfilesService,
+  PROFILE_CHART_START,
+  profileDailyRange,
+  ProfilesRepository,
+  ProfilesService,
+  todayKeyUtc,
+};
 
 export type { ProfilesRepositoryShape };

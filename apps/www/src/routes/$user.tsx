@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import type { ProfileDailyRow } from "@tokenmaxxing/api-contract";
+import type { ProfileDailyResponse, ProfileDailyRow } from "@tokenmaxxing/api-contract";
 
 type DailyRow = typeof ProfileDailyRow.Type;
+type DailyRange = (typeof ProfileDailyResponse.Type)["range"];
 
 import { Heatmap } from "../components/charts/heatmap";
 import { MonthBars } from "../components/charts/month-bars";
@@ -32,9 +33,6 @@ const Route = createFileRoute("/$user")({
   component: ProfilePage,
 });
 
-/** The daily-bars chart stays readable up to roughly this many days. */
-const DAILY_WINDOW = 184;
-
 const countFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 function formatCount(value: number): string {
@@ -62,7 +60,7 @@ function ProfilePage() {
           </Card>
         </div>
       ) : (
-        <ProfileDashboard rows={daily.days} stats={stats} />
+        <ProfileDashboard range={daily.range} rows={daily.days} stats={stats} />
       )}
     </>
   );
@@ -82,8 +80,16 @@ interface DashboardStats {
   totalTokens: number;
 }
 
-function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: DashboardStats }) {
-  const derived = useMemo(() => deriveCharts(rows), [rows]);
+function ProfileDashboard({
+  range,
+  rows,
+  stats,
+}: {
+  range: DailyRange;
+  rows: readonly DailyRow[];
+  stats: DashboardStats;
+}) {
+  const derived = useMemo(() => deriveCharts(rows, range), [range, rows]);
   const [hoveredSpendFamily, setHoveredSpendFamily] = useState<string | null>(null);
   const [hoveredTokensFamily, setHoveredTokensFamily] = useState<string | null>(null);
 
@@ -164,7 +170,7 @@ function ProfileDashboard({ rows, stats }: { rows: readonly DailyRow[]; stats: D
   );
 }
 
-function deriveCharts(rows: readonly DailyRow[]) {
+function deriveCharts(rows: readonly DailyRow[], range: DailyRange) {
   const colors = familyColors(rows);
 
   // Per-day totals and per-day family segments.
@@ -199,16 +205,11 @@ function deriveCharts(rows: readonly DailyRow[]) {
     familiesByMonth.set(month, monthFamilies);
   }
 
-  const first = rows[0]?.date ?? null;
-  const last = rows.at(-1)?.date ?? null;
-  const allDays = first !== null && last !== null ? enumerateDays(first, last) : [];
-  const heatmapRange =
-    last !== null
-      ? {
-          first: `${last.slice(0, 4)}-01-01`,
-          last: `${last.slice(0, 4)}-12-31`,
-        }
-      : null;
+  const allDays = enumerateDays(range.first, range.last);
+  const heatmapRange = {
+    first: range.first,
+    last: range.last,
+  };
 
   const familyOrder = [...colors.keys()];
   const segmentsByDate = new Map(
@@ -222,7 +223,7 @@ function deriveCharts(rows: readonly DailyRow[]) {
     ]),
   );
 
-  const chartedDays = allDays.slice(-DAILY_WINDOW);
+  const chartedDays = allDays;
   const spendDays = buildStackedDays(
     chartedDays,
     familyOrder,
@@ -238,18 +239,15 @@ function deriveCharts(rows: readonly DailyRow[]) {
     tokenByDate,
   );
 
-  const months =
-    last !== null
-      ? enumerateCalendarYearMonths(last.slice(0, 4)).map((month) => ({
-          month,
-          segments: familyOrder.map((family) => ({
-            color: colors.get(family) ?? "#9ca3af",
-            family,
-            value: familiesByMonth.get(month)?.get(family) ?? 0,
-          })),
-          value: spendByMonth.get(month) ?? 0,
-        }))
-      : [];
+  const months = enumerateCalendarMonths(range.first, range.last).map((month) => ({
+    month,
+    segments: familyOrder.map((family) => ({
+      color: colors.get(family) ?? "#9ca3af",
+      family,
+      value: familiesByMonth.get(month)?.get(family) ?? 0,
+    })),
+    value: spendByMonth.get(month) ?? 0,
+  }));
 
   return {
     heatmap: heatmapRange,
@@ -308,8 +306,16 @@ function buildLegend(days: readonly StackedDay[], colors: ReadonlyMap<string, st
     .map(({ color, family, percent }) => ({ color, family, percent }));
 }
 
-function enumerateCalendarYearMonths(year: string): string[] {
-  return Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`);
+function enumerateCalendarMonths(first: string, last: string): string[] {
+  const out: string[] = [];
+  const cursor = new Date(`${first.slice(0, 7)}-01T00:00:00Z`);
+  const end = new Date(`${last.slice(0, 7)}-01T00:00:00Z`);
+  while (cursor.getTime() <= end.getTime()) {
+    out.push(cursor.toISOString().slice(0, 7));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return out;
 }
 
-export { Route };
+export { deriveCharts, Route };

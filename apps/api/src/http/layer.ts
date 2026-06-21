@@ -179,13 +179,11 @@ const profilesHandlers = HttpApiBuilder.group(TokenmaxxingApi, "profiles", (hand
     .handle("daily", ({ params, query }) =>
       Effect.gen(function* () {
         const profiles = yield* ProfilesService;
-        const days = yield* profiles.getDaily(params.login, {
+        return yield* profiles.getDaily(params.login, {
           groupBy: query.groupBy ?? "model",
           since: query.since,
           until: query.until,
         });
-
-        return { days };
       }),
     ),
 );

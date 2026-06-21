@@ -274,7 +274,13 @@ const ProfileDailyRow = Schema.Struct({
   totalTokens: Schema.Number,
 });
 
+const ProfileDailyRange = Schema.Struct({
+  first: Schema.String,
+  last: Schema.String,
+});
+
 const ProfileDailyResponse = Schema.Struct({
+  range: ProfileDailyRange,
   days: Schema.Array(ProfileDailyRow),
 });
 
@@ -378,6 +384,7 @@ export {
   OAuthProviderId,
   OkResponse,
   ProfileDailyGroupBy,
+  ProfileDailyRange,
   ProfileDailyResponse,
   ProfileDailyRow,
   ProfileResponse,

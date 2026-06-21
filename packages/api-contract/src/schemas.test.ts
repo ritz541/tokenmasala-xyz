@@ -1,7 +1,13 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 
-import { CliLoginStartInput, IngestUsageInput, SyncUsageInput, UsageCheckInInput } from "./schemas";
+import {
+  CliLoginStartInput,
+  IngestUsageInput,
+  ProfileDailyResponse,
+  SyncUsageInput,
+  UsageCheckInInput,
+} from "./schemas";
 
 describe("device telemetry inputs", () => {
   it("keeps old clients without version or arch compatible", async () => {
@@ -45,6 +51,48 @@ describe("device telemetry inputs", () => {
     ).resolves.toEqual({
       device: { name: "Mac.localdomain", platform: "darwin" },
       service: { status: "success" },
+    });
+  });
+});
+
+describe("profile daily responses", () => {
+  it("carries chart range metadata separately from sparse usage rows", async () => {
+    await expect(
+      Schema.decodeUnknownPromise(ProfileDailyResponse)({
+        days: [
+          {
+            cacheCreationTokens: 0,
+            cacheReadTokens: 0,
+            costUsd: 12.34,
+            date: "2026-06-19",
+            inputTokens: 100,
+            key: "claude-opus-4",
+            outputTokens: 200,
+            totalTokens: 300,
+          },
+        ],
+        range: {
+          first: "2026-01-01",
+          last: "2026-06-21",
+        },
+      }),
+    ).resolves.toEqual({
+      days: [
+        {
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          costUsd: 12.34,
+          date: "2026-06-19",
+          inputTokens: 100,
+          key: "claude-opus-4",
+          outputTokens: 200,
+          totalTokens: 300,
+        },
+      ],
+      range: {
+        first: "2026-01-01",
+        last: "2026-06-21",
+      },
     });
   });
 });

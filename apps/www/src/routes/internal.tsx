@@ -153,7 +153,7 @@ function StatusCell({
     <div className="flex flex-wrap items-center gap-2" title={statusTitle || undefined}>
       <StatusPill status={row.status} />
       {outdated ? (
-        <span className="inline-flex items-center border border-blue-500/40 bg-blue-500/10 px-1.5 py-0.5 font-mono text-[10px] leading-none text-blue-600 dark:text-blue-400">
+        <span className="inline-flex items-center border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 font-mono text-xs text-blue-600 dark:text-blue-400">
           outdated
         </span>
       ) : null}

@@ -5,7 +5,7 @@ const GITHUB_REPO = "851-labs/tokenmaxxing";
 const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
 
 const LINKS = {
-  changelog: `${GITHUB_URL}/releases`,
+  changelog: `${GITHUB_URL}/blob/main/CHANGELOG.md`,
   discord: "https://discord.gg/WzX6BpfaRH",
   x: "https://x.com/pondorasti",
 };

@@ -5,6 +5,7 @@ import { DeviceMissing } from "@tokenmaxxing/api-contract";
 import type {
   CliIdentity,
   RawUsageReportInput,
+  ServiceCheckInStatusValue,
   SourceUsageStatsInput,
   UsageDayInput,
 } from "@tokenmaxxing/api-contract";
@@ -41,6 +42,11 @@ interface StoredRawUsageReport {
 }
 
 interface UsageServiceShape {
+  checkIn(
+    identity: typeof CliIdentity.Type,
+    device: UsageDevice,
+    service: UsageServiceCheckIn,
+  ): Effect.Effect<{ checkedInAt: string }, DeviceMissing, any>;
   ingestRaw(
     identity: typeof CliIdentity.Type,
     device: UsageDevice,
@@ -61,7 +67,22 @@ interface UsageDevice {
   version?: string | undefined;
 }
 
+interface UsageServiceCheckIn {
+  backend?: string | undefined;
+  error?: string | undefined;
+  reloadRequired?: boolean | undefined;
+  schedulerActive?: boolean | undefined;
+  status: ServiceCheckInStatusValue;
+  templateVersion?: number | undefined;
+}
+
 interface UsageRepositoryShape {
+  checkInDevice(
+    deviceId: string,
+    device: UsageDevice,
+    service: UsageServiceCheckIn,
+    checkedInAt: Date,
+  ): Effect.Effect<void, DatabaseError, any>;
   /** One db.batch of single-row upserts (D1 binds ~100 params/statement). */
   upsertChunk(
     userId: string,
@@ -102,6 +123,15 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
   const repository = yield* UsageRepository;
 
   return UsageService.of({
+    checkIn: Effect.fn("UsageService.checkIn")(function* (identity, device, service) {
+      const deviceId = yield* requireDeviceId(identity);
+      const checkedInAt = new Date();
+      yield* repository.checkInDevice(deviceId, device, service, checkedInAt).pipe(Effect.orDie);
+
+      return {
+        checkedInAt: checkedInAt.toISOString(),
+      };
+    }),
     ingestRaw: Effect.fn("UsageService.ingestRaw")(function* (identity, device, reports) {
       const deviceId = yield* requireDeviceId(identity);
       const syncedAt = new Date();
@@ -252,4 +282,4 @@ const textEncoder = new TextEncoder();
 
 export { makeUsageService, UsageRepository, UsageService };
 
-export type { StoredRawUsageReport, SyncResult, UsageRepositoryShape };
+export type { StoredRawUsageReport, SyncResult, UsageRepositoryShape, UsageServiceCheckIn };

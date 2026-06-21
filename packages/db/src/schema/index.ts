@@ -111,6 +111,13 @@ const devices = sqliteTable(
     version: text("version"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     lastSyncAt: integer("last_sync_at", { mode: "timestamp_ms" }),
+    lastCheckInAt: integer("last_check_in_at", { mode: "timestamp_ms" }),
+    serviceBackend: text("service_backend"),
+    serviceError: text("service_error"),
+    serviceReloadRequired: integer("service_reload_required", { mode: "boolean" }),
+    serviceSchedulerActive: integer("service_scheduler_active", { mode: "boolean" }),
+    serviceStatus: text("service_status"),
+    serviceTemplateVersion: integer("service_template_version"),
   },
   (table) => [index("devices_user_idx").on(table.userId)],
 );

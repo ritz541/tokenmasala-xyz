@@ -1,22 +1,30 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access, chmod, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { arch, homedir } from "node:os";
+import { arch, homedir, hostname } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { Data, Effect } from "effect";
 import { Command, Flag } from "effect/unstable/cli";
+import type { ServiceCheckInStatusValue } from "@tokenmaxxing/api-contract";
 
 import { ClockService, ConfigService, ConsoleService } from "../services";
 import { getConfigPath } from "../services/config";
 import { humanFrame, humanLog, humanSpinner, writeJson } from "../output";
 import packageJson from "../../package.json";
-import { resolveSyncAuth, syncProgram, type SyncResult, type UploadRetryPolicy } from "./sync";
+import {
+  resolveSyncAuth,
+  syncProgram,
+  type SyncAuth,
+  type SyncResult,
+  type UploadRetryPolicy,
+} from "./sync";
 
 const execFilePromise = promisify(execFile);
 
 const SERVICE_LABEL = "sh.tokenmaxxing.sync";
+const SERVICE_TEMPLATE_VERSION = 2;
 const SYSTEMD_NAME = "tokenmaxxing-sync";
 const WINDOWS_TASK_NAME = "tokenmaxxing-sync";
 const POSIX_WRAPPER_NAME = "tokenmaxxing.sh";
@@ -112,6 +120,7 @@ interface ServiceMetadata {
   resolvedCommandPath?: string | undefined;
   installedAt: string;
   schedule: string;
+  templateVersion?: number | undefined;
   version: 1;
 }
 
@@ -129,11 +138,13 @@ interface ServiceState {
   lastDurationMs?: number;
   lastError?: string;
   lastRows?: number;
+  lastSchedulerActive?: boolean;
   lastSince?: string;
   lastSources?: ServiceSourceState[];
   lastSuccessAt?: string;
   lastSuccessDate?: string;
   lastUpserted?: number;
+  reloadRequired?: boolean;
   version: 1;
 }
 
@@ -149,6 +160,20 @@ interface ServiceSourceState {
 
 interface ServiceLogWriter {
   log: (message?: unknown) => void;
+}
+
+interface ServiceNativeSchedulerStatus {
+  active: boolean;
+  command: string;
+  detail: string;
+}
+
+interface ServiceCheckIn {
+  backend: ServiceBackend;
+  error?: string | undefined;
+  reloadRequired: boolean;
+  schedulerActive: boolean;
+  status: ServiceCheckInStatusValue;
 }
 
 type DoctorAuthConfig =
@@ -228,6 +253,13 @@ class ServiceRunError extends Data.TaggedError("ServiceRunError")<{
     "error: tokenmaxxing service run failed\nhint: inspect the service log for details";
 }
 
+class ServiceRepairError extends Data.TaggedError("ServiceRepairError")<{
+  readonly cause: unknown;
+}> {
+  override message =
+    "error: failed to repair tokenmaxxing service\nhint: rerun tokenmaxxing service doctor --verbose";
+}
+
 const installCommand = Command.make(
   "install",
   {
@@ -268,6 +300,15 @@ const doctorCommand = Command.make(
   ({ json }) => serviceDoctorEffect({ json }),
 ).pipe(Command.withDescription("Check automatic sync service health"));
 
+const repairCommand = Command.make(
+  "repair",
+  {
+    deferred: Flag.boolean("deferred").pipe(Flag.withHidden),
+    json: Flag.boolean("json").pipe(Flag.withDescription("Output machine-readable JSON")),
+  },
+  ({ deferred, json }) => serviceRepairEffect({ deferred, json }),
+).pipe(Command.withDescription("Repair automatic sync scheduling"));
+
 const runCommand = Command.make(
   "run",
   {
@@ -287,6 +328,7 @@ const serviceCommand = Command.make("service").pipe(
     uninstallCommand,
     statusCommand,
     doctorCommand,
+    repairCommand,
     runCommand,
   ]),
 );
@@ -367,6 +409,7 @@ function serviceInstallProgram(
       resolvedCommandPath: commandInstall.resolvedCommandPath,
       installedAt: (runtime.now ?? new Date()).toISOString(),
       schedule: scheduleDescription(),
+      templateVersion: SERVICE_TEMPLATE_VERSION,
       version: 1,
     };
 
@@ -456,6 +499,104 @@ function serviceUninstallEffect(options: { json?: boolean | undefined } = {}) {
   );
 }
 
+function serviceRepairEffect(
+  options: {
+    deferred?: boolean | undefined;
+    json?: boolean | undefined;
+  } = {},
+) {
+  const program = repairServiceProgram(options);
+
+  return options.deferred ? program : humanFrame("Repair automatic sync", options, program);
+}
+
+function repairServiceProgram(options: { json?: boolean | undefined } = {}) {
+  return Effect.gen(function* () {
+    const env = process.env;
+    const platform = process.platform;
+    const paths = yield* servicePathsEffect(env, undefined, platform);
+    const existingMetadata = yield* readServiceMetadata(paths.metadataPath);
+    const autoUpdate = existingMetadata?.autoUpdate ?? true;
+
+    const installSpinner = yield* humanSpinner("Detecting tokenmaxxing install", options);
+    const commandInstall = yield* findTokenmaxxingCommandInstall(env, platform).pipe(
+      Effect.flatMap((install) =>
+        install === null ? Effect.fail(new ServiceCommandNotFoundError()) : Effect.succeed(install),
+      ),
+      Effect.tapError(() =>
+        Effect.sync(() => installSpinner.error("Could not find tokenmaxxing install")),
+      ),
+    );
+    if (isEphemeralCommandPath(commandInstall.commandPath)) {
+      yield* Effect.sync(() => installSpinner.error("Could not use tokenmaxxing install"));
+      return yield* Effect.fail(
+        new ServiceEphemeralCommandError({ commandPath: commandInstall.commandPath }),
+      );
+    }
+    if (autoUpdate && commandInstall.autoUpdateManager === null) {
+      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
+      return yield* Effect.fail(
+        new ServiceAutoUpdateManagerError({
+          commandPath: commandInstall.commandPath,
+          resolvedCommandPath: commandInstall.resolvedCommandPath,
+        }),
+      );
+    }
+    yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
+
+    const wrapper = renderServiceWrapper({
+      commandPath: commandInstall.commandPath,
+      env: capturedServiceEnv(env),
+      logPath: paths.logPath,
+      platform,
+    });
+    const metadata: ServiceMetadata = {
+      autoUpdate,
+      autoUpdateManager: commandInstall.autoUpdateManager,
+      backend: paths.backend,
+      commandPath: commandInstall.commandPath,
+      resolvedCommandPath: commandInstall.resolvedCommandPath,
+      installedAt: new Date().toISOString(),
+      schedule: scheduleDescription(),
+      templateVersion: SERVICE_TEMPLATE_VERSION,
+      version: 1,
+    };
+
+    const filesSpinner = yield* humanSpinner("Writing service files", options);
+    yield* writeServiceFiles(paths, wrapper, metadata).pipe(
+      Effect.tap(() => Effect.sync(() => filesSpinner.stop("Service files written"))),
+      Effect.tapError(() => Effect.sync(() => filesSpinner.error("Failed writing service files"))),
+      Effect.mapError((cause) => new ServiceRepairError({ cause })),
+    );
+    const schedulerSpinner = yield* humanSpinner("Repairing scheduler", options);
+    yield* installNativeScheduler(paths).pipe(
+      Effect.tap(() => Effect.sync(() => schedulerSpinner.stop("Scheduler repaired"))),
+      Effect.tapError(() =>
+        Effect.sync(() => schedulerSpinner.error("Failed repairing scheduler")),
+      ),
+      Effect.mapError((cause) => new ServiceRepairError({ cause })),
+    );
+
+    const nativeStatus = yield* readNativeSchedulerStatus(paths);
+    if (!nativeStatus.active) {
+      return yield* Effect.fail(new ServiceRepairError({ cause: nativeStatus.detail }));
+    }
+
+    if (options.json) {
+      yield* writeJson({
+        active: nativeStatus.active,
+        backend: paths.backend,
+        detail: nativeStatus.detail,
+        status: "ok",
+      });
+      return;
+    }
+
+    yield* humanLog("success", "Automatic sync repaired", options);
+    yield* humanLog("info", `Scheduler: ${nativeStatus.detail}`, options);
+  });
+}
+
 function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
   return humanFrame(
     "Service status",
@@ -468,6 +609,8 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
       const installed = yield* isServiceInstalled(paths);
       const now = new Date();
       const lockStatus = yield* readServiceLockStatus(paths.lockPath, now);
+      const nativeStatus = yield* readNativeSchedulerStatus(paths);
+      const reloadRequired = serviceReloadRequired(metadata, state);
       const status = {
         arch: state?.lastArch ?? null,
         autoUpdate: formatServiceStatusAutoUpdate(metadata),
@@ -477,6 +620,7 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         lastDurationMs: state?.lastDurationMs ?? null,
         lastError: state?.lastError,
         lastRows: state?.lastRows ?? null,
+        lastSchedulerActive: state?.lastSchedulerActive ?? null,
         lastSince: state?.lastSince ?? null,
         lastSources: state?.lastSources ?? [],
         lastSuccessAt: state?.lastSuccessAt ?? null,
@@ -485,8 +629,11 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         lastVersion: state?.lastCliVersion ?? null,
         lock: formatServiceLockStatus(lockStatus),
         logPath: paths.logPath,
+        reloadRequired,
         schedule: metadata?.schedule ?? scheduleDescription(),
+        scheduler: nativeStatus,
         status: "ok",
+        templateVersion: metadata?.templateVersion ?? null,
         wrapperPath: paths.wrapperPath,
       };
 
@@ -500,6 +647,10 @@ function serviceStatusEffect(options: { json?: boolean | undefined } = {}) {
         console.log(`Backend: ${status.backend}`);
         console.log(`Schedule: ${status.schedule}`);
         console.log(`Auto-update: ${status.autoUpdate}`);
+        console.log(`Scheduler active: ${status.scheduler.active ? "yes" : "no"}`);
+        console.log(`Scheduler detail: ${status.scheduler.detail}`);
+        console.log(`Service template: ${status.templateVersion ?? "unknown"}`);
+        console.log(`Reload required: ${status.reloadRequired ? "yes" : "no"}`);
         console.log(`Last success: ${status.lastSuccessAt ?? "never"}`);
         console.log(`Last success date: ${status.lastSuccessDate ?? "never"}`);
         if (status.lastDurationMs !== null) {
@@ -584,6 +735,8 @@ function serviceDoctorEffect(options: { json?: boolean | undefined } = {}) {
       const metadata = yield* readServiceMetadata(paths.metadataPath);
       const state = yield* readServiceState(paths.statePath);
       const installed = yield* isServiceInstalled(paths);
+      const nativeStatus = yield* readNativeSchedulerStatus(paths);
+      const reloadRequired = serviceReloadRequired(metadata, state);
       const wrapperExists = yield* fileExists(paths.wrapperPath);
       const definitionExists =
         paths.definitionPath === null ? installed : yield* fileExists(paths.definitionPath);
@@ -608,6 +761,18 @@ function serviceDoctorEffect(options: { json?: boolean | undefined } = {}) {
           installed ? "ok" : "warn",
           "scheduler",
           installed ? `installed (${paths.backend})` : `not installed (${paths.backend})`,
+        ),
+        doctorCheck(
+          nativeStatus.active ? "ok" : "warn",
+          "active",
+          `${nativeStatus.detail}; repair with ${serviceRepairCommand()}`,
+        ),
+        doctorCheck(
+          reloadRequired ? "warn" : "ok",
+          "template",
+          reloadRequired
+            ? `reload required; repair with ${serviceRepairCommand()}`
+            : `current (${metadata?.templateVersion ?? "unknown"})`,
         ),
         doctorCheck(
           definitionExists ? "ok" : "warn",
@@ -656,6 +821,8 @@ function serviceDoctorEffect(options: { json?: boolean | undefined } = {}) {
         yield* writeJson({
           checks,
           recentLog: logTail,
+          reloadRequired,
+          scheduler: nativeStatus,
           state: state === null ? null : serviceStateJson(state),
           status: "ok",
         });
@@ -693,6 +860,14 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
     const cliVersion = packageJson.version;
     const cliArch = arch();
     const scheduledSince = serviceScheduledSyncSince(currentState, startedAt, options.scheduled);
+    const metadata = yield* readServiceMetadata(paths.metadataPath);
+    const nativeStatus = yield* readNativeSchedulerStatus(paths);
+    const reloadRequired = serviceReloadRequired(metadata, currentState);
+    const baseCheckIn = {
+      backend: paths.backend,
+      reloadRequired,
+      schedulerActive: nativeStatus.active,
+    };
 
     if (options.scheduled) {
       const stored = yield* config.readConfig();
@@ -703,7 +878,34 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       }
     }
 
-    const metadata = yield* readServiceMetadata(paths.metadataPath);
+    const authResult = yield* resolveSyncAuth({ json: true }).pipe(
+      Effect.match({
+        onFailure: (cause) => ({ _tag: "failure" as const, cause }),
+        onSuccess: (value) => ({ _tag: "success" as const, value }),
+      }),
+    );
+    if (authResult._tag === "failure") {
+      const failedState = serviceRunFailureState(currentState, {
+        arch: cliArch,
+        attemptAt: startedAtIso,
+        durationMs: Date.now() - startedAtMs,
+        error: String(authResult.cause),
+        reloadRequired,
+        schedulerActive: nativeStatus.active,
+        since: scheduledSince,
+        version: cliVersion,
+      });
+      yield* writeServiceState(paths.statePath, failedState).pipe(Effect.ignore);
+      yield* writeScheduledServiceLog(console, options, serviceRunLogLine(failedState, "failure"));
+      return yield* Effect.fail(new ServiceRunError({ cause: authResult.cause }));
+    }
+
+    const auth = authResult.value;
+    yield* writeServiceCheckIn(auth, {
+      ...baseCheckIn,
+      status: "started",
+    }).pipe(Effect.ignore);
+
     const autoUpdated = yield* runServiceAutoUpdate(metadata, { json: options.json });
 
     yield* writeServiceState(paths.statePath, {
@@ -712,11 +914,14 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       lastAttemptAt: startedAtIso,
       lastCliVersion: cliVersion,
       lastError: undefined,
+      lastSchedulerActive: nativeStatus.active,
       lastSince: scheduledSince,
+      reloadRequired,
       version: 1,
     }).pipe(Effect.mapError((cause) => new ServiceRunError({ cause })));
 
     const result = yield* syncProgram({
+      auth,
       dryRun: false,
       json: true,
       silent: true,
@@ -735,11 +940,18 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
         attemptAt: startedAtIso,
         durationMs: Date.now() - startedAtMs,
         error: String(result.cause),
+        reloadRequired,
+        schedulerActive: nativeStatus.active,
         since: scheduledSince,
         version: cliVersion,
       });
       yield* writeServiceState(paths.statePath, failedState).pipe(Effect.ignore);
       yield* writeScheduledServiceLog(console, options, serviceRunLogLine(failedState, "failure"));
+      yield* writeServiceCheckIn(auth, {
+        ...baseCheckIn,
+        error: failedState.lastError,
+        status: "failure",
+      }).pipe(Effect.ignore);
       return yield* Effect.fail(new ServiceRunError({ cause: result.cause }));
     }
 
@@ -749,7 +961,9 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       attemptAt: startedAtIso,
       autoUpdated,
       durationMs: Date.now() - startedAtMs,
+      reloadRequired,
       result: result.value,
+      schedulerActive: nativeStatus.active,
       since: scheduledSince,
       successAt,
       version: cliVersion,
@@ -758,20 +972,30 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
       Effect.mapError((cause) => new ServiceRunError({ cause })),
     );
     yield* writeScheduledServiceLog(console, options, serviceRunLogLine(successState, "success"));
+    yield* writeServiceCheckIn(auth, {
+      ...baseCheckIn,
+      status: "success",
+    }).pipe(Effect.ignore);
 
     if (autoUpdated && metadata !== null) {
-      yield* refreshServiceAfterUpdate({
-        autoUpdate: metadata.autoUpdate,
-        commandPath: metadata.commandPath,
-      }).pipe(
-        Effect.catch(() =>
-          options.json
-            ? Effect.void
-            : Effect.sync(() => {
-                console.log("Service refresh failed after auto-update");
-              }),
-        ),
-      );
+      if (options.scheduled) {
+        yield* scheduleDeferredServiceRepair(metadata.commandPath).pipe(Effect.ignore);
+      } else {
+        yield* refreshServiceAfterUpdate({
+          autoUpdate: metadata.autoUpdate,
+          commandPath: metadata.commandPath,
+        }).pipe(
+          Effect.catch(() =>
+            options.json
+              ? Effect.void
+              : Effect.sync(() => {
+                  console.log("Service refresh failed after auto-update");
+                }),
+          ),
+        );
+      }
+    } else if (options.scheduled && reloadRequired && metadata !== null) {
+      yield* scheduleDeferredServiceRepair(metadata.commandPath).pipe(Effect.ignore);
     }
 
     if (!options.json && !options.scheduled) {
@@ -791,6 +1015,138 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
   });
 }
 
+function writeServiceCheckIn(auth: SyncAuth, checkIn: ServiceCheckIn) {
+  return auth.client.usage.checkIn({
+    payload: {
+      device: {
+        arch: arch(),
+        name: hostname(),
+        platform: process.platform,
+        version: packageJson.version,
+      },
+      service: {
+        backend: checkIn.backend,
+        error: checkIn.error,
+        reloadRequired: checkIn.reloadRequired,
+        schedulerActive: checkIn.schedulerActive,
+        status: checkIn.status,
+        templateVersion: SERVICE_TEMPLATE_VERSION,
+      },
+    },
+  });
+}
+
+function serviceReloadRequired(metadata: ServiceMetadata | null, _state?: ServiceState | null) {
+  return metadata !== null && metadata.templateVersion !== SERVICE_TEMPLATE_VERSION;
+}
+
+function serviceRepairCommand(): string {
+  return "tokenmaxxing service repair";
+}
+
+function scheduleDeferredServiceRepair(commandPath: string): Effect.Effect<void, never> {
+  return Effect.tryPromise({
+    try: async () => {
+      const child = spawnDeferredServiceRepair(commandPath);
+      child.unref();
+    },
+    catch: (cause) => cause,
+  }).pipe(Effect.catch(() => Effect.void));
+}
+
+function spawnDeferredServiceRepair(commandPath: string) {
+  if (process.platform === "win32") {
+    return spawn(
+      "cmd",
+      [
+        "/d",
+        "/s",
+        "/c",
+        `timeout /t 2 /nobreak >nul & ${cmdQuote(commandPath)} service repair --deferred`,
+      ],
+      { detached: true, stdio: "ignore", windowsHide: true },
+    );
+  }
+
+  return spawn("sh", ["-c", `sleep 2; exec ${shellQuote(commandPath)} service repair --deferred`], {
+    detached: true,
+    stdio: "ignore",
+  });
+}
+
+function readNativeSchedulerStatus(
+  paths: ServicePaths,
+): Effect.Effect<ServiceNativeSchedulerStatus, never> {
+  const invocation = nativeSchedulerStatusInvocation(paths);
+
+  return Effect.tryPromise({
+    try: async () => {
+      await execFilePromise(invocation.command, invocation.args, { windowsHide: true });
+
+      return {
+        active: true,
+        command: invocation.description,
+        detail: "active",
+      };
+    },
+    catch: (cause) => cause,
+  }).pipe(
+    Effect.catch((cause) =>
+      Effect.succeed({
+        active: false,
+        command: invocation.description,
+        detail: formatNativeSchedulerError(cause),
+      }),
+    ),
+  );
+}
+
+function nativeSchedulerStatusInvocation(paths: ServicePaths): {
+  args: string[];
+  command: string;
+  description: string;
+} {
+  if (paths.backend === "launchd") {
+    const target = `${launchdDomain()}/${SERVICE_LABEL}`;
+
+    return {
+      args: ["print", target],
+      command: "launchctl",
+      description: `launchctl print ${target}`,
+    };
+  }
+
+  if (paths.backend === "systemd") {
+    return {
+      args: ["--user", "is-active", `${SYSTEMD_NAME}.timer`],
+      command: "systemctl",
+      description: `systemctl --user is-active ${SYSTEMD_NAME}.timer`,
+    };
+  }
+
+  return {
+    args: ["/Query", "/TN", windowsTaskName()],
+    command: "schtasks",
+    description: `schtasks /Query /TN ${windowsTaskName()}`,
+  };
+}
+
+function formatNativeSchedulerError(cause: unknown): string {
+  const error = cause as { code?: unknown; stderr?: unknown; stdout?: unknown };
+  const stderr = typeof error.stderr === "string" ? error.stderr.trim() : "";
+  const stdout = typeof error.stdout === "string" ? error.stdout.trim() : "";
+  const output = stderr || stdout;
+  if (output !== "") {
+    return output.split(/\r?\n/)[0]!;
+  }
+
+  return `inactive${formatNativeSchedulerExitCode(error.code)}`;
+}
+
+function formatNativeSchedulerExitCode(code: unknown): string {
+  return typeof code === "number" || typeof code === "string" ? ` (exit ${code})` : "";
+}
+
 function serviceRunSuccessState(
   currentState: ServiceState,
   input: {
@@ -798,7 +1154,9 @@ function serviceRunSuccessState(
     attemptAt: string;
     autoUpdated: boolean;
     durationMs: number;
+    reloadRequired?: boolean | undefined;
     result: SyncResult;
+    schedulerActive?: boolean | undefined;
     since?: string | undefined;
     successAt: string;
     version: string;
@@ -813,10 +1171,12 @@ function serviceRunSuccessState(
     lastDurationMs: input.durationMs,
     lastError: undefined,
     lastRows: input.result.rows,
+    lastSchedulerActive: input.schedulerActive,
     lastSince: input.since,
     lastSources: serviceSourcesForState(input.result),
     lastSuccessAt: input.successAt,
     lastUpserted: input.result.upserted ?? 0,
+    reloadRequired: input.reloadRequired,
     version: 1,
   };
 }
@@ -828,6 +1188,8 @@ function serviceRunFailureState(
     attemptAt: string;
     durationMs: number;
     error: string;
+    reloadRequired?: boolean | undefined;
+    schedulerActive?: boolean | undefined;
     since?: string | undefined;
     version: string;
   },
@@ -839,7 +1201,9 @@ function serviceRunFailureState(
     lastCliVersion: input.version,
     lastDurationMs: input.durationMs,
     lastError: input.error,
+    lastSchedulerActive: input.schedulerActive,
     lastSince: input.since,
+    reloadRequired: input.reloadRequired,
     version: 1,
   };
 }
@@ -873,7 +1237,9 @@ function serviceRunLogLine(state: ServiceState, status: "failure" | "success") {
     durationMs: state.lastDurationMs,
     error: status === "failure" ? state.lastError : undefined,
     event: "service_run",
+    reloadRequired: state.reloadRequired,
     rows: state.lastRows,
+    schedulerActive: state.lastSchedulerActive,
     since: state.lastSince,
     sources: state.lastSources,
     status,
@@ -1145,10 +1511,14 @@ function serviceStateJson(state: ServiceState): Partial<ServiceState> {
     ...(state.lastDurationMs === undefined ? {} : { lastDurationMs: state.lastDurationMs }),
     ...(state.lastError === undefined ? {} : { lastError: state.lastError }),
     ...(state.lastRows === undefined ? {} : { lastRows: state.lastRows }),
+    ...(state.lastSchedulerActive === undefined
+      ? {}
+      : { lastSchedulerActive: state.lastSchedulerActive }),
     ...(state.lastSince === undefined ? {} : { lastSince: state.lastSince }),
     ...(state.lastSources === undefined ? {} : { lastSources: state.lastSources }),
     ...(state.lastSuccessAt === undefined ? {} : { lastSuccessAt: state.lastSuccessAt }),
     ...(state.lastUpserted === undefined ? {} : { lastUpserted: state.lastUpserted }),
+    ...(state.reloadRequired === undefined ? {} : { reloadRequired: state.reloadRequired }),
     version: state.version,
   };
 }
@@ -1763,6 +2133,7 @@ function findTokenmaxxingCommandInstall(
       }
 
       const resolvedCommandPath = await resolveCommandPath(commandPath);
+      const durableCommandPath = durableTokenmaxxingCommandPath(commandPath, resolvedCommandPath);
 
       return {
         autoUpdateManager: detectAutoUpdateManager({
@@ -1771,7 +2142,7 @@ function findTokenmaxxingCommandInstall(
           platform,
           resolvedCommandPath,
         }),
-        commandPath,
+        commandPath: durableCommandPath,
         resolvedCommandPath,
       };
     },
@@ -1857,12 +2228,36 @@ function defaultPath(): string {
 }
 
 function isEphemeralCommandPath(path: string): boolean {
-  const normalized = path.replaceAll("\\", "/");
+  const normalized = normalizePathForDetection(path);
 
   return (
     normalized.includes("/.npm/_npx/") ||
     normalized.includes("/.bun/install/cache/") ||
+    isTransientCommandShimPath(normalized) ||
     normalized.includes("/node_modules/.bin/")
+  );
+}
+
+function durableTokenmaxxingCommandPath(commandPath: string, resolvedCommandPath: string): string {
+  return isTransientCommandShimPath(commandPath) &&
+    isDurableTokenmaxxingPackagePath(resolvedCommandPath)
+    ? resolvedCommandPath
+    : commandPath;
+}
+
+function isTransientCommandShimPath(path: string): boolean {
+  const normalized = normalizePathForDetection(path);
+
+  // fnm multishell bins live under a shell-session directory. Stable shims from nvm,
+  // Volta, asdf, Homebrew, npm, pnpm, yarn, and Bun should stay untouched.
+  return normalized.includes("/.local/state/fnm_multishells/");
+}
+
+function isDurableTokenmaxxingPackagePath(path: string): boolean {
+  const normalized = normalizePathForDetection(path);
+
+  return (
+    normalized.includes("/node_modules/@851-labs/tokenmaxxing/") && !isEphemeralCommandPath(path)
   );
 }
 
@@ -2038,12 +2433,14 @@ export {
   autoUpdateCommandDescription,
   backendForPlatform,
   capturedServiceEnv,
+  durableTokenmaxxingCommandPath,
   detectAutoUpdateManager,
   findCommandOnPath,
   findTokenmaxxingCommandInstall,
   formatServiceLockStatus,
   formatServiceStatusAutoUpdate,
   isEphemeralCommandPath,
+  isTransientCommandShimPath,
   isServiceInstalled,
   legacyServiceWrapperPaths,
   deterministicServiceJitterMs,
@@ -2052,6 +2449,7 @@ export {
   renderServiceWrapper,
   renderSystemdTimer,
   refreshServiceAfterUpdate,
+  scheduleDeferredServiceRepair,
   scheduleDescription,
   serviceScheduledSyncSince,
   serviceCommand,
@@ -2071,6 +2469,7 @@ export {
   ServiceEnvTokenError,
   ServiceEphemeralCommandError,
   ServiceInstallError,
+  ServiceRepairError,
   ServiceRunError,
   ServiceUninstallError,
   ServiceUnsupportedPlatformError,

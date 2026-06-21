@@ -29,9 +29,16 @@ function device(input: Partial<AdminDeviceSnapshot> = {}): AdminDeviceSnapshot {
     arch: "arm64",
     createdAt: "2026-06-19T18:00:00.000Z",
     id: "device_123",
+    lastCheckInAt: null,
     lastSyncAt: "2026-06-19T19:30:00.000Z",
     name: "Mac.localdomain",
     platform: "darwin",
+    serviceBackend: null,
+    serviceError: null,
+    serviceReloadRequired: null,
+    serviceSchedulerActive: null,
+    serviceStatus: null,
+    serviceTemplateVersion: null,
     version: "0.5.4",
     ...input,
   };
@@ -108,6 +115,7 @@ describe("AdminService.listUsers", () => {
 
     expect(response.summary).toEqual({
       latest: 1,
+      repairNeeded: 0,
       stale: 0,
       totalDevices: 1,
       totalUsers: 1,
@@ -138,6 +146,24 @@ describe("AdminService.listUsers", () => {
 describe("adminDeviceStatus", () => {
   it("classifies latest, updating, stale, and unknown devices", () => {
     expect(adminDeviceStatus(device(), latestRelease, now)).toBe("latest");
+    expect(
+      adminDeviceStatus(
+        device({
+          lastCheckInAt: "2026-06-19T19:30:00.000Z",
+          serviceSchedulerActive: false,
+          serviceStatus: "failure",
+        }),
+        latestRelease,
+        now,
+      ),
+    ).toBe("repair-needed");
+    expect(
+      adminDeviceStatus(
+        device({ lastCheckInAt: "2026-06-19T19:30:00.000Z", serviceReloadRequired: true }),
+        latestRelease,
+        now,
+      ),
+    ).toBe("repair-needed");
     expect(adminDeviceStatus(device({ version: "0.5.3" }), latestRelease, now)).toBe("updating");
     expect(
       adminDeviceStatus(

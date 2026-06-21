@@ -148,6 +148,33 @@ const RawUsageReportInput = Schema.Struct({
 
 type RawUsageReportInput = typeof RawUsageReportInput.Type;
 
+const ServiceCheckInStatus = Schema.Literals(["started", "success", "failure"]);
+
+type ServiceCheckInStatusValue = typeof ServiceCheckInStatus.Type;
+
+const UsageCheckInInput = Schema.Struct({
+  device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
+    name: Schema.String,
+    platform: Schema.String,
+    version: Schema.optional(Schema.String),
+  }),
+  service: Schema.Struct({
+    backend: Schema.optional(Schema.String),
+    error: Schema.optional(Schema.String),
+    reloadRequired: Schema.optional(Schema.Boolean),
+    schedulerActive: Schema.optional(Schema.Boolean),
+    status: ServiceCheckInStatus,
+    templateVersion: Schema.optional(Schema.Number),
+  }),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+const UsageCheckInResponse = Schema.Struct({
+  checkedInAt: Schema.String,
+});
+
 const IngestUsageInput = Schema.Struct({
   device: Schema.Struct({
     arch: Schema.optional(Schema.String),
@@ -255,7 +282,13 @@ const OkResponse = Schema.Struct({
   ok: Schema.Boolean,
 });
 
-const AdminDeviceStatus = Schema.Literals(["latest", "updating", "stale", "unknown"]);
+const AdminDeviceStatus = Schema.Literals([
+  "latest",
+  "repair-needed",
+  "stale",
+  "unknown",
+  "updating",
+]);
 
 type AdminDeviceStatus = typeof AdminDeviceStatus.Type;
 
@@ -263,9 +296,16 @@ const AdminLatestDevice = Schema.Struct({
   arch: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
   id: Schema.String,
+  lastCheckInAt: Schema.NullOr(Schema.String),
   lastSyncAt: Schema.NullOr(Schema.String),
   name: Schema.String,
   platform: Schema.String,
+  serviceBackend: Schema.NullOr(Schema.String),
+  serviceError: Schema.NullOr(Schema.String),
+  serviceReloadRequired: Schema.NullOr(Schema.Boolean),
+  serviceSchedulerActive: Schema.NullOr(Schema.Boolean),
+  serviceStatus: Schema.NullOr(ServiceCheckInStatus),
+  serviceTemplateVersion: Schema.NullOr(Schema.Number),
   version: Schema.NullOr(Schema.String),
 });
 
@@ -308,6 +348,7 @@ const AdminUsersResponse = Schema.Struct({
   staleThresholdHours: Schema.Number,
   summary: Schema.Struct({
     latest: Schema.Number,
+    repairNeeded: Schema.Number,
     stale: Schema.Number,
     totalDevices: Schema.Number,
     totalUsers: Schema.Number,
@@ -348,10 +389,15 @@ export {
   ProfileResponse,
   ProfileStats,
   RawUsageReportInput,
+  ServiceCheckInStatus,
   SourceUsageStatsInput,
   SyncUsageInput,
   SyncUsageResponse,
+  UsageCheckInInput,
+  UsageCheckInResponse,
   UserAccountSummary,
   UsageDayInput,
   UsageRawReportKind,
 };
+
+export type { ServiceCheckInStatusValue };

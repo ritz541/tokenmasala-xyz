@@ -33,6 +33,8 @@ import {
   ProfileDailyGroupBy,
   ProfileDailyResponse,
   ProfileResponse,
+  UsageCheckInInput,
+  UsageCheckInResponse,
   SyncUsageInput,
   SyncUsageResponse,
   UserAccountSummary,
@@ -115,6 +117,13 @@ class CliLoginGroup extends HttpApiGroup.make("cliLogin")
   ) {}
 
 class UsageGroup extends HttpApiGroup.make("usage")
+  .add(
+    HttpApiEndpoint.post("checkIn", "/usage/check-in", {
+      payload: UsageCheckInInput,
+      success: UsageCheckInResponse,
+      error: DeviceMissing,
+    }),
+  )
   .add(
     HttpApiEndpoint.post("ingest", "/usage/ingest", {
       payload: IngestUsageInput,

@@ -79,7 +79,7 @@ function InternalPage() {
                   {row.latestDevice?.arch ?? "—"}
                 </td>
                 <td className="p-3 align-top">
-                  <StatusPill status={row.status} />
+                  <StatusPill status={row.status} title={serviceStatusTitle(row)} />
                 </td>
                 <td className="p-3 align-top">
                   <div title={row.latestCheckInAt ?? undefined}>
@@ -113,16 +113,20 @@ function SummaryCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ status }: { status: AdminDeviceStatus }) {
+function StatusPill({ status, title }: { status: AdminDeviceStatus; title?: string }) {
   const className = {
     latest: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    "repair-needed": "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400",
     updating: "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400",
     stale: "border-accent/50 bg-accent/10 text-accent",
     unknown: "border-border bg-muted text-muted-foreground",
   }[status];
 
   return (
-    <span className={`inline-flex items-center border px-2 py-0.5 font-mono text-xs ${className}`}>
+    <span
+      className={`inline-flex items-center border px-2 py-0.5 font-mono text-xs ${className}`}
+      title={title}
+    >
       {status}
     </span>
   );
@@ -132,10 +136,32 @@ function fleetSummary(data: AdminUsersData): string {
   return [
     `User fleet`,
     `${formatInteger(data.summary.latest)} on latest`,
+    `${formatInteger(data.summary.repairNeeded)} repair needed`,
     `${formatInteger(data.summary.updating)} updating`,
     `${formatInteger(data.summary.stale)} stale`,
     `${formatInteger(data.summary.unknown)} unknown`,
   ].join(" · ");
+}
+
+function serviceStatusTitle(row: AdminUsersData["users"][number]): string | undefined {
+  const device = row.latestDevice;
+  if (device === null) {
+    return undefined;
+  }
+
+  return [
+    device.serviceBackend === null ? undefined : `backend: ${device.serviceBackend}`,
+    device.serviceStatus === null ? undefined : `service: ${device.serviceStatus}`,
+    device.serviceSchedulerActive === null
+      ? undefined
+      : `scheduler: ${device.serviceSchedulerActive ? "active" : "inactive"}`,
+    device.serviceReloadRequired === null
+      ? undefined
+      : `reload: ${device.serviceReloadRequired ? "required" : "not required"}`,
+    device.serviceError === null ? undefined : `error: ${device.serviceError}`,
+  ]
+    .filter((part): part is string => part !== undefined)
+    .join(" · ");
 }
 
 function formatVersion(version: string | null): string {

@@ -14,14 +14,15 @@ Cloudflare (Workers + D1) with [Alchemy](https://alchemy.run) v2.
 npm install -g @851-labs/tokenmaxxing
 tokenmaxxing login              # sign in with OAuth, approves this device
 tokenmaxxing sync               # parse local usage via ccusage and push it
-tokenmaxxing service install    # optional: sync automatically every hour
+tokenmaxxing service install    # optional: sync automatically every 5 minutes
 tokenmaxxing upgrade            # upgrade the global CLI and refresh the service
 ```
 
 You can also install globally with `bun install -g`, `pnpm add -g`, or
 `yarn global add`.
 
-The background service uses the global `tokenmaxxing` binary and syncs hourly.
+The background service uses the global `tokenmaxxing` binary and syncs every
+5 minutes.
 By default it auto-updates through
 the package manager that installed the global binary (bun, npm, pnpm, or yarn);
 pass `--no-auto-update` to `service install` if you want to upgrade manually.

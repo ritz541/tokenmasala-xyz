@@ -149,8 +149,8 @@ const FAQ_ITEMS: { answer: ReactNode; question: string }[] = [
     answer: (
       <>
         Run <Code>tokenmaxxing service install</Code> to install an optional background service that
-        syncs hourly. Use <Code>tokenmaxxing service status</Code> to check the last run and{" "}
-        <Code>tokenmaxxing service doctor</Code> to inspect scheduler files, auth, locks,
+        syncs every 5 minutes. Use <Code>tokenmaxxing service status</Code> to check the last run
+        and <Code>tokenmaxxing service doctor</Code> to inspect scheduler files, auth, locks,
         auto-update settings, and recent logs.
       </>
     ),

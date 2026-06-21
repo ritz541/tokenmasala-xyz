@@ -122,6 +122,13 @@ const cliLoginHandlers = HttpApiBuilder.group(TokenmaxxingApi, "cliLogin", (hand
 
 const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) =>
   handlers
+    .handle("checkIn", ({ payload }) =>
+      Effect.gen(function* () {
+        const identity = yield* CurrentCliIdentity;
+        const usage = yield* UsageService;
+        return yield* usage.checkIn(identity, payload.device, payload.service);
+      }),
+    )
     .handle("ingest", ({ payload }) =>
       Effect.gen(function* () {
         const identity = yield* CurrentCliIdentity;

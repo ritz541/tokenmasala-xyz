@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vitest";
 
-import { CliLoginStartInput, IngestUsageInput, SyncUsageInput } from "./schemas";
+import { CliLoginStartInput, IngestUsageInput, SyncUsageInput, UsageCheckInInput } from "./schemas";
 
 describe("device telemetry inputs", () => {
   it("keeps old clients without version or arch compatible", async () => {
@@ -35,6 +35,16 @@ describe("device telemetry inputs", () => {
     ).resolves.toEqual({
       days: [],
       device: { name: "Mac.localdomain", platform: "darwin" },
+    });
+
+    await expect(
+      Schema.decodeUnknownPromise(UsageCheckInInput)({
+        device: { name: "Mac.localdomain", platform: "darwin" },
+        service: { status: "success" },
+      }),
+    ).resolves.toEqual({
+      device: { name: "Mac.localdomain", platform: "darwin" },
+      service: { status: "success" },
     });
   });
 });

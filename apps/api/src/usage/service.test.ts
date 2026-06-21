@@ -67,6 +67,18 @@ const rawReports: RawUsageReportInput[] = [
 ];
 
 interface TestUsageService {
+  checkIn(
+    identity: {
+      deviceId: string | null;
+      tokenId: string;
+      user: typeof user;
+    },
+    syncDevice: typeof device,
+    service: {
+      schedulerActive?: boolean;
+      status: "started" | "success" | "failure";
+    },
+  ): Effect.Effect<{ checkedInAt: string }, DeviceMissing>;
   syncBatch(
     identity: {
       deviceId: string | null;
@@ -93,6 +105,7 @@ interface RepositoryOptions {
 }
 
 function makeRepository(options: RepositoryOptions = {}) {
+  const checkInDevice = vi.fn(() => Effect.succeed(undefined));
   const upsertChunk = vi.fn(() => Effect.succeed(undefined));
   const touchDevice = vi.fn(() => Effect.succeed(undefined));
   const upsertSourceStats = vi.fn(() => Effect.succeed(undefined));
@@ -103,13 +116,21 @@ function makeRepository(options: RepositoryOptions = {}) {
   );
 
   const repository: UsageRepositoryShape = {
+    checkInDevice,
     touchDevice,
     upsertChunk,
     upsertRawReports,
     upsertSourceStats,
   };
 
-  return { repository, touchDevice, upsertChunk, upsertRawReports, upsertSourceStats };
+  return {
+    checkInDevice,
+    repository,
+    touchDevice,
+    upsertChunk,
+    upsertRawReports,
+    upsertSourceStats,
+  };
 }
 
 async function makeService(repository: UsageRepositoryShape) {
@@ -117,6 +138,47 @@ async function makeService(repository: UsageRepositoryShape) {
     makeUsageService().pipe(Effect.provideService(UsageRepository, repository)),
   )) as unknown as TestUsageService;
 }
+
+describe("UsageService.checkIn", () => {
+  it("touches service telemetry without writing usage rows", async () => {
+    const { checkInDevice, repository, touchDevice, upsertChunk, upsertSourceStats } =
+      makeRepository();
+    const service = await makeService(repository);
+
+    const result = await Effect.runPromise(
+      service.checkIn({ deviceId: "device_123", tokenId: "token_123", user }, device, {
+        schedulerActive: true,
+        status: "success",
+      }),
+    );
+
+    expect(result.checkedInAt).toEqual(expect.any(String));
+    expect(checkInDevice).toHaveBeenCalledWith(
+      "device_123",
+      device,
+      { schedulerActive: true, status: "success" },
+      expect.any(Date),
+    );
+    expect(upsertChunk).not.toHaveBeenCalled();
+    expect(upsertSourceStats).not.toHaveBeenCalled();
+    expect(touchDevice).not.toHaveBeenCalled();
+  });
+
+  it("does not check in when the token has no device", async () => {
+    const { checkInDevice, repository } = makeRepository();
+    const service = await makeService(repository);
+
+    await expect(
+      Effect.runPromise(
+        service.checkIn({ deviceId: null, tokenId: "token_123", user }, device, {
+          status: "started",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(DeviceMissing);
+
+    expect(checkInDevice).not.toHaveBeenCalled();
+  });
+});
 
 describe("UsageService.syncBatch", () => {
   it("upserts daily rows, source stats, and touches the device", async () => {

@@ -44,6 +44,7 @@ describe("root command", () => {
       ["service", "uninstall", "--help"],
       ["service", "status", "--help"],
       ["service", "doctor", "--help"],
+      ["service", "repair", "--help"],
       ["service", "run", "--help"],
     ]) {
       const result = runCli(args);

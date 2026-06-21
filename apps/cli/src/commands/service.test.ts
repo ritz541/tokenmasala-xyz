@@ -22,10 +22,12 @@ import {
   capturedServiceEnv,
   detectAutoUpdateManager,
   deterministicServiceJitterMs,
+  durableTokenmaxxingCommandPath,
   findCommandOnPath,
   formatServiceLockStatus,
   formatServiceStatusAutoUpdate,
   isEphemeralCommandPath,
+  isTransientCommandShimPath,
   legacyServiceWrapperPaths,
   renderLaunchdPlist,
   renderServiceWrapper,
@@ -892,7 +894,33 @@ describe("command lookup", () => {
     expect(isEphemeralCommandPath("/Users/alex/.bun/install/cache/@851-labs/tokenmaxxing")).toBe(
       true,
     );
+    expect(
+      isEphemeralCommandPath("/Users/alex/.local/state/fnm_multishells/123/bin/tokenmaxxing"),
+    ).toBe(true);
     expect(isEphemeralCommandPath("/usr/local/bin/tokenmaxxing")).toBe(false);
+  });
+
+  it("uses stable resolved paths only for transient command shims", () => {
+    const commandPath = "/Users/alex/.local/state/fnm_multishells/123/bin/tokenmaxxing";
+    const resolvedCommandPath =
+      "/Users/alex/.local/share/fnm/node-versions/v22.21.0/installation/lib/node_modules/@851-labs/tokenmaxxing/dist/index.js";
+
+    expect(isTransientCommandShimPath(commandPath)).toBe(true);
+    expect(durableTokenmaxxingCommandPath(commandPath, resolvedCommandPath)).toBe(
+      resolvedCommandPath,
+    );
+    expect(durableTokenmaxxingCommandPath("/usr/local/bin/tokenmaxxing", resolvedCommandPath)).toBe(
+      "/usr/local/bin/tokenmaxxing",
+    );
+    expect(
+      durableTokenmaxxingCommandPath("/Users/alex/.volta/bin/tokenmaxxing", resolvedCommandPath),
+    ).toBe("/Users/alex/.volta/bin/tokenmaxxing");
+    expect(
+      durableTokenmaxxingCommandPath(
+        commandPath,
+        "/Users/alex/.npm/_npx/123/node_modules/@851-labs/tokenmaxxing/dist/index.js",
+      ),
+    ).toBe(commandPath);
   });
 
   it("detects the package manager for common global install paths", () => {

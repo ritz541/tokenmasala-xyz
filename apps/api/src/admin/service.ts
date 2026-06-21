@@ -7,6 +7,7 @@ import {
   type AdminUserDebugRow,
   type AdminUsersResponse,
   type OAuthProviderId,
+  type ServiceCheckInStatusValue,
 } from "@tokenmaxxing/api-contract";
 
 import type { DatabaseError } from "../database";
@@ -33,9 +34,16 @@ interface AdminDeviceSnapshot {
   arch: string | null;
   createdAt: string;
   id: string;
+  lastCheckInAt: string | null;
   lastSyncAt: string | null;
   name: string;
   platform: string;
+  serviceBackend: string | null;
+  serviceError: string | null;
+  serviceReloadRequired: boolean | null;
+  serviceSchedulerActive: boolean | null;
+  serviceStatus: ServiceCheckInStatusValue | null;
+  serviceTemplateVersion: number | null;
   version: string | null;
 }
 
@@ -167,7 +175,7 @@ function adminUserDebugRow(
     deviceCount: snapshot.devices.length,
     lastTokenUsedAt,
     lastUsageDate: snapshot.usage.lastUsageDate,
-    latestCheckInAt: latestDevice?.lastSyncAt ?? null,
+    latestCheckInAt: latestDevice === null ? null : latestDeviceCheckIn(latestDevice),
     latestDevice,
     providers,
     revokedTokenCount,
@@ -193,19 +201,34 @@ function adminDeviceStatus(
   now: Date,
 ): AdminDeviceStatus {
   if (device === null || device.lastSyncAt === null) {
+    if (device !== null && deviceNeedsRepair(device)) {
+      return "repair-needed";
+    }
+  }
+
+  if (device === null) {
     return "unknown";
+  }
+
+  if (deviceNeedsRepair(device)) {
+    return "repair-needed";
   }
 
   if (device.arch === null && device.version === null) {
     return "unknown";
   }
 
-  const lastSync = Date.parse(device.lastSyncAt);
-  if (!Number.isFinite(lastSync)) {
+  const lastSeenAt = latestDeviceCheckIn(device);
+  if (lastSeenAt === null) {
     return "unknown";
   }
 
-  const elapsedMs = now.getTime() - lastSync;
+  const lastSeen = Date.parse(lastSeenAt);
+  if (!Number.isFinite(lastSeen)) {
+    return "unknown";
+  }
+
+  const elapsedMs = now.getTime() - lastSeen;
   if (elapsedMs > STALE_THRESHOLD_MS) {
     return "stale";
   }
@@ -229,14 +252,32 @@ function adminDeviceStatus(
 
 function adminSummary(users: readonly (typeof AdminUserDebugRow.Type)[]) {
   return users.reduce(
-    (summary, user) => ({
-      ...summary,
-      [user.status]: summary[user.status] + 1,
-      totalDevices: summary.totalDevices + user.deviceCount,
-      totalUsers: summary.totalUsers + 1,
-    }),
+    (summary, user) => {
+      switch (user.status) {
+        case "latest":
+          summary.latest += 1;
+          break;
+        case "repair-needed":
+          summary.repairNeeded += 1;
+          break;
+        case "stale":
+          summary.stale += 1;
+          break;
+        case "unknown":
+          summary.unknown += 1;
+          break;
+        case "updating":
+          summary.updating += 1;
+          break;
+      }
+      summary.totalDevices += user.deviceCount;
+      summary.totalUsers += 1;
+
+      return summary;
+    },
     {
       latest: 0,
+      repairNeeded: 0,
       stale: 0,
       totalDevices: 0,
       totalUsers: 0,
@@ -251,8 +292,8 @@ function latestDeviceFor(devices: readonly AdminDeviceSnapshot[]): AdminDeviceSn
 }
 
 function compareDevicesByFreshness(left: AdminDeviceSnapshot, right: AdminDeviceSnapshot): number {
-  const leftSync = isoTime(left.lastSyncAt);
-  const rightSync = isoTime(right.lastSyncAt);
+  const leftSync = isoTime(latestDeviceCheckIn(left));
+  const rightSync = isoTime(latestDeviceCheckIn(right));
   if (leftSync !== rightSync) {
     return rightSync - leftSync;
   }
@@ -272,6 +313,18 @@ function isoTime(value: string | null): number {
 
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : 0;
+}
+
+function latestDeviceCheckIn(device: AdminDeviceSnapshot): string | null {
+  return device.lastCheckInAt ?? device.lastSyncAt;
+}
+
+function deviceNeedsRepair(device: AdminDeviceSnapshot): boolean {
+  return (
+    device.serviceReloadRequired === true ||
+    device.serviceSchedulerActive === false ||
+    device.serviceStatus === "failure"
+  );
 }
 
 function normalizeVersion(version: string): string {

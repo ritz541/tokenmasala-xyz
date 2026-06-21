@@ -12,6 +12,27 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
   const rawStore = yield* RawUsageObjectStore;
 
   return UsageRepository.of({
+    checkInDevice: (deviceId, device, service, checkedInAt) =>
+      Effect.gen(function* () {
+        yield* database.use((db) =>
+          db
+            .update(devices)
+            .set({
+              arch: device.arch ?? null,
+              lastCheckInAt: checkedInAt,
+              name: device.name,
+              platform: device.platform,
+              serviceBackend: service.backend ?? null,
+              serviceError: service.error ?? null,
+              serviceReloadRequired: service.reloadRequired ?? null,
+              serviceSchedulerActive: service.schedulerActive ?? null,
+              serviceStatus: service.status,
+              serviceTemplateVersion: service.templateVersion ?? null,
+              version: device.version ?? null,
+            })
+            .where(eq(devices.id, deviceId)),
+        );
+      }),
     upsertChunk: (userId, deviceId, rows, syncedAt) =>
       Effect.gen(function* () {
         if (rows.length === 0) {

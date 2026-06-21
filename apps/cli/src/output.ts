@@ -49,7 +49,7 @@ const tokenmaxxingSubcommands = new Set([
   "whoami",
 ]);
 
-const serviceSubcommands = new Set(["install", "run", "status", "uninstall"]);
+const serviceSubcommands = new Set(["doctor", "install", "repair", "run", "status", "uninstall"]);
 const tokenmaxxingFlagsWithValues = new Set([
   "--completions",
   "--log-level",

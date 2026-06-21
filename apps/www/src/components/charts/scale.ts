@@ -8,10 +8,28 @@ type DailyRow = typeof ProfileDailyRow.Type;
  * unit-testable.
  */
 
+/** Shared bar-chart geometry so the charts can't drift apart. */
+const CHART_WIDTH = 940;
+/** Left gutter (px) reserved for the value-axis labels. */
+const CHART_AXIS = 44;
+/** Gridline count; `CHART_TICKS + 1` lines render, including the baseline. */
+const CHART_TICKS = 4;
+
 function linearScale(domainMax: number, rangeMax: number) {
   const safeMax = domainMax <= 0 ? 1 : domainMax;
 
   return (value: number) => (value / safeMax) * rangeMax;
+}
+
+/**
+ * Slot width and bar width shared by the vertical bar charts. `fill` is the
+ * fraction of the slot the bar occupies, capped at `cap` and floored at `floor`.
+ */
+function barLayout(count: number, fill: number, cap: number, floor = 0) {
+  const slot = (CHART_WIDTH - CHART_AXIS) / Math.max(count, 1);
+  const barWidth = Math.max(Math.min(slot * fill, cap), floor);
+
+  return { barWidth, slot };
 }
 
 /** "Nice" axis max so gridlines land on round numbers. */
@@ -180,6 +198,10 @@ function enumerateDays(first: string, last: string): string[] {
 }
 
 export {
+  barLayout,
+  CHART_AXIS,
+  CHART_TICKS,
+  CHART_WIDTH,
   enumerateDays,
   familyColors,
   formatDay,

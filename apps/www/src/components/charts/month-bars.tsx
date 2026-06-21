@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 
-import { formatMonth, formatMonthLong, formatUsd, linearScale, niceMax } from "./scale";
+import { ChartGrid } from "./axis";
+import {
+  barLayout,
+  CHART_AXIS,
+  CHART_WIDTH,
+  formatMonth,
+  formatMonthLong,
+  formatUsd,
+  linearScale,
+  niceMax,
+} from "./scale";
 import { anchorLeft, ChartTooltip } from "./tooltip";
 
 /** Spend per calendar month with value labels above each bar. */
@@ -12,27 +22,23 @@ interface MonthPoint {
   value: number;
 }
 
-const WIDTH = 940;
 const HEIGHT = 220;
-const TICKS = 4;
-const AXIS = 44;
 
 function MonthBars({ months }: { months: MonthPoint[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   const max = useMemo(() => niceMax(Math.max(...months.map((point) => point.value), 0)), [months]);
   const y = linearScale(max, HEIGHT - 26);
-  const slot = (WIDTH - AXIS) / Math.max(months.length, 1);
-  const barWidth = Math.min(slot * 0.55, 44);
+  const { barWidth, slot } = barLayout(months.length, 0.55, 44);
 
   const active = hovered === null ? null : months[hovered];
   const activeTooltip =
     hovered === null
       ? null
       : (() => {
-          const x = AXIS + slot * hovered + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * hovered + (slot - barWidth) / 2;
           return {
-            left: anchorLeft((x + barWidth / 2) / WIDTH, 11),
+            left: anchorLeft((x + barWidth / 2) / CHART_WIDTH, 11),
             top: HEIGHT - y(months[hovered]?.value ?? 0) - 12,
           };
         })();
@@ -44,42 +50,24 @@ function MonthBars({ months }: { months: MonthPoint[] }) {
         className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
-        viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}
+        viewBox={`0 0 ${CHART_WIDTH} ${HEIGHT + 24}`}
       >
-        {Array.from({ length: TICKS + 1 }, (_, tick) => {
-          const value = (max / TICKS) * tick;
-          const yPos = HEIGHT - y(value);
-          return (
-            <g key={tick}>
-              <line
-                stroke="currentColor"
-                strokeOpacity={tick === 0 ? 0.28 : 0.09}
-                x1={AXIS}
-                x2={WIDTH}
-                y1={yPos}
-                y2={yPos}
-              />
-              <text
-                className="fill-current opacity-45"
-                fontSize={10}
-                textAnchor="end"
-                x={AXIS - 6}
-                y={yPos + 3}
-              >
-                {formatUsd(value)}
-              </text>
-            </g>
-          );
-        })}
+        <ChartGrid baseline={HEIGHT} format={formatUsd} max={max} y={y} />
         {months.map((point, index) => {
           const hasValue = point.value > 0;
           const totalHeight = y(point.value);
-          const x = AXIS + slot * index + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * index + (slot - barWidth) / 2;
           let cursor = HEIGHT;
           return (
             <g key={point.month} onPointerEnter={() => setHovered(index)}>
               {/* Invisible hover target spanning the full column height. */}
-              <rect fill="transparent" height={HEIGHT} width={slot} x={AXIS + slot * index} y={0} />
+              <rect
+                fill="transparent"
+                height={HEIGHT}
+                width={slot}
+                x={CHART_AXIS + slot * index}
+                y={0}
+              />
               {hasValue ? (
                 <>
                   {point.segments.map((segment) => {

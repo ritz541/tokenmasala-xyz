@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
-import { formatDay, linearScale, niceMax } from "./scale";
+import { ChartGrid } from "./axis";
+import { barLayout, CHART_AXIS, CHART_WIDTH, formatDay, linearScale, niceMax } from "./scale";
 import { anchorBesideBar, ChartTooltip } from "./tooltip";
 
 /**
@@ -17,10 +18,7 @@ interface StackedDay {
 
 type ValueFormatter = (value: number) => string;
 
-const WIDTH = 940;
 const HEIGHT = 220;
-const AXIS = 44;
-const TICKS = 4;
 
 function StackedBars({
   ariaLabel,
@@ -37,8 +35,7 @@ function StackedBars({
 
   const max = useMemo(() => niceMax(Math.max(...days.map((day) => day.total), 0)), [days]);
   const y = linearScale(max, HEIGHT);
-  const slot = (WIDTH - AXIS) / Math.max(days.length, 1);
-  const barWidth = Math.max(Math.min(slot * 0.72, 16), 1.25);
+  const { barWidth, slot } = barLayout(days.length, 0.72, 16, 1.25);
 
   const monthStarts = useMemo(
     () =>
@@ -53,11 +50,11 @@ function StackedBars({
     hovered === null
       ? null
       : (() => {
-          const x = AXIS + slot * hovered + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * hovered + (slot - barWidth) / 2;
           const center = x + barWidth / 2;
           return {
-            center: center / WIDTH,
-            edge: (center < WIDTH / 2 ? x + barWidth : x) / WIDTH,
+            center: center / CHART_WIDTH,
+            edge: (center < CHART_WIDTH / 2 ? x + barWidth : x) / CHART_WIDTH,
           };
         })();
 
@@ -68,41 +65,23 @@ function StackedBars({
         className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
-        viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}
+        viewBox={`0 0 ${CHART_WIDTH} ${HEIGHT + 24}`}
       >
-        {Array.from({ length: TICKS + 1 }, (_, tick) => {
-          const value = (max / TICKS) * tick;
-          const yPos = HEIGHT - y(value);
-          return (
-            <g key={tick}>
-              <line
-                stroke="currentColor"
-                strokeOpacity={tick === 0 ? 0.28 : 0.09}
-                x1={AXIS}
-                x2={WIDTH}
-                y1={yPos}
-                y2={yPos}
-              />
-              <text
-                className="fill-current opacity-45"
-                fontSize={10}
-                textAnchor="end"
-                x={AXIS - 6}
-                y={yPos + 3}
-              >
-                {valueFormatter(value)}
-              </text>
-            </g>
-          );
-        })}
+        <ChartGrid baseline={HEIGHT} format={valueFormatter} max={max} y={y} />
 
         {days.map((day, index) => {
-          const x = AXIS + slot * index + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * index + (slot - barWidth) / 2;
           let cursor = HEIGHT;
           return (
             <g key={day.date} onPointerEnter={() => setHovered(index)}>
               {/* Invisible hover target spanning the full column height. */}
-              <rect fill="transparent" height={HEIGHT} width={slot} x={AXIS + slot * index} y={0} />
+              <rect
+                fill="transparent"
+                height={HEIGHT}
+                width={slot}
+                x={CHART_AXIS + slot * index}
+                y={0}
+              />
               {day.segments.map((segment) => {
                 const height = y(segment.value);
                 cursor -= height;
@@ -130,7 +109,7 @@ function StackedBars({
             fontSize={10}
             key={date}
             textAnchor="middle"
-            x={AXIS + slot * index + slot / 2}
+            x={CHART_AXIS + slot * index + slot / 2}
             y={HEIGHT + 16}
           >
             {formatDay(date).split(" ")[1]}

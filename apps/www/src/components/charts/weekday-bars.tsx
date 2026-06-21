@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
-import { formatUsd, linearScale, niceMax } from "./scale";
+import { ChartGrid } from "./axis";
+import { barLayout, CHART_AXIS, CHART_WIDTH, formatUsd, linearScale, niceMax } from "./scale";
 import { anchorLeft, ChartTooltip } from "./tooltip";
 
 /** Spend bucketed by weekday (Monday-first) with the peak day called out. */
@@ -10,11 +11,8 @@ const WEEKDAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 /** Monday-first short names for the peak-day heading and tooltips. */
 const WEEKDAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const WIDTH = 940;
 const HEIGHT = 180;
 const BAR_AREA = HEIGHT - 12;
-const AXIS = 44;
-const TICKS = 4;
 
 /** `spend` is length-7, Monday-first: spend[0] = Mon … spend[6] = Sun. */
 function WeekdayBars({ accent, spend }: { accent: string; spend: number[] }) {
@@ -34,16 +32,15 @@ function WeekdayBars({ accent, spend }: { accent: string; spend: number[] }) {
   }, [spend]);
 
   const y = linearScale(max, BAR_AREA);
-  const slot = (WIDTH - AXIS) / WEEKDAY_LABELS.length;
-  const barWidth = Math.min(slot * 0.55, 64);
+  const { barWidth, slot } = barLayout(WEEKDAY_LABELS.length, 0.55, 64);
 
   const activeTooltip =
     hovered === null
       ? null
       : (() => {
-          const x = AXIS + slot * hovered + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * hovered + (slot - barWidth) / 2;
           return {
-            left: anchorLeft((x + barWidth / 2) / WIDTH, 11),
+            left: anchorLeft((x + barWidth / 2) / CHART_WIDTH, 11),
             top: HEIGHT - y(spend[hovered] ?? 0) - 12,
           };
         })();
@@ -55,47 +52,28 @@ function WeekdayBars({ accent, spend }: { accent: string; spend: number[] }) {
         className="block w-full select-none"
         onPointerLeave={() => setHovered(null)}
         role="img"
-        viewBox={`0 0 ${WIDTH} ${HEIGHT + 24}`}
+        viewBox={`0 0 ${CHART_WIDTH} ${HEIGHT + 24}`}
       >
-        {Array.from({ length: TICKS + 1 }, (_, tick) => {
-          const value = (max / TICKS) * tick;
-          const yPos = HEIGHT - y(value);
-          return (
-            <g key={tick}>
-              <line
-                stroke="currentColor"
-                strokeOpacity={tick === 0 ? 0.28 : 0.09}
-                x1={AXIS}
-                x2={WIDTH}
-                y1={yPos}
-                y2={yPos}
-              />
-              <text
-                className="fill-current opacity-45"
-                fontSize={10}
-                textAnchor="end"
-                x={AXIS - 6}
-                y={yPos + 3}
-              >
-                {formatUsd(value)}
-              </text>
-            </g>
-          );
-        })}
+        <ChartGrid baseline={HEIGHT} format={formatUsd} max={max} y={y} />
         {WEEKDAY_LABELS.map((label, index) => {
           const value = spend[index] ?? 0;
           const height = Math.max(y(value), 2);
-          const x = AXIS + slot * index + (slot - barWidth) / 2;
+          const x = CHART_AXIS + slot * index + (slot - barWidth) / 2;
           const isPeak = index === peakIndex;
           return (
             <g key={`${label}-${index}`} onPointerEnter={() => setHovered(index)}>
               {/* Invisible hover target spanning the full column. */}
-              <rect fill="transparent" height={HEIGHT} width={slot} x={AXIS + slot * index} y={0} />
+              <rect
+                fill="transparent"
+                height={HEIGHT}
+                width={slot}
+                x={CHART_AXIS + slot * index}
+                y={0}
+              />
               <rect
                 fill={accent}
                 height={height}
                 opacity={isPeak ? 1 : 0.4}
-                rx={4}
                 width={barWidth}
                 x={x}
                 y={HEIGHT - height}

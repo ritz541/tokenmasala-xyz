@@ -58,21 +58,18 @@ function UserMenu() {
   });
 
   if (me.isPending) {
-    return <Avatar size={28} src={null} />;
+    return (
+      <div className="flex items-center gap-2">
+        <GithubStarLink />
+        <Avatar size={28} src={null} />
+      </div>
+    );
   }
 
   if (me.isError) {
     return (
       <div className="flex items-center gap-2">
-        <a
-          className={buttonClassName({ variant: "outline", size: "sm" })}
-          href={GITHUB_URL}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <Star className="size-4" weight="bold" />
-          Star
-        </a>
+        <GithubStarLink />
         <Link className={buttonClassName({ variant: "primary", size: "sm" })} to="/login">
           Log in
         </Link>
@@ -83,27 +80,44 @@ function UserMenu() {
   const user = me.data.user;
 
   return (
-    <Menu>
-      <Menu.Trigger className="flex outline-none focus-visible:ring-2 focus-visible:ring-accent">
-        <Avatar alt={user.login} size={28} src={user.avatarUrl} />
-      </Menu.Trigger>
-      <Menu.Content>
-        <Menu.Item icon={<User />} render={<Link params={{ user: user.login }} to="/$user" />}>
-          Profile
-        </Menu.Item>
-        <Menu.Item icon={<Gear />} render={<Link to="/settings" />}>
-          Settings
-        </Menu.Item>
-        <Menu.Separator />
-        <Menu.Item
-          className="text-red-500 data-[highlighted]:bg-red-500/10 data-[highlighted]:text-red-500"
-          icon={<SignOut />}
-          onClick={() => signout.mutate()}
-        >
-          Sign out
-        </Menu.Item>
-      </Menu.Content>
-    </Menu>
+    <div className="flex items-center gap-2">
+      <GithubStarLink />
+      <Menu>
+        <Menu.Trigger className="flex outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <Avatar alt={user.login} size={28} src={user.avatarUrl} />
+        </Menu.Trigger>
+        <Menu.Content>
+          <Menu.Item icon={<User />} render={<Link params={{ user: user.login }} to="/$user" />}>
+            Profile
+          </Menu.Item>
+          <Menu.Item icon={<Gear />} render={<Link to="/settings" />}>
+            Settings
+          </Menu.Item>
+          <Menu.Separator />
+          <Menu.Item
+            className="text-red-500 data-[highlighted]:bg-red-500/10 data-[highlighted]:text-red-500"
+            icon={<SignOut />}
+            onClick={() => signout.mutate()}
+          >
+            Sign out
+          </Menu.Item>
+        </Menu.Content>
+      </Menu>
+    </div>
+  );
+}
+
+function GithubStarLink() {
+  return (
+    <a
+      className={buttonClassName({ variant: "outline", size: "sm" })}
+      href={GITHUB_URL}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <Star className="size-4" weight="bold" />
+      Star
+    </a>
   );
 }
 

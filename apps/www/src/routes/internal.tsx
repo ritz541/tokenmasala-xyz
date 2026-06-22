@@ -56,10 +56,10 @@ function InternalPage() {
         <table className="w-full min-w-[72rem] table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="w-[20%] p-3 font-medium">Machine</th>
+              <th className="w-[18%] p-3 font-medium">Machine</th>
               <th className="w-[15%] p-3 font-medium">User</th>
-              <th className="w-[13%] p-3 font-medium">Version</th>
-              <th className="hidden w-[8%] p-3 font-medium lg:table-cell">Arch</th>
+              <th className="w-[16%] p-3 font-medium">Version</th>
+              <th className="hidden w-[12%] p-3 font-medium lg:table-cell">System</th>
               <th className="w-[22%] p-3 font-medium">Status</th>
               <th className="w-[12%] p-3 font-medium">Last check-in</th>
               <th className="hidden w-[10%] whitespace-nowrap p-3 font-medium md:table-cell">
@@ -73,10 +73,6 @@ function InternalPage() {
                 <td className="p-3 align-top">
                   <div className="truncate font-medium" title={row.device.name}>
                     {row.device.name}
-                  </div>
-                  <div className="mt-1 flex min-w-0 items-center gap-2 font-mono text-xs text-muted-foreground">
-                    <span title={row.device.id}>{shortDeviceId(row.device.id)}</span>
-                    <span className="truncate">{row.device.platform}</span>
                   </div>
                 </td>
                 <td className="p-3 align-top">
@@ -96,7 +92,7 @@ function InternalPage() {
                   </div>
                 </td>
                 <td className="hidden p-3 align-top font-mono text-muted-foreground lg:table-cell">
-                  {row.device.arch ?? "—"}
+                  {formatDeviceSystem(row.device)}
                 </td>
                 <td className="p-3 align-top">
                   <StatusCell row={row} title={serviceStatusTitle(row)} />
@@ -258,8 +254,8 @@ function formatVersion(version: string | null): string {
   return version.startsWith("v") ? version : `v${version}`;
 }
 
-function shortDeviceId(id: string): string {
-  return id.length <= 8 ? id : id.slice(0, 8);
+function formatDeviceSystem(device: AdminUsersData["devices"][number]["device"]): string {
+  return device.arch === null ? device.platform : `${device.platform} / ${device.arch}`;
 }
 
 function formatRelativeTime(value: string | null, now: string): string {

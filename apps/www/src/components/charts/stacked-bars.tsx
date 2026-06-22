@@ -156,7 +156,7 @@ function Legend({
 }) {
   return (
     <ol
-      className="flex w-full select-none flex-col gap-1 lg:w-56 lg:shrink-0"
+      className="flex w-full select-none flex-col gap-1 lg:w-60 lg:shrink-0"
       onPointerLeave={() => onHover?.(null)}
     >
       {entries.map((entry, index) => (

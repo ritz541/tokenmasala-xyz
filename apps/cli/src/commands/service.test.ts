@@ -552,6 +552,37 @@ describe("service repair helpers", () => {
       ).args.at(-1),
     ).toContain('service repair --deferred --json --reason "auto-updated"');
   });
+
+  it("schedules linux deferred repairs with systemd-run outside the current service cgroup", () => {
+    expect(
+      deferredServiceRepairInvocation("/usr/local/bin/tokenmaxxing", "reload-required", "linux", {
+        PATH: "/usr/local/bin:/usr/bin",
+        TOKENMAXXING_CONFIG_DIR: "/tmp/tokenmaxxing",
+      }),
+    ).toMatchObject({
+      args: [
+        "--user",
+        "--quiet",
+        "--collect",
+        "--on-active=2s",
+        "--unit=tokenmaxxing-sync-repair-reload-required",
+        "--setenv=PATH=/usr/local/bin:/usr/bin",
+        "--setenv=TOKENMAXXING_CONFIG_DIR=/tmp/tokenmaxxing",
+        "/usr/local/bin/tokenmaxxing",
+        "service",
+        "repair",
+        "--deferred",
+        "--json",
+        "--reason",
+        "reload-required",
+      ],
+      command: "systemd-run",
+      options: {
+        detached: true,
+        stdio: "ignore",
+      },
+    });
+  });
 });
 
 describe("service auto-update reports", () => {

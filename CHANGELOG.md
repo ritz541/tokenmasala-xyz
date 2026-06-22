@@ -5,6 +5,10 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+### Fixed
+
+- Made scheduled Linux service repairs use `systemd-run --user` so reload-required repairs survive systemd oneshot cleanup.
+
 ## 0.4.16 - 2026-06-21
 
 ### Changed

@@ -1300,6 +1300,10 @@ function scheduleDeferredServiceRepair(
 
   return Effect.sync(() => {
     const child = spawnDeferredServiceRepair(commandPath, reason);
+    child.on("error", () => {
+      // The next scheduled run will surface repair-needed again if the helper
+      // process cannot be started.
+    });
     child.unref();
 
     return {
@@ -1324,7 +1328,7 @@ function spawnDeferredServiceRepair(
   reason: ServiceRepairReasonValue,
   platform = process.platform,
 ) {
-  const invocation = deferredServiceRepairInvocation(commandPath, reason, platform);
+  const invocation = deferredServiceRepairInvocation(commandPath, reason, platform, process.env);
 
   return spawn(invocation.command, invocation.args, invocation.options);
 }
@@ -1333,6 +1337,7 @@ function deferredServiceRepairInvocation(
   commandPath: string,
   reason: ServiceRepairReasonValue,
   platform: NodeJS.Platform,
+  env: Record<string, string | undefined> = process.env,
 ): {
   args: string[];
   command: string;
@@ -1353,6 +1358,31 @@ function deferredServiceRepairInvocation(
     };
   }
 
+  if (platform === "linux") {
+    return {
+      args: [
+        "--user",
+        "--quiet",
+        "--collect",
+        "--on-active=2s",
+        `--unit=${systemdRepairUnitName(reason)}`,
+        ...systemdRunEnvArgs(capturedServiceEnv(env)),
+        commandPath,
+        "service",
+        "repair",
+        "--deferred",
+        "--json",
+        "--reason",
+        reason,
+      ],
+      command: "systemd-run",
+      options: {
+        detached: true,
+        stdio: "ignore",
+      },
+    };
+  }
+
   return {
     args: [
       "-c",
@@ -1366,6 +1396,14 @@ function deferredServiceRepairInvocation(
       stdio: "ignore",
     },
   };
+}
+
+function systemdRepairUnitName(reason: ServiceRepairReasonValue): string {
+  return `${SYSTEMD_NAME}-repair-${reason}`;
+}
+
+function systemdRunEnvArgs(env: Record<string, string>): string[] {
+  return Object.entries(env).map(([key, value]) => `--setenv=${key}=${value}`);
 }
 
 function maybeScheduleDeferredServiceRepair(input: {

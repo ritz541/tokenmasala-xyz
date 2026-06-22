@@ -207,8 +207,8 @@ function deriveCharts(rows: readonly DailyRow[], range: DailyRange) {
 
   const allDays = enumerateDays(range.first, range.last);
   const heatmapRange = {
-    first: range.first,
-    last: range.last,
+    first: calendarYearStart(range.last),
+    last: calendarYearEnd(range.last),
   };
 
   const familyOrder = [...colors.keys()];
@@ -316,6 +316,14 @@ function enumerateCalendarMonths(first: string, last: string): string[] {
   }
 
   return out;
+}
+
+function calendarYearStart(date: string): string {
+  return `${date.slice(0, 4)}-01-01`;
+}
+
+function calendarYearEnd(date: string): string {
+  return `${date.slice(0, 4)}-12-31`;
 }
 
 export { deriveCharts, Route };

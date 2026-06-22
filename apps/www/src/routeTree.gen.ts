@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
@@ -30,6 +31,11 @@ const TermsRoute = TermsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login_/cli': typeof LoginCliRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/privacy'
+    | '/robots.txt'
     | '/settings'
     | '/terms'
     | '/login/cli'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/privacy'
+    | '/robots.txt'
     | '/settings'
     | '/terms'
     | '/login/cli'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/llms.txt'
     | '/login'
     | '/privacy'
+    | '/robots.txt'
     | '/settings'
     | '/terms'
     | '/login_/cli'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  RobotsDottxtRoute: typeof RobotsDottxtRoute
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
   LoginCliRoute: typeof LoginCliRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/robots.txt': {
+      id: '/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/robots.txt'
+      preLoaderRoute: typeof RobotsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  RobotsDottxtRoute: RobotsDottxtRoute,
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
   LoginCliRoute: LoginCliRoute,

@@ -25,7 +25,6 @@ const userFacingErrorTags = new Set([
   "NotLoggedInError",
   "OpenBrowserError",
   "PollCliLoginError",
-  "ServiceAutoUpdateManagerError",
   "ServiceCommandNotFoundError",
   "ServiceEnvTokenError",
   "ServiceEphemeralCommandError",

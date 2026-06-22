@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { ConsoleService } from "../services";
-import type { CommandInstall, ServiceMetadata } from "./service";
+import type { CommandInstall } from "./service";
 import {
   formatServiceRefreshResult,
   formatUpgradeSuccess,
@@ -65,7 +65,7 @@ describe("upgradeProgram", () => {
   it("skips the package manager update when no update is pending", async () => {
     const { layer, logs } = testConsole();
     const managers: string[] = [];
-    const refreshes: Array<{ autoUpdate: boolean; commandPath: string }> = [];
+    const refreshes: Array<{ commandPath: string }> = [];
 
     const exit = await Effect.runPromiseExit(
       upgradeProgram({
@@ -201,7 +201,7 @@ describe("upgradeProgram", () => {
 
   it("refreshes an installed service after upgrading", async () => {
     const { layer, logs } = testConsole();
-    const refreshes: Array<{ autoUpdate: boolean; commandPath: string }> = [];
+    const refreshes: Array<{ commandPath: string }> = [];
 
     const exit = await Effect.runPromiseExit(
       upgradeProgram({
@@ -209,15 +209,6 @@ describe("upgradeProgram", () => {
         findCommandInstall: () => Effect.succeed(install),
         getLatestVersion: () => Effect.succeed("0.4.4"),
         isServiceInstalled: () => Effect.succeed(true),
-        readServiceMetadata: () =>
-          Effect.succeed({
-            autoUpdate: false,
-            backend: "launchd",
-            commandPath: "/usr/local/bin/tokenmaxxing",
-            installedAt: "2026-06-17T00:00:00.000Z",
-            schedule: "checks hourly and syncs once per local day",
-            version: 1,
-          } satisfies ServiceMetadata),
         refreshService: (options) =>
           Effect.sync(() => {
             refreshes.push(options);
@@ -227,7 +218,7 @@ describe("upgradeProgram", () => {
     );
 
     expect(exit._tag).toBe("Success");
-    expect(refreshes).toEqual([{ autoUpdate: false, commandPath: "/usr/local/bin/tokenmaxxing" }]);
+    expect(refreshes).toEqual([{ commandPath: "/usr/local/bin/tokenmaxxing" }]);
     expect(logs).toContain("Upgraded to v0.4.4");
     expect(logs).toContain("Service: refreshed");
   });

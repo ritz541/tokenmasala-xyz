@@ -31,7 +31,7 @@ import {
 const execFilePromise = promisify(execFile);
 
 const SERVICE_LABEL = "sh.tokenmaxxing.sync";
-const SERVICE_TEMPLATE_VERSION = 2;
+const SERVICE_TEMPLATE_VERSION = 3;
 const SYSTEMD_NAME = "tokenmaxxing-sync";
 const WINDOWS_TASK_NAME = "tokenmaxxing-sync";
 const POSIX_WRAPPER_NAME = "tokenmaxxing.sh";
@@ -73,7 +73,6 @@ interface ScheduleTime {
 }
 
 interface ServiceInstallOptions {
-  autoUpdate: boolean;
   force: boolean;
   json?: boolean | undefined;
   refresh: boolean;
@@ -121,7 +120,6 @@ type ServiceLockStatus =
     };
 
 interface ServiceMetadata {
-  autoUpdate: boolean;
   autoUpdateManager?: AutoUpdateManager | null;
   backend: ServiceBackend;
   commandPath: string;
@@ -280,15 +278,6 @@ class ServiceEphemeralCommandError extends Data.TaggedError("ServiceEphemeralCom
   }
 }
 
-class ServiceAutoUpdateManagerError extends Data.TaggedError("ServiceAutoUpdateManagerError")<{
-  readonly commandPath: string;
-  readonly resolvedCommandPath: string;
-}> {
-  override get message() {
-    return `error: could not detect how tokenmaxxing was globally installed\npath: ${this.commandPath}\nresolved path: ${this.resolvedCommandPath}\nhint: reinstall with bun, npm, pnpm, or yarn; or run tokenmaxxing service install --no-auto-update`;
-  }
-}
-
 class ServiceInstallError extends Data.TaggedError("ServiceInstallError")<{
   readonly cause: unknown;
 }> {
@@ -323,14 +312,10 @@ const installCommand = Command.make(
     force: Flag.boolean("force").pipe(
       Flag.withDescription("Install even if the tokenmaxxing binary path looks temporary"),
     ),
-    noAutoUpdate: Flag.boolean("no-auto-update").pipe(
-      Flag.withDescription("Disable automatic CLI updates before scheduled syncs"),
-    ),
     json: Flag.boolean("json").pipe(Flag.withDescription("Output machine-readable JSON")),
     refresh: Flag.boolean("refresh").pipe(Flag.withHidden),
   },
-  ({ force, json, noAutoUpdate, refresh }) =>
-    serviceInstallEffect({ autoUpdate: !noAutoUpdate, force, json, refresh }),
+  ({ force, json, refresh }) => serviceInstallEffect({ force, json, refresh }),
 ).pipe(Command.withDescription("Install automatic sync"));
 
 const uninstallCommand = Command.make(
@@ -442,15 +427,6 @@ function serviceInstallProgram(
       yield* Effect.sync(() => installSpinner.error("Could not use tokenmaxxing install"));
       return yield* Effect.fail(new ServiceEphemeralCommandError({ commandPath }));
     }
-    if (options.autoUpdate && commandInstall.autoUpdateManager === null) {
-      yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
-      return yield* Effect.fail(
-        new ServiceAutoUpdateManagerError({
-          commandPath,
-          resolvedCommandPath: commandInstall.resolvedCommandPath,
-        }),
-      );
-    }
     yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
 
     const serviceEnv = capturedServiceEnv(env);
@@ -461,7 +437,6 @@ function serviceInstallProgram(
       platform,
     });
     const metadata: ServiceMetadata = {
-      autoUpdate: options.autoUpdate,
       autoUpdateManager: commandInstall.autoUpdateManager,
       backend: paths.backend,
       commandPath,
@@ -488,11 +463,11 @@ function serviceInstallProgram(
     );
 
     const autoUpdate = {
-      enabled: options.autoUpdate,
+      enabled: true,
       manager: commandInstall.autoUpdateManager,
-      ...(options.autoUpdate
-        ? { command: autoUpdateCommandDescription(commandInstall.autoUpdateManager!) }
-        : {}),
+      ...(commandInstall.autoUpdateManager === null
+        ? {}
+        : { command: autoUpdateCommandDescription(commandInstall.autoUpdateManager) }),
     };
 
     if (options.json) {
@@ -513,11 +488,7 @@ function serviceInstallProgram(
     yield* humanLog("info", `Log: ${paths.logPath}`, options);
     yield* humanLog(
       "info",
-      `Auto-update: ${options.autoUpdate ? `enabled via ${commandInstall.autoUpdateManager}` : "disabled"}${
-        options.autoUpdate
-          ? ` (${autoUpdateCommandDescription(commandInstall.autoUpdateManager!)})`
-          : ""
-      }`,
+      `Auto-update: ${formatInstallAutoUpdate(commandInstall.autoUpdateManager)}`,
       options,
     );
   });
@@ -572,7 +543,6 @@ function repairServiceProgram(options: ServiceRepairOptions = {}) {
     const currentState = (yield* readServiceState(paths.statePath)) ?? { version: 1 as const };
     const existingMetadata = yield* readServiceMetadata(paths.metadataPath);
     const initialNativeStatus = yield* readNativeSchedulerStatus(paths);
-    const autoUpdate = existingMetadata?.autoUpdate ?? true;
     const repairReason =
       parseServiceRepairReason(options.reason) ??
       serviceRepairReason({
@@ -612,15 +582,6 @@ function repairServiceProgram(options: ServiceRepairOptions = {}) {
           new ServiceEphemeralCommandError({ commandPath: commandInstall.commandPath }),
         );
       }
-      if (autoUpdate && commandInstall.autoUpdateManager === null) {
-        yield* Effect.sync(() => installSpinner.error("Could not detect install method"));
-        return yield* Effect.fail(
-          new ServiceAutoUpdateManagerError({
-            commandPath: commandInstall.commandPath,
-            resolvedCommandPath: commandInstall.resolvedCommandPath,
-          }),
-        );
-      }
       yield* Effect.sync(() => installSpinner.stop("Found tokenmaxxing install"));
 
       const wrapper = renderServiceWrapper({
@@ -630,7 +591,6 @@ function repairServiceProgram(options: ServiceRepairOptions = {}) {
         platform,
       });
       const metadata: ServiceMetadata = {
-        autoUpdate,
         autoUpdateManager: commandInstall.autoUpdateManager,
         backend: paths.backend,
         commandPath: commandInstall.commandPath,
@@ -1183,7 +1143,6 @@ function runServiceSyncOnce(paths: ServicePaths, options: ServiceRunOptions) {
 
     if (autoUpdated && metadata !== null && !options.scheduled) {
       yield* refreshServiceAfterUpdate({
-        autoUpdate: metadata.autoUpdate,
         commandPath: metadata.commandPath,
       }).pipe(
         Effect.catch(() =>
@@ -1945,15 +1904,15 @@ function runServiceAutoUpdate(
     const readInstalledVersion = runtime.readInstalledVersion ?? readInstalledCliVersion;
     const latestVersion = yield* fetchLatestVersion();
 
-    if (metadata === null || metadata.autoUpdate === false) {
+    if (metadata === null) {
       return serviceAutoUpdateReport({
         attemptedAt,
         completedAt: now().toISOString(),
         currentVersion: options.currentVersion,
-        enabled: metadata?.autoUpdate ?? false,
+        enabled: false,
         latestVersion,
-        manager: metadata?.autoUpdateManager ?? null,
-        reason: metadata === null ? "metadata-missing" : "disabled",
+        manager: null,
+        reason: "metadata-missing",
         status: "skipped",
       });
     }
@@ -2157,16 +2116,8 @@ function runPackageManagerUpdate(manager: AutoUpdateManager): Effect.Effect<void
   return runExecutable(command.command, command.args);
 }
 
-function refreshServiceAfterUpdate(options: {
-  autoUpdate: boolean;
-  commandPath: string;
-}): Effect.Effect<void, unknown> {
-  const args = ["service", "install", "--refresh"];
-  if (!options.autoUpdate) {
-    args.push("--no-auto-update");
-  }
-
-  return runExecutable(options.commandPath, args);
+function refreshServiceAfterUpdate(options: { commandPath: string }): Effect.Effect<void, unknown> {
+  return runExecutable(options.commandPath, ["service", "install", "--refresh"]);
 }
 
 function readLogTail(path: string, maxLines: number): Effect.Effect<string[], never> {
@@ -2196,15 +2147,17 @@ function formatServiceStatusAutoUpdate(metadata: ServiceMetadata | null): string
     return "unknown (service not installed)";
   }
 
-  if (metadata.autoUpdate === false) {
-    return "disabled";
-  }
-
   if (metadata.autoUpdateManager !== undefined && metadata.autoUpdateManager !== null) {
     return `enabled via ${metadata.autoUpdateManager}`;
   }
 
-  return "enabled";
+  return "enabled (package manager not detected)";
+}
+
+function formatInstallAutoUpdate(manager: AutoUpdateManager | null): string {
+  return manager === null
+    ? "enabled, but package manager was not detected"
+    : `enabled via ${manager} (${autoUpdateCommandDescription(manager)})`;
 }
 
 function doctorAuthDetail(envToken: boolean, authConfig: DoctorAuthConfig): string {
@@ -2252,10 +2205,6 @@ function doctorAutoUpdateDetail(
     return "checked when service is installed";
   }
 
-  if (metadata?.autoUpdate === false) {
-    return "disabled";
-  }
-
   if (autoUpdateManager === null || autoUpdateManager === undefined) {
     return "enabled but package manager was not detected";
   }
@@ -2269,7 +2218,7 @@ function doctorAutoUpdateStatus(
   metadata: ServiceMetadata | null,
   managerExists: boolean,
 ): DoctorStatus {
-  if (metadata === null || metadata.autoUpdate === false) {
+  if (metadata === null) {
     return "info";
   }
 
@@ -3044,7 +2993,6 @@ export {
   runPackageManagerUpdate,
   windowsTaskNames,
   windowsTaskCreateArgs,
-  ServiceAutoUpdateManagerError,
   ServiceCommandNotFoundError,
   ServiceEnvTokenError,
   ServiceEphemeralCommandError,

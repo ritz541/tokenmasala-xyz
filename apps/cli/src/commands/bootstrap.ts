@@ -105,7 +105,6 @@ function bootstrapProgram(options: BootstrapOptions, runtime: BootstrapRuntime =
         runtime.installService ??
         (() =>
           serviceInstallProgram({
-            autoUpdate: true,
             force: false,
             refresh: false,
           }))

@@ -43,6 +43,7 @@ import {
   serviceRunFailureState,
   serviceRunLogLine,
   serviceRunSuccessState,
+  type CommandInstall,
   type ServiceAutoUpdateReport,
   type ServiceMetadata,
   type ServicePaths,
@@ -198,7 +199,12 @@ function makeTestLayer(options: TestLayerOptions) {
   return { layer, state };
 }
 
-function makeInstallRuntime() {
+function makeInstallRuntime(options: { install?: CommandInstall } = {}) {
+  const commandInstall: CommandInstall = options.install ?? {
+    autoUpdateManager: "npm" as const,
+    commandPath: "/usr/local/bin/tokenmaxxing",
+    resolvedCommandPath: "/usr/local/lib/node_modules/@851-labs/tokenmaxxing/dist/index.js",
+  };
   const installed: ServicePaths[] = [];
   const written: Array<{
     metadata: ServiceMetadata;
@@ -213,12 +219,7 @@ function makeInstallRuntime() {
         PATH: "/usr/local/bin:/usr/bin",
         TOKENMAXXING_CONFIG_DIR: "/tmp/tokenmaxxing",
       },
-      findCommandInstall: () =>
-        Effect.succeed({
-          autoUpdateManager: "npm" as const,
-          commandPath: "/usr/local/bin/tokenmaxxing",
-          resolvedCommandPath: "/usr/local/lib/node_modules/@851-labs/tokenmaxxing/dist/index.js",
-        }),
+      findCommandInstall: () => Effect.succeed(commandInstall),
       home: "/Users/alex",
       installScheduler: (paths: ServicePaths) =>
         Effect.sync(() => {
@@ -555,7 +556,6 @@ describe("service repair helpers", () => {
 
 describe("service auto-update reports", () => {
   const metadata: ServiceMetadata = {
-    autoUpdate: true,
     autoUpdateManager: "npm",
     backend: "launchd",
     commandPath: "/usr/local/bin/tokenmaxxing",
@@ -585,18 +585,16 @@ describe("service auto-update reports", () => {
     });
   });
 
-  it("reports disabled auto-update", async () => {
+  it("ignores legacy disabled auto-update metadata", async () => {
     await expect(
-      runAutoUpdate(
-        { ...metadata, autoUpdate: false },
-        {
-          fetchLatestVersion: () => Effect.succeed("0.4.13"),
-          now,
-        },
-      ),
+      runAutoUpdate({ ...metadata, autoUpdate: false } as ServiceMetadata, {
+        commandExists: () => Effect.succeed(false),
+        fetchLatestVersion: () => Effect.succeed("0.4.13"),
+        now,
+      }),
     ).resolves.toMatchObject({
-      enabled: false,
-      reason: "disabled",
+      enabled: true,
+      reason: "manager-not-found",
       status: "skipped",
     });
   });
@@ -935,11 +933,10 @@ describe("formatServiceStatusAutoUpdate", () => {
         installedAt: "2026-06-16T00:00:00.000Z",
         schedule: "daily",
         version: 1,
-      }),
-    ).toBe("disabled");
+      } as ServiceMetadata),
+    ).toBe("enabled (package manager not detected)");
     expect(
       formatServiceStatusAutoUpdate({
-        autoUpdate: true,
         autoUpdateManager: "npm",
         backend: "launchd",
         commandPath: "/usr/local/bin/tokenmaxxing",
@@ -962,9 +959,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
-        Effect.provide(layer),
-      ),
+      serviceInstallProgram({ force: false, refresh: false }, runtime).pipe(Effect.provide(layer)),
     );
 
     expect(exit._tag).toBe("Success");
@@ -984,12 +979,41 @@ describe("serviceInstallProgram", () => {
     expect(written).toHaveLength(1);
     expect(installed).toEqual([written[0]?.paths]);
     expect(written[0]?.metadata).toMatchObject({
-      autoUpdate: true,
       autoUpdateManager: "npm",
       commandPath: "/usr/local/bin/tokenmaxxing",
       installedAt: "2026-06-16T12:00:00.000Z",
+      templateVersion: 3,
     });
+    expect(written[0]?.metadata).not.toHaveProperty("autoUpdate");
     expect(state.logs).toContain("Automatic sync installed");
+  });
+
+  it("installs the service when the package manager cannot be detected", async () => {
+    const { layer, state } = makeTestLayer({
+      initialConfig: {
+        apiUrl: "https://api.tokenmaxxing.example",
+        token: "tmx_existing",
+        wwwUrl: "https://tokenmaxxing.example",
+      },
+    });
+    const { installed, runtime, written } = makeInstallRuntime({
+      install: {
+        autoUpdateManager: null,
+        commandPath: "/usr/local/bin/tokenmaxxing",
+        resolvedCommandPath: "/usr/local/bin/tokenmaxxing",
+      },
+    });
+
+    const exit = await Effect.runPromiseExit(
+      serviceInstallProgram({ force: false, refresh: false }, runtime).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Success");
+    expect(written).toHaveLength(1);
+    expect(written[0]?.metadata.autoUpdateManager).toBeNull();
+    expect(written[0]?.metadata).not.toHaveProperty("autoUpdate");
+    expect(installed).toEqual([written[0]?.paths]);
+    expect(state.logs).toContain("Auto-update: enabled, but package manager was not detected");
   });
 
   it("relogs in and continues installing when the stored token is revoked", async () => {
@@ -1004,9 +1028,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: false, force: false, refresh: false }, runtime).pipe(
-        Effect.provide(layer),
-      ),
+      serviceInstallProgram({ force: false, refresh: false }, runtime).pipe(Effect.provide(layer)),
     );
 
     expect(exit._tag).toBe("Success");
@@ -1021,7 +1043,7 @@ describe("serviceInstallProgram", () => {
     ]);
     expect(written).toHaveLength(1);
     expect(installed).toEqual([written[0]?.paths]);
-    expect(written[0]?.metadata.autoUpdate).toBe(false);
+    expect(written[0]?.metadata).not.toHaveProperty("autoUpdate");
   });
 
   it("still rejects TOKENMAXXING_API_TOKEN before starting login or installing", async () => {
@@ -1036,9 +1058,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
-        Effect.provide(layer),
-      ),
+      serviceInstallProgram({ force: false, refresh: false }, runtime).pipe(Effect.provide(layer)),
     );
 
     expect(exit._tag).toBe("Failure");
@@ -1060,9 +1080,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: true, force: false, refresh: false }, runtime).pipe(
-        Effect.provide(layer),
-      ),
+      serviceInstallProgram({ force: false, refresh: false }, runtime).pipe(Effect.provide(layer)),
     );
 
     expect(exit._tag).toBe("Failure");
@@ -1084,10 +1102,9 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram(
-        { autoUpdate: true, force: false, json: true, refresh: false },
-        runtime,
-      ).pipe(Effect.provide(layer)),
+      serviceInstallProgram({ force: false, json: true, refresh: false }, runtime).pipe(
+        Effect.provide(layer),
+      ),
     );
 
     expect(exit._tag).toBe("Failure");
@@ -1110,9 +1127,7 @@ describe("serviceInstallProgram", () => {
     const { installed, runtime, written } = makeInstallRuntime();
 
     const exit = await Effect.runPromiseExit(
-      serviceInstallProgram({ autoUpdate: false, force: false, refresh: true }, runtime).pipe(
-        Effect.provide(layer),
-      ),
+      serviceInstallProgram({ force: false, refresh: true }, runtime).pipe(Effect.provide(layer)),
     );
 
     expect(exit._tag).toBe("Success");
@@ -1125,7 +1140,7 @@ describe("serviceInstallProgram", () => {
     expect(state.logs).toContain("Installing scheduler");
     expect(state.logs).toContain("Scheduler installed");
     expect(written).toHaveLength(1);
-    expect(written[0]?.metadata.autoUpdate).toBe(false);
+    expect(written[0]?.metadata).not.toHaveProperty("autoUpdate");
     expect(installed).toEqual([written[0]?.paths]);
   });
 });

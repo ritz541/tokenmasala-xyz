@@ -10,11 +10,9 @@ import {
   findTokenmaxxingCommandInstall,
   isEphemeralCommandPath,
   isServiceInstalled,
-  readServiceMetadata,
   refreshServiceAfterUpdate,
   runPackageManagerUpdate,
   servicePathsEffect,
-  type ServiceMetadata,
   type ServicePaths,
 } from "./service";
 
@@ -99,11 +97,7 @@ function upgradeProgram(
     home?: string;
     isServiceInstalled?: (paths: ServicePaths) => Effect.Effect<boolean, never>;
     platform?: NodeJS.Platform;
-    readServiceMetadata?: (path: string) => Effect.Effect<ServiceMetadata | null, never>;
-    refreshService?: (options: {
-      autoUpdate: boolean;
-      commandPath: string;
-    }) => Effect.Effect<void, unknown>;
+    refreshService?: (options: { commandPath: string }) => Effect.Effect<void, unknown>;
     runPackageManagerUpdate?: (manager: AutoUpdateManager) => Effect.Effect<void, unknown>;
   } = {},
   options: { json?: boolean | undefined } = {},
@@ -324,11 +318,7 @@ function refreshInstalledService(
     home?: string;
     isServiceInstalled?: (paths: ServicePaths) => Effect.Effect<boolean, never>;
     platform?: NodeJS.Platform;
-    readServiceMetadata?: (path: string) => Effect.Effect<ServiceMetadata | null, never>;
-    refreshService?: (options: {
-      autoUpdate: boolean;
-      commandPath: string;
-    }) => Effect.Effect<void, unknown>;
+    refreshService?: (options: { commandPath: string }) => Effect.Effect<void, unknown>;
   },
 ): Effect.Effect<ServiceRefreshResult, never> {
   return Effect.gen(function* () {
@@ -347,12 +337,7 @@ function refreshInstalledService(
       return { _tag: "not-installed" as const };
     }
 
-    const metadata = yield* (runtime.readServiceMetadata ?? readServiceMetadata)(
-      paths.metadataPath,
-    );
-    const autoUpdate = metadata?.autoUpdate ?? true;
     const result = yield* (runtime.refreshService ?? refreshServiceAfterUpdate)({
-      autoUpdate,
       commandPath: install.commandPath,
     }).pipe(
       Effect.match({

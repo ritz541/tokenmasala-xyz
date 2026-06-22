@@ -149,6 +149,9 @@ function DesignPage() {
 
       <Section title="Buttons">
         <div className="flex flex-wrap items-center gap-3">
+          <Button size="xs" variant="primary">
+            Primary xs
+          </Button>
           <Button size="sm" variant="primary">
             Primary sm
           </Button>

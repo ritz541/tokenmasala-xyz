@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "../../lib/cn";
 
 type ButtonVariant = "primary" | "outline" | "ghost" | "destructive";
-type ButtonSize = "sm" | "md" | "icon";
+type ButtonSize = "xs" | "sm" | "md" | "icon";
 
 interface ButtonStyleProps {
   variant?: ButtonVariant;
@@ -22,6 +22,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
+  xs: "h-7 gap-1.5 px-2.5 text-xs [&_svg]:size-3.5",
   sm: "px-3 py-1.5",
   md: "px-4 py-2",
   icon: "p-1.5",

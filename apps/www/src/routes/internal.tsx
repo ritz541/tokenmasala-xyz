@@ -59,7 +59,9 @@ function InternalPage() {
               <th className="w-[18%] p-3 font-medium">Machine</th>
               <th className="w-[15%] p-3 font-medium">User</th>
               <th className="w-[16%] p-3 font-medium">Version</th>
-              <th className="hidden w-[12%] p-3 font-medium lg:table-cell">System</th>
+              <th className="hidden w-[12%] whitespace-nowrap p-3 font-medium lg:table-cell">
+                System
+              </th>
               <th className="w-[17%] p-3 font-medium">Status</th>
               <th className="w-[12%] p-3 font-medium">Last check-in</th>
               <th className="hidden w-[10%] whitespace-nowrap p-3 font-medium md:table-cell">
@@ -88,7 +90,7 @@ function InternalPage() {
                 <td className="p-3 align-top">
                   <VersionCell row={row} />
                 </td>
-                <td className="hidden p-3 align-top font-mono text-muted-foreground lg:table-cell">
+                <td className="hidden whitespace-nowrap p-3 align-top font-mono text-muted-foreground lg:table-cell">
                   {formatDeviceSystem(row.device)}
                 </td>
                 <td className="p-3 align-top">

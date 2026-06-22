@@ -5,6 +5,22 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.4.18-alpha.0 - 2026-06-22
+
+### Added
+
+- Added native, config-owned service runners for scheduled syncs so launchd, systemd, and Windows Task Scheduler no longer depend on ambient Node, npm, Bun, or vite-plus paths.
+- Added generated platform runner package publishing with npm prerelease dist-tags.
+
+### Changed
+
+- Changed scheduled service auto-update to fetch verified runner packages from the npm registry and atomically advance the service runner pointer.
+
+### Fixed
+
+- Hardened service install, repair, and runner update locking so concurrent repairs and updates cannot overlap.
+- Prevented deferred launchd repairs from reloading the active launchd job from inside itself.
+
 ## 0.4.17 - 2026-06-21
 
 ### Fixed

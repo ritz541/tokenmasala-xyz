@@ -5,6 +5,13 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.4.18-alpha.2 - 2026-06-22
+
+### Fixed
+
+- Made registry-based service runner auto-updates follow the installed runner's release channel and reject downgrades or cross-channel candidates.
+- Made service install and repair registry fallback fetch the exact runner version for the current CLI build.
+
 ## 0.4.18-alpha.1 - 2026-06-22
 
 ### Changed

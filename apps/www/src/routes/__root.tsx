@@ -1,4 +1,10 @@
-import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Outlet,
+  Scripts,
+  useRouterState,
+} from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { Footer } from "../components/footer";
@@ -34,18 +40,21 @@ const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootDocument() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isOgCard = pathname.startsWith("/og-card/");
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body className="min-h-screen antialiased">
-        <Nav />
-        <main className="mx-4 max-w-5xl border-x border-border lg:mx-auto">
+        {isOgCard ? null : <Nav />}
+        <main className={isOgCard ? "" : "mx-4 max-w-5xl border-x border-border lg:mx-auto"}>
           <Outlet />
         </main>
-        <Footer />
-        <Scripts />
+        {isOgCard ? null : <Footer />}
+        {isOgCard ? null : <Scripts />}
       </body>
     </html>
   );

@@ -17,6 +17,8 @@ import { Route as InternalRouteImport } from './routes/internal'
 import { Route as DesignRouteImport } from './routes/design'
 import { Route as UserRouteImport } from './routes/$user'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OgChar123loginChar125DotpngRouteImport } from './routes/og/{$login}[.]png'
+import { Route as OgCardLoginRouteImport } from './routes/og-card/$login'
 import { Route as LoginCliRouteImport } from './routes/login_.cli'
 
 const TermsRoute = TermsRouteImport.update({
@@ -59,6 +61,17 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OgChar123loginChar125DotpngRoute =
+  OgChar123loginChar125DotpngRouteImport.update({
+    id: '/og/{$login}.png',
+    path: '/og/{$login}.png',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const OgCardLoginRoute = OgCardLoginRouteImport.update({
+  id: '/og-card/$login',
+  path: '/og-card/$login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginCliRoute = LoginCliRouteImport.update({
   id: '/login_/cli',
   path: '/login/cli',
@@ -75,6 +88,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
+  '/og-card/$login': typeof OgCardLoginRoute
+  '/og/{$login}.png': typeof OgChar123loginChar125DotpngRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +101,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
+  '/og-card/$login': typeof OgCardLoginRoute
+  '/og/{$login}.png': typeof OgChar123loginChar125DotpngRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +115,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/login_/cli': typeof LoginCliRoute
+  '/og-card/$login': typeof OgCardLoginRoute
+  '/og/{$login}.png': typeof OgChar123loginChar125DotpngRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +130,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/login/cli'
+    | '/og-card/$login'
+    | '/og/{$login}.png'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +143,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/login/cli'
+    | '/og-card/$login'
+    | '/og/{$login}.png'
   id:
     | '__root__'
     | '/'
@@ -133,6 +156,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/login_/cli'
+    | '/og-card/$login'
+    | '/og/{$login}.png'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +170,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
   LoginCliRoute: typeof LoginCliRoute
+  OgCardLoginRoute: typeof OgCardLoginRoute
+  OgChar123loginChar125DotpngRoute: typeof OgChar123loginChar125DotpngRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +232,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/og/{$login}.png': {
+      id: '/og/{$login}.png'
+      path: '/og/{$login}.png'
+      fullPath: '/og/{$login}.png'
+      preLoaderRoute: typeof OgChar123loginChar125DotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/og-card/$login': {
+      id: '/og-card/$login'
+      path: '/og-card/$login'
+      fullPath: '/og-card/$login'
+      preLoaderRoute: typeof OgCardLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login_/cli': {
       id: '/login_/cli'
       path: '/login/cli'
@@ -225,6 +266,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
   LoginCliRoute: LoginCliRoute,
+  OgCardLoginRoute: OgCardLoginRoute,
+  OgChar123loginChar125DotpngRoute: OgChar123loginChar125DotpngRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

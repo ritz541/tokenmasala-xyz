@@ -21,14 +21,51 @@ import { StatCard } from "../components/stat-card";
 import { Avatar } from "../components/ui/avatar";
 import { Card } from "../components/ui/card";
 import { Code } from "../components/ui/code";
+import {
+  OG_IMAGE_HEIGHT,
+  OG_IMAGE_WIDTH,
+  profileOgDescription,
+  profileOgImageUrl,
+  profileOgTitle,
+  profileUrl,
+} from "../lib/og";
 import { profileDailyQueryOptions, profileQueryOptions } from "../lib/queries";
 
 const Route = createFileRoute("/$user")({
   loader: async ({ context, params }) => {
-    await Promise.all([
+    const [profile, daily] = await Promise.all([
       context.queryClient.ensureQueryData(profileQueryOptions(params.user)),
       context.queryClient.ensureQueryData(profileDailyQueryOptions(params.user)),
     ]);
+
+    return { daily, profile };
+  },
+  head: ({ loaderData }) => {
+    if (loaderData === undefined) {
+      return {};
+    }
+
+    const profile = loaderData.profile;
+    const title = profileOgTitle(profile);
+    const description = profileOgDescription(profile);
+    const image = profileOgImageUrl(profile);
+    const url = profileUrl(profile);
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "profile" },
+        { property: "og:url", content: url },
+        { property: "og:image", content: image },
+        { property: "og:image:width", content: String(OG_IMAGE_WIDTH) },
+        { property: "og:image:height", content: String(OG_IMAGE_HEIGHT) },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:image", content: image },
+      ],
+    };
   },
   component: ProfilePage,
 });

@@ -62,6 +62,9 @@ bun run typecheck
 bun run test
 ```
 
+Run local development from the repo root; app-level Vite dev/preview scripts are
+intentionally omitted because the web app depends on Alchemy/Cloudflare bindings.
+
 Copy `.env.example` to `.env` and fill in the GitHub and Google OAuth pairs.
 Dev callbacks are `http://api.tokenmaxxing.localhost:8788/auth/github/callback`
 and `http://api.tokenmaxxing.localhost:8788/auth/google/callback`.

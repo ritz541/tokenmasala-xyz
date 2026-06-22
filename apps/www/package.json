@@ -3,10 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --host tokenmaxxing.localhost --port 3002 --strictPort",
     "build": "vite build",
-    "preview": "bun run build && vite preview --host tokenmaxxing.localhost --port 3002 --strictPort",
-    "start": "vite preview",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --project tsconfig.json"
   },

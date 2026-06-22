@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Copy, PencilSimple, Trash } from "@phosphor-icons/react/ssr";
 
@@ -11,6 +11,7 @@ import { Code } from "../components/ui/code";
 import { Input, Textarea } from "../components/ui/input";
 import { Menu } from "../components/ui/menu";
 import { Tabs } from "../components/ui/tabs";
+import { OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "../lib/og";
 
 const Route = createFileRoute("/design")({
   component: DesignPage,
@@ -56,6 +57,14 @@ const BADGE_VARIANTS: { label: string; variant: BadgeVariant }[] = [
   { label: "update blocked", variant: "update-blocked" },
 ];
 
+const OG_PREVIEWS = [
+  {
+    cardSrc: "/og-card/pondorasti",
+    label: "Stats",
+    pngSrc: "/og/pondorasti.png",
+  },
+];
+
 function DesignPage() {
   const [tab, setTab] = useState<(typeof DEMO_TABS)[number]["value"]>("spend");
 
@@ -67,6 +76,42 @@ function DesignPage() {
           The tokens and primitives the site is built from. Colors follow the system appearance.
         </p>
       </header>
+
+      <Section title="Profile OG">
+        <div className="grid gap-8">
+          {OG_PREVIEWS.map((preview) => (
+            <div className="flex min-w-0 flex-col gap-3" key={preview.pngSrc}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{preview.label}</span>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <a className="hover:text-foreground" href={preview.cardSrc}>
+                    HTML card
+                  </a>
+                  <a className="hover:text-foreground" href={preview.pngSrc}>
+                    PNG
+                  </a>
+                </div>
+              </div>
+              <div className="grid gap-3 xl:grid-cols-2">
+                <div className="min-w-0">
+                  <span className="mb-1 block text-xs text-muted-foreground">HTML card</span>
+                  <OgHtmlPreview
+                    src={preview.cardSrc}
+                    title={`${preview.label} HTML Open Graph card`}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <span className="mb-1 block text-xs text-muted-foreground">PNG output</span>
+                  <OgPngPreview
+                    alt={`${preview.label} profile Open Graph PNG preview`}
+                    src={preview.pngSrc}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       <Section title="Color tokens">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -207,6 +252,96 @@ function DesignPage() {
       </Section>
     </div>
   );
+}
+
+function OgHtmlPreview({ src, title }: { src: string; title: string }) {
+  const { ref, scale } = useOgPreviewScale();
+
+  return (
+    <div
+      className="relative aspect-[1200/630] max-w-full overflow-hidden border border-border bg-muted"
+      ref={ref}
+    >
+      <iframe
+        className="absolute left-0 top-0 block border-0"
+        src={src}
+        style={{
+          height: OG_IMAGE_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          width: OG_IMAGE_WIDTH,
+        }}
+        title={title}
+      />
+    </div>
+  );
+}
+
+function OgPngPreview({ alt, src }: { alt: string; src: string }) {
+  const isLocalhost = useIsLocalhost();
+
+  if (isLocalhost) {
+    return (
+      <div className="flex aspect-[1200/630] w-full flex-col justify-center gap-2 border border-border bg-muted p-4 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">PNG preview unavailable in local dev</p>
+        <p>
+          Cloudflare Browser runs remotely and cannot capture <Code>tokenmaxxing.localhost</Code>.
+          Use the HTML card preview locally, or test PNG output from a deployed/preview URL.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      alt={alt}
+      className="aspect-[1200/630] w-full border border-border bg-muted object-cover"
+      loading="lazy"
+      src={src}
+    />
+  );
+}
+
+function useOgPreviewScale() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (element === null) {
+      return;
+    }
+
+    const update = () => {
+      setScale(Math.min(1, element.clientWidth / OG_IMAGE_WIDTH));
+    };
+    update();
+
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  return { ref, scale };
+}
+
+function useIsLocalhost() {
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    setIsLocalhost(
+      hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname.endsWith(".localhost"),
+    );
+  }, []);
+
+  return isLocalhost;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

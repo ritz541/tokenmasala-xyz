@@ -31,6 +31,10 @@ const stack = Stack(
       observability: {
         enabled: true,
       },
+      env: {
+        BROWSER: Cloudflare.Browser(),
+        BUCKET: bucket,
+      },
       dev: {
         host: "tokenmaxxing.localhost",
         port: 3002,

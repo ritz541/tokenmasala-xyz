@@ -63,5 +63,5 @@ jobs:
       - name: Format
         run: bun run fmt
 
-      - name: Publish CLI and service runners
+      - name: Publish CLI and native packages
         run: bun apps/cli/script/publish.ts

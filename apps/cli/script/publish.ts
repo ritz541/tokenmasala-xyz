@@ -1,13 +1,14 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import packageJson from "../package.json";
 import { assertSafeOutputDir, buildServiceRunners } from "./build-service-runners";
+import { createMainPackageJson } from "./publish-manifest";
 import {
   npmDistTagForVersion,
   parsePublishCliArgs,
@@ -16,7 +17,6 @@ import {
 import {
   platformForServiceRunnerTarget,
   serviceRunnerBinaryName,
-  serviceRunnerOptionalDependencies,
   serviceRunnerPackageName,
   serviceRunnerPublishOrder,
   serviceRunnerTarget,
@@ -65,37 +65,24 @@ function packagePublishPaths(outDir: string): Record<string, string> {
 
 async function writeMainPackage(outDir: string): Promise<void> {
   const packageDir = join(outDir, packageJson.name);
+  const binDir = join(packageDir, "bin");
   await mkdir(packageDir, { recursive: true });
-  await cp(join(cliDir, "dist"), join(packageDir, "dist"), { recursive: true });
+  await mkdir(binDir, { recursive: true });
   await cp(join(repoDir, "LICENSE"), join(packageDir, "LICENSE"));
   await cp(join(cliDir, "README.md"), join(packageDir, "README.md"));
+  await cp(join(cliDir, "script", "native-postinstall.mjs"), join(packageDir, "postinstall.mjs"));
+  await cp(join(cliDir, "script", "native-bin-stub.sh"), join(binDir, "tokenmaxxing.exe"));
+  await chmod(join(binDir, "tokenmaxxing.exe"), 0o755);
   await Bun.write(
     join(packageDir, "package.json"),
     `${JSON.stringify(createMainPackageJson(), null, 2)}\n`,
   );
 }
 
-function createMainPackageJson() {
-  return {
-    name: packageJson.name,
-    version: packageJson.version,
-    description: packageJson.description,
-    keywords: packageJson.keywords,
-    license: packageJson.license,
-    repository: packageJson.repository,
-    bin: packageJson.bin,
-    files: packageJson.files,
-    type: packageJson.type,
-    exports: packageJson.exports,
-    publishConfig: packageJson.publishConfig,
-    optionalDependencies: serviceRunnerOptionalDependencies(packageJson.version),
-  };
-}
-
 async function smokeTestHostRunner(outDir: string): Promise<void> {
   const target = serviceRunnerTarget();
   if (target === null) {
-    throw new Error(`no service runner target for ${process.platform}/${process.arch}`);
+    throw new Error(`no native package target for ${process.platform}/${process.arch}`);
   }
 
   const runnerPath = serviceRunnerPackageBinaryPath(outDir, target);
@@ -103,7 +90,7 @@ async function smokeTestHostRunner(outDir: string): Promise<void> {
   const expectedVersion = packageJson.version;
   if (!output.includes(expectedVersion)) {
     throw new Error(
-      `host service runner smoke test returned ${JSON.stringify(output.trim())}, expected ${expectedVersion}`,
+      `host native package smoke test returned ${JSON.stringify(output.trim())}, expected ${expectedVersion}`,
     );
   }
 }
@@ -154,7 +141,6 @@ if (import.meta.main) {
 }
 
 export {
-  createMainPackageJson,
   packagePublishPaths,
   publishCli,
   serviceRunnerPackageBinaryPath,

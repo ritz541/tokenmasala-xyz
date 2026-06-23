@@ -1,6 +1,6 @@
 ---
 name: release-cli
-description: Release a new version of the tokenmaxxing CLI to npm. Use when explicitly asked to release or publish @851-labs/tokenmaxxing, including checking main, bumping apps/cli/package.json, updating CHANGELOG.md, committing, tagging cli-vX.Y.Z, pushing, monitoring generated runner package publishing, and smoke testing the published packages.
+description: Release a new version of the tokenmaxxing CLI to npm. Use when explicitly asked to release or publish @851-labs/tokenmaxxing, including checking main, bumping apps/cli/package.json, updating CHANGELOG.md, committing, tagging cli-vX.Y.Z, pushing, monitoring generated native package publishing, and smoke testing the published packages.
 ---
 
 # CLI Release Process
@@ -23,7 +23,7 @@ If the working tree has unrelated changes, stop and ask before staging or commit
 
 Decide the bump from the requested change scope: `patch`, `minor`, `major`, or a prerelease variant when explicitly requested.
 
-Update only `apps/cli/package.json` for the new version unless the lockfile changes after install. Do not add generated service runner packages to the source workspace; release publishing generates those package manifests from the CLI version. For alpha/beta/rc releases, use a prerelease version such as `X.Y.Z-alpha.0`; the publish script derives the npm dist-tag from the prerelease identifier unless `--tag` is passed explicitly.
+Update only `apps/cli/package.json` for the new version unless the lockfile changes after install. Do not add generated native packages to the source workspace; release publishing generates those package manifests from the CLI version. For alpha/beta/rc releases, use a prerelease version such as `X.Y.Z-alpha.0`; the publish script derives the npm dist-tag from the prerelease identifier unless `--tag` is passed explicitly.
 
 ```sh
 $EDITOR apps/cli/package.json
@@ -55,7 +55,7 @@ bun --filter @851-labs/tokenmaxxing test
 bun run lint
 bun run fmt
 bun --filter @851-labs/tokenmaxxing build
-bun --filter @851-labs/tokenmaxxing build:service-runners --single
+bun --filter @851-labs/tokenmaxxing build:native-packages --single
 ```
 
 Fix failures before continuing.
@@ -80,7 +80,7 @@ git push origin main
 git push origin cli-vX.Y.Z
 ```
 
-The `cli-vX.Y.Z` tag starts the `Release CLI` GitHub Actions workflow. The workflow builds generated service runner packages first, publishes those packages, then publishes the generated `@851-labs/tokenmaxxing` package with matching optional dependencies. Stable versions publish with `latest`; prerelease versions such as `X.Y.Z-alpha.0` publish with the matching dist-tag such as `alpha`.
+The `cli-vX.Y.Z` tag starts the `Release CLI` GitHub Actions workflow. The workflow builds generated native packages first, publishes those packages, then publishes the generated `@851-labs/tokenmaxxing` package with matching optional dependencies. Stable versions publish with `latest`; prerelease versions such as `X.Y.Z-alpha.0` publish with the matching dist-tag such as `alpha`.
 
 ## Step 6: Monitor Publish Workflow
 
@@ -106,13 +106,13 @@ gh run view --log-failed
 
 ## Step 7: Smoke Test Published Packages
 
-Use `npx` for exact-version install resolution, confirm npm latest, then check the host service runner package. Replace the runner package name with the current host target when needed.
+Use `npx` for exact-version install resolution, confirm npm latest, then check the host native package. Replace the native package name with the current host target when needed.
 
 ```sh
 npx @851-labs/tokenmaxxing@X.Y.Z --help
-npx @851-labs/tokenmaxxing-service-darwin-arm64@X.Y.Z --version
+npx @851-labs/tokenmaxxing-darwin-arm64@X.Y.Z --version
 bun pm view @851-labs/tokenmaxxing version
-bun pm view @851-labs/tokenmaxxing-service-darwin-arm64 version
+bun pm view @851-labs/tokenmaxxing-darwin-arm64 version
 ```
 
 Confirm both `bun pm view` commands return `X.Y.Z`.

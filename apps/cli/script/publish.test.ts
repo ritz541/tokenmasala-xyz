@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createMainPackageJson } from "./publish-manifest";
 import { npmDistTagForVersion, parsePublishCliArgs } from "./publish-options";
 
 describe("publish script dist tags", () => {
@@ -18,5 +19,19 @@ describe("publish script dist tags", () => {
       outDir: ".tmp/publish",
       tag: "alpha",
     });
+  });
+});
+
+describe("publish script generated main package", () => {
+  it("publishes a native CLI installer package with new target optional dependencies", () => {
+    const manifest = createMainPackageJson();
+
+    expect(manifest.bin).toEqual({ tokenmaxxing: "./bin/tokenmaxxing.exe" });
+    expect(manifest.scripts).toEqual({ postinstall: "node ./postinstall.mjs" });
+    expect(manifest.files).toEqual(["bin", "postinstall.mjs", "README.md", "LICENSE"]);
+    expect(manifest.optionalDependencies).toHaveProperty("@851-labs/tokenmaxxing-darwin-arm64");
+    expect(Object.keys(manifest.optionalDependencies)).not.toContain(
+      "@851-labs/tokenmaxxing-service-darwin-arm64",
+    );
   });
 });

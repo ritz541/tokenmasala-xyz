@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { constants } from "node:fs";
+import { constants, existsSync, realpathSync } from "node:fs";
 import {
   access,
   chmod,
@@ -15,7 +15,7 @@ import {
 } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { arch, homedir, hostname } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
 
@@ -3630,8 +3630,59 @@ function resolveServiceRunnerPackageJson(packageName: string): string | null {
   try {
     return require.resolve(`${packageName}/package.json`);
   } catch {
-    return null;
+    return resolveExecutableSiblingPackageJson(packageName);
   }
+}
+
+function resolveExecutableSiblingPackageJson(
+  packageName: string,
+  binaryPaths: readonly (string | undefined)[] = [process.execPath, process.argv[1]],
+): string | null {
+  for (const binaryPath of binaryPaths) {
+    if (binaryPath === undefined) {
+      continue;
+    }
+
+    const packageDir = packageDirFromBinPath(binaryPath);
+    if (packageDir === null) {
+      continue;
+    }
+
+    const candidate = siblingPackageJsonPath(packageDir, packageName);
+    if (candidate !== null && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function packageDirFromBinPath(binaryPath: string): string | null {
+  const resolvedPath = realpathSyncOrOriginal(binaryPath);
+  const binDir = dirname(resolvedPath);
+  return basename(binDir) === "bin" ? dirname(binDir) : null;
+}
+
+function realpathSyncOrOriginal(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+function siblingPackageJsonPath(packageDir: string, packageName: string): string | null {
+  const parts = packageName.split("/");
+  if (parts.length === 1) {
+    return join(dirname(packageDir), packageName, "package.json");
+  }
+
+  if (parts.length === 2 && parts[0]?.startsWith("@")) {
+    const scopeDir = basename(dirname(packageDir)) === parts[0] ? dirname(packageDir) : null;
+    return scopeDir === null ? null : join(scopeDir, parts[1]!, "package.json");
+  }
+
+  return null;
 }
 
 async function installServiceRunnerBinary(input: {
@@ -4359,6 +4410,8 @@ export {
   deterministicServiceJitterMs,
   readServiceMetadata,
   readCurrentServiceRunnerInstall,
+  resolveExecutableSiblingPackageJson,
+  resolveServiceRunnerPackageJson,
   renderLaunchdPlist,
   renderServiceWrapper,
   renderSystemdTimer,

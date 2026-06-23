@@ -94,7 +94,7 @@ describe("service runner target candidates", () => {
   });
 });
 
-describe("service runner package metadata", () => {
+describe("native package metadata", () => {
   it("has the full OpenCode-style target matrix", () => {
     expect(serviceRunnerTargets).toEqual([
       "linux-arm64",
@@ -122,7 +122,7 @@ describe("service runner package metadata", () => {
       expect(manifest.preferUnplugged).toBe(true);
       expect(manifest.publishConfig).toEqual({ access: "public" });
       expect(manifest.files).toEqual(["bin"]);
-      expect(manifest.bin["tokenmaxxing-service"]).toBe(
+      expect(manifest.bin["tokenmaxxing"]).toBe(
         `bin/${serviceRunnerBinaryName(platformForServiceRunnerTarget(definition.target))}`,
       );
       if ("libc" in definition && definition.libc === "musl") {

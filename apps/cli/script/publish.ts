@@ -14,6 +14,7 @@ import {
   parsePublishCliArgs,
   type PublishCliOptions,
 } from "./publish-options";
+import { packageVersionIsPublished } from "./publish-registry";
 import {
   platformForServiceRunnerTarget,
   serviceRunnerBinaryName,
@@ -124,12 +125,6 @@ async function publishPackage(
     `${options.dryRun === true ? "dry-run publishing" : "publishing"} ${packageName}@${version}`,
   );
   await $`npm ${args}`.cwd(packagePath);
-}
-
-async function packageVersionIsPublished(packageName: string, version: string): Promise<boolean> {
-  return (
-    (await $`npm view ${`${packageName}@${version}`} version`.quiet().nothrow()).exitCode === 0
-  );
 }
 
 async function main(): Promise<void> {

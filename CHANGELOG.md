@@ -5,6 +5,23 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.4.18 - 2026-06-22
+
+### Added
+
+- Added native npm CLI packages for supported platforms while keeping scheduled sync pinned to a config-owned runner snapshot.
+
+### Changed
+
+- Changed scheduled sync auto-update to use verified registry runner packages instead of ambient Node/npm/vite-plus paths.
+- Bumped the service template so installed schedulers repair onto the native runner wrapper and template metadata.
+- Made internal admin outdated labels compare prerelease clients against their matching npm release channel.
+
+### Fixed
+
+- Fixed service repair for native npm installs so it copies nested platform package runners correctly.
+- Prevented prerelease runner auto-updates from downgrading or crossing release channels.
+
 ## 0.4.18-alpha.6 - 2026-06-22
 
 ### Changed

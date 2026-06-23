@@ -58,7 +58,7 @@ const gunzipPromise = promisify(gunzip);
 const require = createRequire(import.meta.url);
 
 const SERVICE_LABEL = "sh.tokenmaxxing.sync";
-const SERVICE_TEMPLATE_VERSION = 4;
+const SERVICE_TEMPLATE_VERSION = 5;
 const SYSTEMD_NAME = "tokenmaxxing-sync";
 const WINDOWS_TASK_NAME = "tokenmaxxing-sync";
 const POSIX_WRAPPER_NAME = "tokenmaxxing.sh";

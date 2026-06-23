@@ -5,6 +5,12 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.4.18-alpha.6 - 2026-06-22
+
+### Changed
+
+- Bumped the service template version to force installed schedulers through the repair/reload path for alpha validation.
+
 ## 0.4.18-alpha.5 - 2026-06-22
 
 ### Fixed

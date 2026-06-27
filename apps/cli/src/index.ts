@@ -39,9 +39,28 @@ function realpathOrOriginal(path: string) {
   }
 }
 
-function isMainModule(metaUrl = import.meta.url, argv1 = process.argv[1]) {
+function pathFromMetaUrl(metaUrl: string) {
+  try {
+    return fileURLToPath(metaUrl);
+  } catch {
+    return null;
+  }
+}
+
+function isMainModule(
+  metaUrl = import.meta.url,
+  argv1 = process.argv[1],
+  metaMain = (import.meta as { main?: boolean | undefined }).main,
+) {
+  if (metaMain === true) {
+    return true;
+  }
+
+  const modulePath = pathFromMetaUrl(metaUrl);
   return (
-    argv1 !== undefined && realpathOrOriginal(fileURLToPath(metaUrl)) === realpathOrOriginal(argv1)
+    argv1 !== undefined &&
+    modulePath !== null &&
+    realpathOrOriginal(modulePath) === realpathOrOriginal(argv1)
   );
 }
 

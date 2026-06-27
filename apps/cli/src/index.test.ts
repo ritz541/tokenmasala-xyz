@@ -1,20 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { isMainModule, normalizeRootVersionArgv } from "./index";
+import { defaultCliArgv, normalizeRootVersionArgv } from "./entrypoint";
 
-describe("isMainModule", () => {
-  it("uses Bun's import.meta.main signal for compiled native executables", () => {
-    expect(isMainModule("bun:main", undefined, true)).toBe(true);
+describe("defaultCliArgv", () => {
+  it("uses Node-style argv when argv[1] is a script path", () => {
+    expect(defaultCliArgv(["node", "/app/dist/index.js", "--version"])).toEqual(["--version"]);
   });
 
-  it("falls back to comparing module and argv paths for the Node bundle", () => {
-    expect(isMainModule("file:///tmp/tokenmaxxing.js", "/tmp/tokenmaxxing.js", undefined)).toBe(
-      true,
-    );
+  it("uses Bun standalone argv when argv[1] is already a CLI flag", () => {
+    expect(defaultCliArgv(["tokenmaxxing.exe", "--version"])).toEqual(["--version"]);
   });
 
-  it("does not treat imported modules as the entrypoint", () => {
-    expect(isMainModule("file:///tmp/tokenmaxxing.js", "/tmp/other.js", undefined)).toBe(false);
+  it("uses Bun standalone argv when argv[1] is already a subcommand", () => {
+    expect(defaultCliArgv(["tokenmaxxing.exe", "bootstrap", "--service", "yes"])).toEqual([
+      "bootstrap",
+      "--service",
+      "yes",
+    ]);
   });
 });
 

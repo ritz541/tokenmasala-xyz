@@ -20,7 +20,6 @@ describe("public usage visibility", () => {
         name text,
         avatar_url text,
         shadow_banned_at integer,
-        shadow_ban_reason text,
         shadow_banned_by_user_id text,
         created_at integer not null,
         updated_at integer not null
@@ -44,12 +43,12 @@ describe("public usage visibility", () => {
 
     const insertUser = sqlite.prepare(
       `insert into users (
-        id, login, name, avatar_url, shadow_banned_at, shadow_ban_reason,
-        shadow_banned_by_user_id, created_at, updated_at
-      ) values (?, ?, null, null, ?, ?, ?, 0, 0)`,
+        id, login, name, avatar_url, shadow_banned_at, shadow_banned_by_user_id,
+        created_at, updated_at
+      ) values (?, ?, null, null, ?, ?, 0, 0)`,
     );
-    insertUser.run("visible", "visible", null, null, null);
-    insertUser.run("banned", "banned", 1, "fabricated usage", "admin");
+    insertUser.run("visible", "visible", null, null);
+    insertUser.run("banned", "banned", 1, "admin");
 
     const insertUsage = sqlite.prepare(
       `insert into usage_days (

@@ -436,16 +436,9 @@ const OkResponse = Schema.Struct({
 const ShadowBan = Schema.Struct({
   at: Schema.String,
   byUserId: Schema.String,
-  reason: Schema.String,
 });
 
 type ShadowBan = typeof ShadowBan.Type;
-
-const ShadowBanUserInput = Schema.Struct({
-  reason: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
-}).annotate({
-  parseOptions: { onExcessProperty: "error" },
-});
 
 const ShadowBanUserResponse = Schema.Struct({
   shadowBan: Schema.NullOr(ShadowBan),
@@ -613,7 +606,6 @@ export {
   ProfileStats,
   RawUsageReportInput,
   ShadowBan,
-  ShadowBanUserInput,
   ShadowBanUserResponse,
   ServiceAutoUpdate,
   ServiceAutoUpdateManager,

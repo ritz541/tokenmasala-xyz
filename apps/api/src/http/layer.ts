@@ -228,11 +228,11 @@ const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) 
         return yield* admin.listUsers(user.id);
       }),
     )
-    .handle("shadowBanUser", ({ params, payload }) =>
+    .handle("shadowBanUser", ({ params }) =>
       Effect.gen(function* () {
         const user = yield* CurrentUser;
         const admin = yield* AdminService;
-        return yield* admin.shadowBanUser(user.id, params.userId, payload.reason);
+        return yield* admin.shadowBanUser(user.id, params.userId);
       }),
     )
     .handle("shadowUnbanUser", ({ params }) =>

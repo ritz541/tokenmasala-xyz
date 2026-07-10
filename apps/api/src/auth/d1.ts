@@ -290,13 +290,12 @@ function accountInsert(userId: string, profile: OAuthProfile, now: Date) {
 }
 
 function mergedShadowBan(
-  source: Pick<User, "shadowBannedAt" | "shadowBanReason" | "shadowBannedByUserId">,
-  target: Pick<User, "shadowBannedAt" | "shadowBanReason" | "shadowBannedByUserId">,
+  source: Pick<User, "shadowBannedAt" | "shadowBannedByUserId">,
+  target: Pick<User, "shadowBannedAt" | "shadowBannedByUserId">,
 ) {
   const selected = target.shadowBannedAt !== null ? target : source;
   return {
     shadowBannedAt: selected.shadowBannedAt,
-    shadowBanReason: selected.shadowBanReason,
     shadowBannedByUserId: selected.shadowBannedByUserId,
   };
 }

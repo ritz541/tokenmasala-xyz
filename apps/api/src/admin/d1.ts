@@ -41,7 +41,6 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
               login: users.login,
               name: users.name,
               shadowBannedAt: users.shadowBannedAt,
-              shadowBanReason: users.shadowBanReason,
               shadowBannedByUserId: users.shadowBannedByUserId,
               updatedAt: users.updatedAt,
             })
@@ -222,14 +221,11 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
             })),
             sources: (sourcesByUser.get(user.id) ?? []).map((row) => row.source).sort(),
             shadowBan:
-              user.shadowBannedAt === null ||
-              user.shadowBanReason === null ||
-              user.shadowBannedByUserId === null
+              user.shadowBannedAt === null || user.shadowBannedByUserId === null
                 ? null
                 : {
                     at: user.shadowBannedAt.toISOString(),
                     byUserId: user.shadowBannedByUserId,
-                    reason: user.shadowBanReason,
                   },
             tokens: (tokensByUser.get(user.id) ?? []).map((token) => ({
               deviceId: token.deviceId,
@@ -260,7 +256,6 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
             .update(users)
             .set({
               shadowBannedAt: input.at,
-              shadowBanReason: input.reason,
               shadowBannedByUserId: input.byUserId,
               updatedAt: new Date(),
             })

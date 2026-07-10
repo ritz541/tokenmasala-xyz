@@ -34,7 +34,6 @@ import {
   ProfileDailyGroupBy,
   ProfileDailyResponse,
   ProfileResponse,
-  ShadowBanUserInput,
   ShadowBanUserResponse,
   StatsResponse,
   UsageCheckInInput,
@@ -204,7 +203,6 @@ class AdminGroup extends HttpApiGroup.make("admin")
       params: {
         userId: Schema.String,
       },
-      payload: ShadowBanUserInput,
       success: ShadowBanUserResponse,
       error: [Forbidden, AdminUserNotFound],
     }),

@@ -4,13 +4,11 @@ import { mergedShadowBan } from "./d1";
 
 const visible = {
   shadowBannedAt: null,
-  shadowBanReason: null,
   shadowBannedByUserId: null,
 };
 
 const banned = {
   shadowBannedAt: new Date("2026-07-09T20:00:00.000Z"),
-  shadowBanReason: "fabricated usage",
   shadowBannedByUserId: "admin_123",
 };
 

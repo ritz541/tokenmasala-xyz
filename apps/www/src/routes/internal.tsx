@@ -10,7 +10,7 @@ import type {
 import { Avatar } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Input, Textarea } from "../components/ui/input";
+import { Input } from "../components/ui/input";
 import { errorMessage, isApiError, runApi } from "../lib/api";
 import { adminUsersQueryOptions } from "../lib/queries";
 
@@ -205,7 +205,6 @@ function ShadowBanUserForm({
 }) {
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
-  const [reason, setReason] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const eligibleUsers = users.filter((row) => row.shadowBan === null);
   const selectedUser = eligibleUsers.find((row) => row.user.id === selectedUserId) ?? null;
@@ -216,16 +215,9 @@ function ShadowBanUserForm({
       : eligibleUsers
           .filter((row) => row.user.login.toLowerCase().includes(normalizedQuery))
           .slice(0, 8);
-  const normalizedReason = reason.trim();
-
   const ban = useMutation({
-    mutationFn: ({ reason: banReason, userId }: { reason: string; userId: string }) =>
-      runApi((client) =>
-        client.admin.shadowBanUser({
-          params: { userId },
-          payload: { reason: banReason },
-        }),
-      ),
+    mutationFn: (userId: string) =>
+      runApi((client) => client.admin.shadowBanUser({ params: { userId } })),
     onSuccess: async () => {
       if (selectedUser === null) {
         return;
@@ -289,29 +281,12 @@ function ShadowBanUserForm({
             </span>
           </div>
         )}
-        <div>
-          <label
-            className="text-xs font-medium uppercase text-muted-foreground"
-            htmlFor="ban-reason"
-          >
-            Reason
-          </label>
-          <Textarea
-            className="mt-1 w-full"
-            id="ban-reason"
-            maxLength={500}
-            onChange={(event) => setReason(event.target.value)}
-            placeholder="Why should this user be hidden?"
-            rows={3}
-            value={reason}
-          />
-        </div>
         <div className="flex items-center gap-2">
           <Button
-            disabled={selectedUser === null || normalizedReason.length === 0 || ban.isPending}
+            disabled={selectedUser === null || ban.isPending}
             onClick={() => {
               if (selectedUser !== null) {
-                ban.mutate({ reason: normalizedReason, userId: selectedUser.user.id });
+                ban.mutate(selectedUser.user.id);
               }
             }}
             size="sm"
@@ -379,8 +354,7 @@ function ModerationCell({
           {unban.isPending ? "Restoring…" : "Unban"}
         </Button>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">{row.shadowBan.reason}</p>
-      <p className="mt-1 font-mono text-xs text-muted-foreground">
+      <p className="mt-2 font-mono text-xs text-muted-foreground">
         {new Date(row.shadowBan.at).toLocaleString()} · by{" "}
         {actor?.user.login ?? row.shadowBan.byUserId}
       </p>

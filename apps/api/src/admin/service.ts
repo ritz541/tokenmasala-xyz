@@ -129,7 +129,6 @@ interface AdminServiceShape {
   shadowBanUser(
     adminUserId: string,
     targetUserId: string,
-    reason: string,
   ): Effect.Effect<{ shadowBan: ShadowBan; userId: string }, AdminUserNotFound | Forbidden, any>;
   shadowUnbanUser(
     adminUserId: string,
@@ -143,7 +142,6 @@ interface AdminRepositoryShape {
   setShadowBan(input: {
     at: Date | null;
     byUserId: string | null;
-    reason: string | null;
     userId: string;
   }): Effect.Effect<boolean, DatabaseError, any>;
 }
@@ -193,34 +191,29 @@ function makeAdminService(options: AdminServiceOptions = {}) {
           users,
         };
       }),
-      shadowBanUser: Effect.fn("AdminService.shadowBanUser")(
-        function* (adminUserId, targetUserId, reason) {
-          yield* requireInternalAdmin(repository, adminUserId);
+      shadowBanUser: Effect.fn("AdminService.shadowBanUser")(function* (adminUserId, targetUserId) {
+        yield* requireInternalAdmin(repository, adminUserId);
 
-          const at = now();
-          const normalizedReason = reason.trim();
-          const updated = yield* repository
-            .setShadowBan({
-              at,
-              byUserId: adminUserId,
-              reason: normalizedReason,
-              userId: targetUserId,
-            })
-            .pipe(Effect.orDie);
-          if (!updated) {
-            return yield* Effect.fail(new AdminUserNotFound({ id: targetUserId }));
-          }
-
-          return {
-            shadowBan: {
-              at: at.toISOString(),
-              byUserId: adminUserId,
-              reason: normalizedReason,
-            },
+        const at = now();
+        const updated = yield* repository
+          .setShadowBan({
+            at,
+            byUserId: adminUserId,
             userId: targetUserId,
-          };
-        },
-      ),
+          })
+          .pipe(Effect.orDie);
+        if (!updated) {
+          return yield* Effect.fail(new AdminUserNotFound({ id: targetUserId }));
+        }
+
+        return {
+          shadowBan: {
+            at: at.toISOString(),
+            byUserId: adminUserId,
+          },
+          userId: targetUserId,
+        };
+      }),
       shadowUnbanUser: Effect.fn("AdminService.shadowUnbanUser")(
         function* (adminUserId, targetUserId) {
           yield* requireInternalAdmin(repository, adminUserId);
@@ -229,7 +222,6 @@ function makeAdminService(options: AdminServiceOptions = {}) {
             .setShadowBan({
               at: null,
               byUserId: null,
-              reason: null,
               userId: targetUserId,
             })
             .pipe(Effect.orDie);

@@ -37,7 +37,6 @@ interface TestAdminService {
   shadowBanUser(
     adminUserId: string,
     targetUserId: string,
-    reason: string,
   ): Effect.Effect<typeof ShadowBanUserResponse.Type, AdminUserNotFound | Forbidden>;
   shadowUnbanUser(
     adminUserId: string,
@@ -556,11 +555,10 @@ describe("AdminService.listUsers", () => {
 });
 
 describe("AdminService shadow bans", () => {
-  it("records the normalized reason, actor, and timestamp", async () => {
+  it("records the actor and timestamp", async () => {
     const updates: Array<{
       at: Date | null;
       byUserId: string | null;
-      reason: string | null;
       userId: string;
     }> = [];
     const service = await makeService(
@@ -573,15 +571,12 @@ describe("AdminService shadow bans", () => {
       }),
     );
 
-    const response = await Effect.runPromise(
-      service.shadowBanUser("admin_123", "user_456", "  fabricated usage  "),
-    );
+    const response = await Effect.runPromise(service.shadowBanUser("admin_123", "user_456"));
 
     expect(response).toEqual({
       shadowBan: {
         at: now.toISOString(),
         byUserId: "admin_123",
-        reason: "fabricated usage",
       },
       userId: "user_456",
     });
@@ -589,7 +584,6 @@ describe("AdminService shadow bans", () => {
       {
         at: now,
         byUserId: "admin_123",
-        reason: "fabricated usage",
         userId: "user_456",
       },
     ]);
@@ -610,13 +604,13 @@ describe("AdminService shadow bans", () => {
     await expect(
       Effect.runPromise(service.shadowUnbanUser("admin_123", "user_456")),
     ).resolves.toEqual({ shadowBan: null, userId: "user_456" });
-    expect(updates).toEqual([{ at: null, byUserId: null, reason: null, userId: "user_456" }]);
+    expect(updates).toEqual([{ at: null, byUserId: null, userId: "user_456" }]);
   });
 
   it("rejects non-admins and reports missing target users", async () => {
     const nonAdmin = await makeService(makeRepository({}));
     await expect(
-      Effect.runPromise(nonAdmin.shadowBanUser("user_123", "user_456", "reason")),
+      Effect.runPromise(nonAdmin.shadowBanUser("user_123", "user_456")),
     ).rejects.toBeInstanceOf(Forbidden);
 
     const admin = await makeService(

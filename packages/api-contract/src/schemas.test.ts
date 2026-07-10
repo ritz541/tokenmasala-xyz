@@ -6,25 +6,10 @@ import {
   CliLoginStartInput,
   IngestUsageInput,
   ProfileDailyResponse,
-  ShadowBanUserInput,
   StatsResponse,
   SyncUsageInput,
   UsageCheckInInput,
 } from "./schemas";
-
-describe("shadow-ban inputs", () => {
-  it("trims a non-empty reason and enforces its length", async () => {
-    await expect(
-      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "  fabricated usage  " }),
-    ).resolves.toEqual({ reason: "fabricated usage" });
-    await expect(
-      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "   " }),
-    ).rejects.toBeDefined();
-    await expect(
-      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "x".repeat(501) }),
-    ).rejects.toBeDefined();
-  });
-});
 
 describe("device telemetry inputs", () => {
   it("keeps old clients without version or arch compatible", async () => {

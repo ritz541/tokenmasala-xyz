@@ -96,11 +96,15 @@ describe("profile OG image route", () => {
     expect(response.headers.get("x-og-error")).toBe("Cloudflare Browser binding is unavailable");
   });
 
-  it("returns 404 for a missing profile", async () => {
+  it("returns 404 before reading an older cached image for a hidden profile", async () => {
     const captureScreenshot = screenshotSpy(PNG_FROM_BROWSER);
+    const getRuntimeEnv = vi.fn(async () => ({
+      BROWSER: browserBinding(),
+      BUCKET: memoryBucket([[ogCacheKey("missing", "old"), PNG_FROM_CACHE]]),
+    }));
     const handler = makeOgImageHandler({
       captureScreenshot,
-      getRuntimeEnv: async () => ({ BROWSER: browserBinding() }),
+      getRuntimeEnv,
       loadProfileOgData: async () => null,
     });
 
@@ -111,6 +115,7 @@ describe("profile OG image route", () => {
 
     expect(response.status).toBe(404);
     expect(captureScreenshot).not.toHaveBeenCalled();
+    expect(getRuntimeEnv).not.toHaveBeenCalled();
   });
 });
 

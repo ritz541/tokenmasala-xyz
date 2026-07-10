@@ -1,6 +1,10 @@
+import { Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { profileDailyRange } from "./service";
+import { UserNotFound } from "@tokenmaxxing/api-contract";
+import type { ProfileDailyResponse, ProfileResponse } from "@tokenmaxxing/api-contract";
+
+import { makeProfilesService, profileDailyRange, ProfilesRepository } from "./service";
 
 describe("profileDailyRange", () => {
   const now = new Date("2026-06-21T23:30:00.000Z");
@@ -25,5 +29,99 @@ describe("profileDailyRange", () => {
       first: "2026-06-20",
       last: "2026-06-22",
     });
+  });
+});
+
+const profileStats = {
+  activeDays: 1,
+  avgSpendPerActiveDay: 2,
+  currentStreakDays: 1,
+  deviceCount: 1,
+  firstDate: "2026-06-21",
+  lastDate: "2026-06-21",
+  longestStreakDays: 1,
+  peakDay: { date: "2026-06-21", spendUsd: 2 },
+  sessionCount: 1,
+  sources: ["codex"],
+  topModel: { model: "gpt-5", spendUsd: 2 },
+  totalSpendUsd: 2,
+  totalTokens: 100,
+};
+
+interface TestProfilesService {
+  getProfile(
+    login: string,
+    viewerUserId: string | null,
+  ): Effect.Effect<typeof ProfileResponse.Type, UserNotFound>;
+  getDaily(
+    login: string,
+    query: { groupBy: "model"; since?: string; until?: string },
+    viewerUserId: string | null,
+  ): Effect.Effect<typeof ProfileDailyResponse.Type, UserNotFound>;
+}
+
+async function makeProfileService(shadowBanned: boolean): Promise<TestProfilesService> {
+  return (await Effect.runPromise(
+    makeProfilesService().pipe(
+      Effect.provideService(ProfilesRepository, {
+        daily: () =>
+          Effect.succeed([
+            {
+              costUsd: 2,
+              date: "2026-06-21",
+              key: "gpt-5",
+              outputTokens: 20,
+              totalTokens: 100,
+            },
+          ]),
+        findUserByLogin: (login) =>
+          Effect.succeed(
+            login === "target"
+              ? Option.some({
+                  shadowBanned,
+                  user: {
+                    avatarUrl: null,
+                    id: "user_target",
+                    login: "target",
+                    name: null,
+                  },
+                })
+              : Option.none(),
+          ),
+        stats: () => Effect.succeed(profileStats),
+      }),
+    ),
+  )) as unknown as TestProfilesService;
+}
+
+describe("ProfilesService shadow-ban visibility", () => {
+  it("keeps visible profiles public", async () => {
+    const service = await makeProfileService(false);
+
+    await expect(Effect.runPromise(service.getProfile("target", null))).resolves.toMatchObject({
+      user: { id: "user_target", login: "target" },
+    });
+  });
+
+  it("returns not found for anonymous and other viewers of a banned profile", async () => {
+    const service = await makeProfileService(true);
+
+    await expect(Effect.runPromise(service.getProfile("target", null))).rejects.toBeInstanceOf(
+      UserNotFound,
+    );
+    await expect(
+      Effect.runPromise(service.getDaily("target", { groupBy: "model" }, "user_other")),
+    ).rejects.toBeInstanceOf(UserNotFound);
+  });
+
+  it("returns the normal profile and daily data to the banned owner", async () => {
+    const service = await makeProfileService(true);
+
+    await expect(
+      Effect.runPromise(service.getProfile("target", "user_target")),
+    ).resolves.toMatchObject({ stats: { totalTokens: 100 }, user: { login: "target" } });
+    await expect(
+      Effect.runPromise(service.getDaily("target", { groupBy: "model" }, "user_target")),
+    ).resolves.toMatchObject({ days: [{ totalTokens: 100 }] });
   });
 });

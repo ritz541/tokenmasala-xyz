@@ -36,6 +36,12 @@ const adminUsersQueryOptions = queryOptions({
   staleTime: 30_000,
 });
 
+const statsQueryOptions = queryOptions({
+  queryKey: ["stats"],
+  queryFn: () => runApi((client) => client.stats.get()),
+  staleTime: 30_000,
+});
+
 function leaderboardQueryOptions(
   metric: typeof LeaderboardMetric.Type,
   window: typeof LeaderboardWindow.Type,
@@ -72,5 +78,6 @@ export {
   meQueryOptions,
   profileDailyQueryOptions,
   profileQueryOptions,
+  statsQueryOptions,
   tokensQueryOptions,
 };

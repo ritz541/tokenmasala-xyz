@@ -4,6 +4,7 @@ import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
 
 import {
+  AdminUserNotFound,
   DeviceNotFound,
   DeviceMissing,
   Forbidden,
@@ -33,6 +34,9 @@ import {
   ProfileDailyGroupBy,
   ProfileDailyResponse,
   ProfileResponse,
+  ShadowBanUserInput,
+  ShadowBanUserResponse,
+  StatsResponse,
   UsageCheckInInput,
   UsageCheckInResponse,
   SyncUsageInput,
@@ -157,6 +161,12 @@ class LeaderboardGroup extends HttpApiGroup.make("leaderboard").add(
   }),
 ) {}
 
+class StatsGroup extends HttpApiGroup.make("stats").add(
+  HttpApiEndpoint.get("get", "/stats", {
+    success: StatsResponse,
+  }),
+) {}
+
 class ProfilesGroup extends HttpApiGroup.make("profiles")
   .add(
     HttpApiEndpoint.get("get", "/profiles/:login", {
@@ -189,6 +199,25 @@ class AdminGroup extends HttpApiGroup.make("admin")
       error: Forbidden,
     }),
   )
+  .add(
+    HttpApiEndpoint.post("shadowBanUser", "/admin/users/:userId/shadow-ban", {
+      params: {
+        userId: Schema.String,
+      },
+      payload: ShadowBanUserInput,
+      success: ShadowBanUserResponse,
+      error: [Forbidden, AdminUserNotFound],
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("shadowUnbanUser", "/admin/users/:userId/shadow-unban", {
+      params: {
+        userId: Schema.String,
+      },
+      success: ShadowBanUserResponse,
+      error: [Forbidden, AdminUserNotFound],
+    }),
+  )
   .middleware(Authorization) {}
 
 class TokenmaxxingApi extends HttpApi.make("tokenmaxxing")
@@ -197,6 +226,7 @@ class TokenmaxxingApi extends HttpApi.make("tokenmaxxing")
   .add(CliLoginGroup)
   .add(UsageGroup)
   .add(LeaderboardGroup)
+  .add(StatsGroup)
   .add(ProfilesGroup)
   .add(AdminGroup) {}
 
@@ -207,6 +237,7 @@ export {
   LeaderboardGroup,
   MeGroup,
   ProfilesGroup,
+  StatsGroup,
   TokenmaxxingApi,
   UsageGroup,
 };

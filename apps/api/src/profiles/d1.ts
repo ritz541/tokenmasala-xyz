@@ -21,7 +21,15 @@ const makeD1ProfilesRepository = Effect.fn("makeD1ProfilesRepository")(function*
 
         return row === undefined
           ? Option.none()
-          : Option.some({ avatarUrl: row.avatarUrl, id: row.id, login: row.login, name: row.name });
+          : Option.some({
+              shadowBanned: row.shadowBannedAt !== null,
+              user: {
+                avatarUrl: row.avatarUrl,
+                id: row.id,
+                login: row.login,
+                name: row.name,
+              },
+            });
       }),
     stats: (userId) =>
       Effect.gen(function* () {

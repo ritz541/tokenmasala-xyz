@@ -189,6 +189,7 @@ const makeD1AuthRepository = Effect.fn("makeD1AuthRepository")(function* () {
           findUserOrDie(targetUserId),
         ]);
         const now = new Date();
+        const shadowBan = mergedShadowBan(source, target);
 
         yield* database.use((db) =>
           db.batch([
@@ -225,6 +226,7 @@ const makeD1AuthRepository = Effect.fn("makeD1AuthRepository")(function* () {
               .set({
                 avatarUrl: target.avatarUrl ?? source.avatarUrl,
                 name: target.name ?? source.name,
+                ...shadowBan,
                 updatedAt: now,
               })
               .where(eq(users.id, targetUserId)),
@@ -287,6 +289,18 @@ function accountInsert(userId: string, profile: OAuthProfile, now: Date) {
   };
 }
 
+function mergedShadowBan(
+  source: Pick<User, "shadowBannedAt" | "shadowBanReason" | "shadowBannedByUserId">,
+  target: Pick<User, "shadowBannedAt" | "shadowBanReason" | "shadowBannedByUserId">,
+) {
+  const selected = target.shadowBannedAt !== null ? target : source;
+  return {
+    shadowBannedAt: selected.shadowBannedAt,
+    shadowBanReason: selected.shadowBanReason,
+    shadowBannedByUserId: selected.shadowBannedByUserId,
+  };
+}
+
 function toCurrentUser(user: Pick<User, "avatarUrl" | "id" | "login" | "name">): CurrentUser {
   return { avatarUrl: user.avatarUrl, id: user.id, login: user.login, name: user.name };
 }
@@ -303,4 +317,4 @@ function toUserAccountSummary(account: UserAccount): UserAccountSummary {
   };
 }
 
-export { AuthRepositoryLive };
+export { AuthRepositoryLive, mergedShadowBan };

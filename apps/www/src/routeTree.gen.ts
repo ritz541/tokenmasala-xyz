@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as StatsRouteImport } from './routes/stats'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -26,6 +27,11 @@ import { Route as LoginCliRouteImport } from './routes/login_.cli'
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
+  '/stats': typeof StatsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
   '/og-card/$login': typeof OgCardLoginRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
+  '/stats': typeof StatsRoute
   '/terms': typeof TermsRoute
   '/login/cli': typeof LoginCliRoute
   '/og-card/$login': typeof OgCardLoginRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/settings': typeof SettingsRoute
+  '/stats': typeof StatsRoute
   '/terms': typeof TermsRoute
   '/login_/cli': typeof LoginCliRoute
   '/og-card/$login': typeof OgCardLoginRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/robots.txt'
     | '/settings'
+    | '/stats'
     | '/terms'
     | '/login/cli'
     | '/og-card/$login'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/robots.txt'
     | '/settings'
+    | '/stats'
     | '/terms'
     | '/login/cli'
     | '/og-card/$login'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/robots.txt'
     | '/settings'
+    | '/stats'
     | '/terms'
     | '/login_/cli'
     | '/og-card/$login'
@@ -194,6 +206,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SettingsRoute: typeof SettingsRoute
+  StatsRoute: typeof StatsRoute
   TermsRoute: typeof TermsRoute
   LoginCliRoute: typeof LoginCliRoute
   OgCardLoginRoute: typeof OgCardLoginRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -306,6 +326,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SettingsRoute: SettingsRoute,
+  StatsRoute: StatsRoute,
   TermsRoute: TermsRoute,
   LoginCliRoute: LoginCliRoute,
   OgCardLoginRoute: OgCardLoginRoute,

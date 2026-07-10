@@ -13,6 +13,9 @@ const users = sqliteTable("users", {
   login: text("login").notNull().unique("users_login_unique"),
   name: text("name"),
   avatarUrl: text("avatar_url"),
+  shadowBannedAt: integer("shadow_banned_at", { mode: "timestamp_ms" }),
+  shadowBanReason: text("shadow_ban_reason"),
+  shadowBannedByUserId: text("shadow_banned_by_user_id"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

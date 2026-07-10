@@ -40,6 +40,9 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
               id: users.id,
               login: users.login,
               name: users.name,
+              shadowBannedAt: users.shadowBannedAt,
+              shadowBanReason: users.shadowBanReason,
+              shadowBannedByUserId: users.shadowBannedByUserId,
               updatedAt: users.updatedAt,
             })
             .from(users)
@@ -218,6 +221,16 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
               totalTokens: row.totalTokens ?? 0,
             })),
             sources: (sourcesByUser.get(user.id) ?? []).map((row) => row.source).sort(),
+            shadowBan:
+              user.shadowBannedAt === null ||
+              user.shadowBanReason === null ||
+              user.shadowBannedByUserId === null
+                ? null
+                : {
+                    at: user.shadowBannedAt.toISOString(),
+                    byUserId: user.shadowBannedByUserId,
+                    reason: user.shadowBanReason,
+                  },
             tokens: (tokensByUser.get(user.id) ?? []).map((token) => ({
               deviceId: token.deviceId,
               lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
@@ -239,6 +252,23 @@ const makeD1AdminRepository = Effect.fn("makeD1AdminRepository")(function* () {
             },
           };
         });
+      }),
+    setShadowBan: (input) =>
+      Effect.gen(function* () {
+        const rows = yield* database.use((db) =>
+          db
+            .update(users)
+            .set({
+              shadowBannedAt: input.at,
+              shadowBanReason: input.reason,
+              shadowBannedByUserId: input.byUserId,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, input.userId))
+            .returning({ id: users.id }),
+        );
+
+        return rows.length > 0;
       }),
   });
 });

@@ -2,6 +2,7 @@ import { Context } from "effect";
 import { Effect } from "effect";
 
 import {
+  AdminUserNotFound,
   Forbidden,
   type AdminDeviceDebugRow,
   type AdminDeviceStatus,
@@ -9,6 +10,7 @@ import {
   type AdminUserDebugRow,
   type AdminUsersResponse,
   type OAuthProviderId,
+  type ShadowBan,
   type ServiceAutoUpdateManagerValue,
   type ServiceAutoUpdateReasonValue,
   type ServiceAutoUpdateStatusValue,
@@ -109,6 +111,7 @@ interface AdminUserSnapshot {
   deviceUsage: AdminDeviceUsageSnapshot[];
   devices: AdminDeviceSnapshot[];
   sources: string[];
+  shadowBan: ShadowBan | null;
   tokens: AdminTokenSnapshot[];
   usage: AdminUsageSnapshot;
   user: {
@@ -123,11 +126,26 @@ interface AdminUserSnapshot {
 
 interface AdminServiceShape {
   listUsers(userId: string): Effect.Effect<typeof AdminUsersResponse.Type, Forbidden, any>;
+  shadowBanUser(
+    adminUserId: string,
+    targetUserId: string,
+    reason: string,
+  ): Effect.Effect<{ shadowBan: ShadowBan; userId: string }, AdminUserNotFound | Forbidden, any>;
+  shadowUnbanUser(
+    adminUserId: string,
+    targetUserId: string,
+  ): Effect.Effect<{ shadowBan: null; userId: string }, AdminUserNotFound | Forbidden, any>;
 }
 
 interface AdminRepositoryShape {
   hasVerifiedEmail(userId: string, email: string): Effect.Effect<boolean, DatabaseError, any>;
   listUserSnapshots(): Effect.Effect<AdminUserSnapshot[], DatabaseError, any>;
+  setShadowBan(input: {
+    at: Date | null;
+    byUserId: string | null;
+    reason: string | null;
+    userId: string;
+  }): Effect.Effect<boolean, DatabaseError, any>;
 }
 
 interface AdminServiceOptions {
@@ -151,10 +169,7 @@ function makeAdminService(options: AdminServiceOptions = {}) {
 
     return AdminService.of({
       listUsers: Effect.fn("AdminService.listUsers")(function* (userId) {
-        const allowed = yield* isInternalAdmin(repository, userId);
-        if (!allowed) {
-          return yield* Effect.fail(new Forbidden({ message: "Not found." }));
-        }
+        yield* requireInternalAdmin(repository, userId);
 
         const generatedAt = now();
         const [latestCliRelease, snapshots] = yield* Effect.all([
@@ -178,7 +193,66 @@ function makeAdminService(options: AdminServiceOptions = {}) {
           users,
         };
       }),
+      shadowBanUser: Effect.fn("AdminService.shadowBanUser")(
+        function* (adminUserId, targetUserId, reason) {
+          yield* requireInternalAdmin(repository, adminUserId);
+
+          const at = now();
+          const normalizedReason = reason.trim();
+          const updated = yield* repository
+            .setShadowBan({
+              at,
+              byUserId: adminUserId,
+              reason: normalizedReason,
+              userId: targetUserId,
+            })
+            .pipe(Effect.orDie);
+          if (!updated) {
+            return yield* Effect.fail(new AdminUserNotFound({ id: targetUserId }));
+          }
+
+          return {
+            shadowBan: {
+              at: at.toISOString(),
+              byUserId: adminUserId,
+              reason: normalizedReason,
+            },
+            userId: targetUserId,
+          };
+        },
+      ),
+      shadowUnbanUser: Effect.fn("AdminService.shadowUnbanUser")(
+        function* (adminUserId, targetUserId) {
+          yield* requireInternalAdmin(repository, adminUserId);
+
+          const updated = yield* repository
+            .setShadowBan({
+              at: null,
+              byUserId: null,
+              reason: null,
+              userId: targetUserId,
+            })
+            .pipe(Effect.orDie);
+          if (!updated) {
+            return yield* Effect.fail(new AdminUserNotFound({ id: targetUserId }));
+          }
+
+          return { shadowBan: null, userId: targetUserId };
+        },
+      ),
     });
+  });
+}
+
+function requireInternalAdmin(
+  repository: AdminRepositoryShape,
+  userId: string,
+): Effect.Effect<void, Forbidden, any> {
+  return Effect.gen(function* () {
+    const allowed = yield* isInternalAdmin(repository, userId);
+    if (!allowed) {
+      return yield* Effect.fail(new Forbidden({ message: "Not found." }));
+    }
   });
 }
 
@@ -228,6 +302,7 @@ function adminUserDebugRow(
     latestDevice,
     providers,
     revokedTokenCount,
+    shadowBan: snapshot.shadowBan,
     sources: snapshot.sources,
     status: adminDeviceStatus(latestDevice, latestCliRelease, now),
     tokenCount: snapshot.tokens.length,

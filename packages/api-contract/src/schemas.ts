@@ -285,6 +285,92 @@ const LeaderboardResponse = Schema.Struct({
   window: LeaderboardWindow,
 });
 
+const StatsTotals = Schema.Struct({
+  activeDates: Schema.Number,
+  cacheCreationTokens: Schema.Number,
+  cacheReadTokens: Schema.Number,
+  deviceCount: Schema.Number,
+  firstDate: Schema.NullOr(Schema.String),
+  inputTokens: Schema.Number,
+  lastDate: Schema.NullOr(Schema.String),
+  outputTokens: Schema.Number,
+  rowCount: Schema.Number,
+  totalSpendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  userCount: Schema.Number,
+});
+
+const StatsDailyPoint = Schema.Struct({
+  date: Schema.String,
+  spendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  userCount: Schema.Number,
+});
+
+const StatsDailyModelPoint = Schema.Struct({
+  costUsd: Schema.Number,
+  date: Schema.String,
+  key: Schema.String,
+  outputTokens: Schema.Number,
+  rowCount: Schema.Number,
+  totalTokens: Schema.Number,
+});
+
+const StatsRankedMetric = Schema.Struct({
+  key: Schema.String,
+  rowCount: Schema.Number,
+  spendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  userCount: Schema.Number,
+});
+
+const StatsUserMetric = Schema.Struct({
+  activeDays: Schema.Number,
+  lastDate: Schema.NullOr(Schema.String),
+  spendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  user: AuthUser,
+});
+
+const StatsPeakDay = Schema.Struct({
+  date: Schema.String,
+  spendUsd: Schema.Number,
+  totalTokens: Schema.Number,
+  userCount: Schema.Number,
+});
+
+const StatsResponse = Schema.Struct({
+  allTime: StatsTotals,
+  daily: Schema.Array(StatsDailyPoint),
+  dailyByModel: Schema.Array(StatsDailyModelPoint),
+  generatedAt: Schema.String,
+  last30d: StatsTotals,
+  last30dSince: Schema.String,
+  peaks: Schema.Struct({
+    spend: Schema.NullOr(StatsPeakDay),
+    tokens: Schema.NullOr(StatsPeakDay),
+  }),
+  sources: Schema.Struct({
+    allTime: Schema.Array(StatsRankedMetric),
+    last30d: Schema.Array(StatsRankedMetric),
+    year2026: Schema.Array(StatsRankedMetric),
+  }),
+  topModels: Schema.Struct({
+    allTimeBySpend: Schema.Array(StatsRankedMetric),
+    allTimeByTokens: Schema.Array(StatsRankedMetric),
+    last30dBySpend: Schema.Array(StatsRankedMetric),
+    last30dByTokens: Schema.Array(StatsRankedMetric),
+    year2026BySpend: Schema.Array(StatsRankedMetric),
+    year2026ByTokens: Schema.Array(StatsRankedMetric),
+  }),
+  topUsers: Schema.Struct({
+    bySpend: Schema.Array(StatsUserMetric),
+    byTokens: Schema.Array(StatsUserMetric),
+  }),
+  year2026: StatsTotals,
+  year2026Since: Schema.String,
+});
+
 const ProfileStats = Schema.Struct({
   activeDays: Schema.Number,
   avgSpendPerActiveDay: Schema.Number,
@@ -345,6 +431,25 @@ const ProfileDailyResponse = Schema.Struct({
 
 const OkResponse = Schema.Struct({
   ok: Schema.Boolean,
+});
+
+const ShadowBan = Schema.Struct({
+  at: Schema.String,
+  byUserId: Schema.String,
+  reason: Schema.String,
+});
+
+type ShadowBan = typeof ShadowBan.Type;
+
+const ShadowBanUserInput = Schema.Struct({
+  reason: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(500)),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+const ShadowBanUserResponse = Schema.Struct({
+  shadowBan: Schema.NullOr(ShadowBan),
+  userId: Schema.String,
 });
 
 const AdminDeviceStatus = Schema.Literals(["healthy", "repair-needed", "stale", "unknown"]);
@@ -432,6 +537,7 @@ const AdminUserDebugRow = Schema.Struct({
   latestDevice: Schema.NullOr(AdminLatestDevice),
   providers: Schema.Array(OAuthProviderId),
   revokedTokenCount: Schema.Number,
+  shadowBan: Schema.NullOr(ShadowBan),
   sources: Schema.Array(Schema.String),
   status: AdminDeviceStatus,
   tokenCount: Schema.Number,
@@ -506,6 +612,9 @@ export {
   ProfileResponse,
   ProfileStats,
   RawUsageReportInput,
+  ShadowBan,
+  ShadowBanUserInput,
+  ShadowBanUserResponse,
   ServiceAutoUpdate,
   ServiceAutoUpdateManager,
   ServiceAutoUpdateReason,
@@ -514,6 +623,13 @@ export {
   ServiceRepairReason,
   ServiceRepairStatus,
   SourceUsageStatsInput,
+  StatsDailyPoint,
+  StatsDailyModelPoint,
+  StatsPeakDay,
+  StatsRankedMetric,
+  StatsResponse,
+  StatsTotals,
+  StatsUserMetric,
   SyncUsageInput,
   SyncUsageResponse,
   UsageCheckInInput,

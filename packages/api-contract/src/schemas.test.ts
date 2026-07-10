@@ -6,9 +6,25 @@ import {
   CliLoginStartInput,
   IngestUsageInput,
   ProfileDailyResponse,
+  ShadowBanUserInput,
+  StatsResponse,
   SyncUsageInput,
   UsageCheckInInput,
 } from "./schemas";
+
+describe("shadow-ban inputs", () => {
+  it("trims a non-empty reason and enforces its length", async () => {
+    await expect(
+      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "  fabricated usage  " }),
+    ).resolves.toEqual({ reason: "fabricated usage" });
+    await expect(
+      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "   " }),
+    ).rejects.toBeDefined();
+    await expect(
+      Schema.decodeUnknownPromise(ShadowBanUserInput)({ reason: "x".repeat(501) }),
+    ).rejects.toBeDefined();
+  });
+});
 
 describe("device telemetry inputs", () => {
   it("keeps old clients without version or arch compatible", async () => {
@@ -150,6 +166,97 @@ describe("profile daily responses", () => {
         first: "2026-01-01",
         last: "2026-06-21",
       },
+    });
+  });
+});
+
+describe("stats responses", () => {
+  it("carries aggregate totals, rankings, and peaks", async () => {
+    const totals = {
+      activeDates: 12,
+      cacheCreationTokens: 30,
+      cacheReadTokens: 400,
+      deviceCount: 3,
+      firstDate: "2026-01-01",
+      inputTokens: 100,
+      lastDate: "2026-06-21",
+      outputTokens: 20,
+      rowCount: 42,
+      totalSpendUsd: 123.45,
+      totalTokens: 550,
+      userCount: 2,
+    };
+    const ranked = {
+      key: "gpt-5.5",
+      rowCount: 10,
+      spendUsd: 100,
+      totalTokens: 500,
+      userCount: 2,
+    };
+    const userMetric = {
+      activeDays: 7,
+      lastDate: "2026-06-21",
+      spendUsd: 100,
+      totalTokens: 500,
+      user: {
+        avatarUrl: null,
+        id: "user_123",
+        login: "pondorasti",
+        name: "Alexandru",
+      },
+    };
+    const peak = {
+      date: "2026-06-21",
+      spendUsd: 100,
+      totalTokens: 500,
+      userCount: 2,
+    };
+
+    await expect(
+      Schema.decodeUnknownPromise(StatsResponse)({
+        allTime: totals,
+        daily: [{ date: "2026-06-21", spendUsd: 100, totalTokens: 500, userCount: 2 }],
+        dailyByModel: [
+          {
+            costUsd: 100,
+            date: "2026-06-21",
+            key: "gpt-5.5",
+            outputTokens: 20,
+            rowCount: 3,
+            totalTokens: 500,
+          },
+        ],
+        generatedAt: "2026-06-21T20:00:00.000Z",
+        last30d: totals,
+        last30dSince: "2026-05-23",
+        peaks: {
+          spend: peak,
+          tokens: peak,
+        },
+        sources: {
+          allTime: [ranked],
+          last30d: [ranked],
+          year2026: [ranked],
+        },
+        topModels: {
+          allTimeBySpend: [ranked],
+          allTimeByTokens: [ranked],
+          last30dBySpend: [ranked],
+          last30dByTokens: [ranked],
+          year2026BySpend: [ranked],
+          year2026ByTokens: [ranked],
+        },
+        topUsers: {
+          bySpend: [userMetric],
+          byTokens: [userMetric],
+        },
+        year2026: totals,
+        year2026Since: "2026-01-01",
+      }),
+    ).resolves.toMatchObject({
+      allTime: { totalSpendUsd: 123.45, totalTokens: 550 },
+      topModels: { allTimeByTokens: [{ key: "gpt-5.5" }] },
+      topUsers: { bySpend: [{ user: { login: "pondorasti" } }] },
     });
   });
 });

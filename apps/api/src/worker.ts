@@ -20,6 +20,8 @@ import { LeaderboardRepositoryLive } from "./leaderboard/d1";
 import { LeaderboardService, makeLeaderboardService } from "./leaderboard/service";
 import { makeProfilesService, ProfilesService } from "./profiles/service";
 import { ProfilesRepositoryLive } from "./profiles/d1";
+import { StatsRepositoryLive } from "./stats/d1";
+import { makeStatsService, StatsService } from "./stats/service";
 import { AuthorizationLive } from "./http/middleware/authorization";
 import { CliAuthLive } from "./http/middleware/cli-auth";
 import { makeApiHttpEffect } from "./http/layer";
@@ -89,6 +91,9 @@ const ApiWorker = Cloudflare.Worker(
     const profiles = yield* makeProfilesService().pipe(
       Effect.provide(ProfilesRepositoryLive.pipe(Layer.provide(drizzleLayer))),
     );
+    const stats = yield* makeStatsService().pipe(
+      Effect.provide(StatsRepositoryLive.pipe(Layer.provide(drizzleLayer))),
+    );
 
     // Handlers and raw routes (OAuth) resolve these services at request
     // time, not layer-build time — this context rides along with every
@@ -102,6 +107,7 @@ const ApiWorker = Cloudflare.Worker(
       Context.add(GoogleClient, google),
       Context.add(LeaderboardService, leaderboard),
       Context.add(ProfilesService, profiles),
+      Context.add(StatsService, stats),
       Context.add(TokensService, tokens),
       Context.add(UsageService, usage),
     );
@@ -115,6 +121,7 @@ const ApiWorker = Cloudflare.Worker(
         drizzleLayer,
         leaderboardServiceLayer: Layer.succeed(LeaderboardService, leaderboard),
         profilesServiceLayer: Layer.succeed(ProfilesService, profiles),
+        statsServiceLayer: Layer.succeed(StatsService, stats),
         middlewareLayer: Layer.mergeAll(AuthorizationLive, CliAuthLive),
         tokensServiceLayer: Layer.succeed(TokensService, tokens),
         usageServiceLayer: Layer.succeed(UsageService, usage),

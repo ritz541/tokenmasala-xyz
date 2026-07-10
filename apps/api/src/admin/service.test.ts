@@ -1,7 +1,12 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { Forbidden, type AdminUsersResponse } from "@tokenmaxxing/api-contract";
+import {
+  AdminUserNotFound,
+  Forbidden,
+  type AdminUsersResponse,
+  type ShadowBanUserResponse,
+} from "@tokenmaxxing/api-contract";
 
 import {
   AdminRepository,
@@ -29,6 +34,15 @@ const latestRelease: LatestCliRelease = {
 
 interface TestAdminService {
   listUsers(userId: string): Effect.Effect<typeof AdminUsersResponse.Type, Forbidden>;
+  shadowBanUser(
+    adminUserId: string,
+    targetUserId: string,
+    reason: string,
+  ): Effect.Effect<typeof ShadowBanUserResponse.Type, AdminUserNotFound | Forbidden>;
+  shadowUnbanUser(
+    adminUserId: string,
+    targetUserId: string,
+  ): Effect.Effect<typeof ShadowBanUserResponse.Type, AdminUserNotFound | Forbidden>;
 }
 
 function device(input: Partial<AdminDeviceSnapshot> = {}): AdminDeviceSnapshot {
@@ -109,11 +123,15 @@ function snapshot(input: Partial<AdminUserSnapshot> = {}): AdminUserSnapshot {
       updatedAt: "2026-06-19T00:00:00.000Z",
     },
     ...input,
+    shadowBan: input.shadowBan ?? null,
   };
 }
 
 function makeRepository(options: {
   allowedEmails?: readonly string[] | undefined;
+  onSetShadowBan?: AdminRepositoryShape["setShadowBan"] extends (input: infer Input) => unknown
+    ? ((input: Input) => boolean) | undefined
+    : never;
   snapshots?: AdminUserSnapshot[] | undefined;
 }): AdminRepositoryShape {
   const allowedEmails = new Set(options.allowedEmails ?? []);
@@ -121,6 +139,7 @@ function makeRepository(options: {
   return {
     hasVerifiedEmail: (_userId, email) => Effect.succeed(allowedEmails.has(email)),
     listUserSnapshots: () => Effect.succeed(options.snapshots ?? [snapshot()]),
+    setShadowBan: (input) => Effect.succeed(options.onSetShadowBan?.(input) ?? true),
   };
 }
 
@@ -533,6 +552,82 @@ describe("AdminService.listUsers", () => {
     await expect(Effect.runPromise(service.listUsers("user_123"))).resolves.toMatchObject({
       summary: { totalUsers: 1 },
     });
+  });
+});
+
+describe("AdminService shadow bans", () => {
+  it("records the normalized reason, actor, and timestamp", async () => {
+    const updates: Array<{
+      at: Date | null;
+      byUserId: string | null;
+      reason: string | null;
+      userId: string;
+    }> = [];
+    const service = await makeService(
+      makeRepository({
+        allowedEmails: ["alexandru@851.sh"],
+        onSetShadowBan: (input) => {
+          updates.push(input);
+          return true;
+        },
+      }),
+    );
+
+    const response = await Effect.runPromise(
+      service.shadowBanUser("admin_123", "user_456", "  fabricated usage  "),
+    );
+
+    expect(response).toEqual({
+      shadowBan: {
+        at: now.toISOString(),
+        byUserId: "admin_123",
+        reason: "fabricated usage",
+      },
+      userId: "user_456",
+    });
+    expect(updates).toEqual([
+      {
+        at: now,
+        byUserId: "admin_123",
+        reason: "fabricated usage",
+        userId: "user_456",
+      },
+    ]);
+  });
+
+  it("clears all moderation metadata when unbanning", async () => {
+    const updates: Parameters<AdminRepositoryShape["setShadowBan"]>[0][] = [];
+    const service = await makeService(
+      makeRepository({
+        allowedEmails: ["alexandru@851.sh"],
+        onSetShadowBan: (input) => {
+          updates.push(input);
+          return true;
+        },
+      }),
+    );
+
+    await expect(
+      Effect.runPromise(service.shadowUnbanUser("admin_123", "user_456")),
+    ).resolves.toEqual({ shadowBan: null, userId: "user_456" });
+    expect(updates).toEqual([{ at: null, byUserId: null, reason: null, userId: "user_456" }]);
+  });
+
+  it("rejects non-admins and reports missing target users", async () => {
+    const nonAdmin = await makeService(makeRepository({}));
+    await expect(
+      Effect.runPromise(nonAdmin.shadowBanUser("user_123", "user_456", "reason")),
+    ).rejects.toBeInstanceOf(Forbidden);
+
+    const admin = await makeService(
+      makeRepository({
+        allowedEmails: ["alexandru@851.sh"],
+        onSetShadowBan: () => false,
+      }),
+    );
+    await expect(
+      Effect.runPromise(admin.shadowUnbanUser("admin_123", "missing")),
+    ).rejects.toBeInstanceOf(AdminUserNotFound);
   });
 });
 

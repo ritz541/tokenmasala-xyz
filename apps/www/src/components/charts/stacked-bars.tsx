@@ -17,27 +17,35 @@ interface StackedDay {
 }
 
 type ValueFormatter = (value: number) => string;
+type StackedBarsMode = "absolute" | "share";
 
 const HEIGHT = 280;
 const TOP_PADDING = 14;
 const PLOT_HEIGHT = HEIGHT - TOP_PADDING;
+const PERCENT_MAX = 100;
 
 function StackedBars({
   ariaLabel,
   days,
   highlight = null,
+  mode = "absolute",
   valueFormatter,
 }: {
   ariaLabel: string;
   days: StackedDay[];
   highlight?: string | null;
+  mode?: StackedBarsMode;
   valueFormatter: ValueFormatter;
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const max = useMemo(() => niceMax(Math.max(...days.map((day) => day.total), 0)), [days]);
+  const max = useMemo(
+    () => (mode === "share" ? PERCENT_MAX : niceMax(Math.max(...days.map((day) => day.total), 0))),
+    [days, mode],
+  );
   const y = linearScale(max, PLOT_HEIGHT);
   const { barWidth, slot } = barLayout(days.length, 0.72, 16, 1.25);
+  const axisFormatter = mode === "share" ? formatPercentAxis : valueFormatter;
 
   const monthStarts = useMemo(
     () =>
@@ -69,7 +77,7 @@ function StackedBars({
         role="img"
         viewBox={`0 0 ${CHART_WIDTH} ${HEIGHT + 24}`}
       >
-        <ChartGrid baseline={HEIGHT} format={valueFormatter} max={max} y={y} />
+        <ChartGrid baseline={HEIGHT} format={axisFormatter} max={max} y={y} />
 
         {days.map((day, index) => {
           const x = CHART_AXIS + slot * index + (slot - barWidth) / 2;
@@ -85,7 +93,13 @@ function StackedBars({
                 y={0}
               />
               {day.segments.map((segment) => {
-                const height = y(segment.value);
+                const chartValue =
+                  mode === "share"
+                    ? day.total === 0
+                      ? 0
+                      : (segment.value / day.total) * PERCENT_MAX
+                    : segment.value;
+                const height = y(chartValue);
                 cursor -= height;
                 const dimmedBySeries = highlight !== null && segment.series !== highlight;
                 const dimmedByDay = hovered !== null && hovered !== index;
@@ -128,7 +142,10 @@ function StackedBars({
             .map((segment) => ({
               color: segment.color,
               label: segment.series,
-              value: valueFormatter(segment.value),
+              value:
+                mode === "share"
+                  ? `${active.total === 0 ? "0.0" : ((segment.value / active.total) * 100).toFixed(1)}%`
+                  : valueFormatter(segment.value),
             }))}
           style={{ left: anchorBesideBar(activePosition.center, activePosition.edge), top: "50%" }}
           subtitle={`${valueFormatter(active.total)} total`}
@@ -137,6 +154,10 @@ function StackedBars({
       ) : null}
     </div>
   );
+}
+
+function formatPercentAxis(value: number): string {
+  return `${value.toFixed(0)}%`;
 }
 
 interface LegendEntry {

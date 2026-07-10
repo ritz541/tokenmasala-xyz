@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { Layer } from "effect";
+import { Option } from "effect";
 import * as Path from "effect/Path";
 import {
   HttpMiddleware,
@@ -17,13 +18,14 @@ import { CurrentCliIdentity, CurrentUser, TokenmaxxingApi } from "@tokenmaxxing/
 import type { Authorization, CliAuth } from "@tokenmaxxing/api-contract";
 
 import { AppConfig } from "../config";
-import { cookieScopeFor } from "../auth/cookies";
+import { cookieScopeFor, sessionTokenFrom } from "../auth/cookies";
 import { AdminService } from "../admin/service";
 import { AuthService } from "../auth/service";
 import { CliLoginService } from "../clilogin/service";
 import type { Drizzle } from "../database";
 import { LeaderboardService } from "../leaderboard/service";
 import { ProfilesService } from "../profiles/service";
+import { StatsService } from "../stats/service";
 import { TokensService } from "../tokens/service";
 import { UsageService } from "../usage/service";
 import { oauthRoutesLayer } from "./routes/oauth";
@@ -173,29 +175,73 @@ const profilesHandlers = HttpApiBuilder.group(TokenmaxxingApi, "profiles", (hand
     .handle("get", ({ params }) =>
       Effect.gen(function* () {
         const profiles = yield* ProfilesService;
-        return yield* profiles.getProfile(params.login);
+        return yield* profiles.getProfile(params.login, yield* optionalCurrentUserId());
       }),
     )
     .handle("daily", ({ params, query }) =>
       Effect.gen(function* () {
         const profiles = yield* ProfilesService;
-        return yield* profiles.getDaily(params.login, {
-          groupBy: query.groupBy ?? "model",
-          since: query.since,
-          until: query.until,
-        });
+        return yield* profiles.getDaily(
+          params.login,
+          {
+            groupBy: query.groupBy ?? "model",
+            since: query.since,
+            until: query.until,
+          },
+          yield* optionalCurrentUserId(),
+        );
       }),
     ),
 );
 
-const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) =>
-  handlers.handle("listUsers", () =>
+function optionalCurrentUserId() {
+  return Effect.gen(function* () {
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const token = sessionTokenFrom(request);
+    if (token === null) {
+      return null;
+    }
+
+    const auth = yield* AuthService;
+    const user = yield* auth
+      .resolveSession(token)
+      .pipe(Effect.catchCause(() => Effect.succeedNone));
+    return Option.isSome(user) ? user.value.id : null;
+  });
+}
+
+const statsHandlers = HttpApiBuilder.group(TokenmaxxingApi, "stats", (handlers) =>
+  handlers.handle("get", () =>
     Effect.gen(function* () {
-      const user = yield* CurrentUser;
-      const admin = yield* AdminService;
-      return yield* admin.listUsers(user.id);
+      const stats = yield* StatsService;
+      return yield* stats.getStats();
     }),
   ),
+);
+
+const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) =>
+  handlers
+    .handle("listUsers", () =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const admin = yield* AdminService;
+        return yield* admin.listUsers(user.id);
+      }),
+    )
+    .handle("shadowBanUser", ({ params, payload }) =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const admin = yield* AdminService;
+        return yield* admin.shadowBanUser(user.id, params.userId, payload.reason);
+      }),
+    )
+    .handle("shadowUnbanUser", ({ params }) =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const admin = yield* AdminService;
+        return yield* admin.shadowUnbanUser(user.id, params.userId);
+      }),
+    ),
 );
 
 const handlersLayer = Layer.mergeAll(
@@ -205,6 +251,7 @@ const handlersLayer = Layer.mergeAll(
   cliLoginHandlers,
   usageHandlers,
   leaderboardHandlers,
+  statsHandlers,
   profilesHandlers,
 );
 
@@ -216,6 +263,7 @@ interface ApiLayerOptions {
   drizzleLayer: Layer.Layer<Drizzle>;
   leaderboardServiceLayer: Layer.Layer<LeaderboardService>;
   profilesServiceLayer: Layer.Layer<ProfilesService>;
+  statsServiceLayer: Layer.Layer<StatsService>;
   middlewareLayer: Layer.Layer<Authorization | CliAuth, never, AuthService | TokensService>;
   tokensServiceLayer: Layer.Layer<TokensService>;
   usageServiceLayer: Layer.Layer<UsageService>;
@@ -236,6 +284,7 @@ function makeApiLayer(options: ApiLayerOptions) {
     Layer.provide(options.adminServiceLayer),
     Layer.provide(options.leaderboardServiceLayer),
     Layer.provide(options.profilesServiceLayer),
+    Layer.provide(options.statsServiceLayer),
     Layer.provide(options.tokensServiceLayer),
     Layer.provide(options.usageServiceLayer),
     Layer.provide(options.authServiceLayer),

@@ -27,6 +27,12 @@ class UserNotFound extends Schema.TaggedErrorClass<UserNotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
+class AdminUserNotFound extends Schema.TaggedErrorClass<AdminUserNotFound>()(
+  "AdminUserNotFound",
+  { id: Schema.String },
+  { httpApiStatus: 404 },
+) {}
+
 class LoginCodeNotFound extends Schema.TaggedErrorClass<LoginCodeNotFound>()(
   "LoginCodeNotFound",
   { code: Schema.String },
@@ -58,6 +64,7 @@ class DeviceMissing extends Schema.TaggedErrorClass<DeviceMissing>()(
 ) {}
 
 export {
+  AdminUserNotFound,
   DeviceNotFound,
   DeviceMissing,
   Forbidden,

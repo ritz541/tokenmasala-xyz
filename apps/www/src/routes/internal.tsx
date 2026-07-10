@@ -1,4 +1,5 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import type {
   AdminDeviceStatus,
@@ -8,7 +9,9 @@ import type {
 
 import { Avatar } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
-import { isApiError } from "../lib/api";
+import { Button } from "../components/ui/button";
+import { Textarea } from "../components/ui/input";
+import { errorMessage, isApiError, runApi } from "../lib/api";
 import { adminUsersQueryOptions } from "../lib/queries";
 
 const INTERNAL_PATH = "/internal";
@@ -42,6 +45,9 @@ const Route = createFileRoute("/internal")({
 
 function InternalPage() {
   const { data } = useSuspenseQuery(adminUsersQueryOptions);
+  const bannedUserIds = new Set(
+    data.users.filter((row) => row.shadowBan !== null).map((row) => row.user.id),
+  );
 
   return (
     <>
@@ -56,6 +62,10 @@ function InternalPage() {
         <SummaryCell label="Users" value={formatInteger(data.summary.totalUsers)} />
         <SummaryCell label="Devices" value={formatInteger(data.summary.totalDevices)} />
       </dl>
+      <UsersTable data={data} />
+      <h2 className="border-b border-border px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
+        Devices
+      </h2>
       <div className="overflow-x-auto border-b border-border">
         <table className="w-full min-w-[72rem] table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
@@ -82,14 +92,21 @@ function InternalPage() {
                   </div>
                 </td>
                 <td className="p-3 align-top">
-                  <Link
-                    className="flex items-center gap-2.5 font-medium hover:underline"
-                    params={{ user: row.user.login }}
-                    to="/$user"
-                  >
-                    <Avatar size={24} src={row.user.avatarUrl} />
-                    {row.user.login}
-                  </Link>
+                  {bannedUserIds.has(row.user.id) ? (
+                    <span className="flex items-center gap-2.5 font-medium">
+                      <Avatar size={24} src={row.user.avatarUrl} />
+                      {row.user.login}
+                    </span>
+                  ) : (
+                    <Link
+                      className="flex items-center gap-2.5 font-medium hover:underline"
+                      params={{ user: row.user.login }}
+                      to="/$user"
+                    >
+                      <Avatar size={24} src={row.user.avatarUrl} />
+                      {row.user.login}
+                    </Link>
+                  )}
                 </td>
                 <td className="p-3 align-top">
                   <VersionCell row={row} />
@@ -114,6 +131,189 @@ function InternalPage() {
         </table>
       </div>
     </>
+  );
+}
+
+function UsersTable({ data }: { data: AdminUsersData }) {
+  return (
+    <section>
+      <h2 className="border-b border-border px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
+        Users
+      </h2>
+      <div className="overflow-x-auto border-b border-border">
+        <table className="w-full min-w-[64rem] table-fixed text-left text-sm">
+          <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="w-[22%] p-3 font-medium">User</th>
+              <th className="w-[15%] p-3 font-medium">Providers</th>
+              <th className="w-[18%] p-3 font-medium">Usage</th>
+              <th className="w-[15%] p-3 font-medium">Last activity</th>
+              <th className="w-[30%] p-3 font-medium">Visibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.users.map((row) => (
+              <tr className="border-b border-border last:border-b-0" key={row.user.id}>
+                <td className="p-3 align-top">
+                  {row.shadowBan === null ? (
+                    <Link
+                      className="flex items-center gap-2.5 font-medium hover:underline"
+                      params={{ user: row.user.login }}
+                      to="/$user"
+                    >
+                      <Avatar size={24} src={row.user.avatarUrl} />
+                      {row.user.login}
+                    </Link>
+                  ) : (
+                    <span className="flex items-center gap-2.5 font-medium">
+                      <Avatar size={24} src={row.user.avatarUrl} />
+                      {row.user.login}
+                    </span>
+                  )}
+                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                    {row.user.id}
+                  </div>
+                </td>
+                <td className="p-3 align-top font-mono text-xs text-muted-foreground">
+                  {row.providers.join(", ") || "—"}
+                </td>
+                <td className="p-3 align-top">
+                  <div>{formatInteger(row.totalTokens)} tokens</div>
+                  <div className="mt-1 font-mono text-xs text-muted-foreground">
+                    ${row.totalSpendUsd.toFixed(2)} · {formatInteger(row.activeDays)} days
+                  </div>
+                </td>
+                <td className="p-3 align-top font-mono text-xs text-muted-foreground">
+                  {row.lastUsageDate ?? "—"}
+                </td>
+                <td className="p-3 align-top">
+                  <ModerationCell allUsers={data.users} row={row} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ModerationCell({
+  allUsers,
+  row,
+}: {
+  allUsers: AdminUsersData["users"];
+  row: AdminUsersData["users"][number];
+}) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const refreshVisibility = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminUsersQueryOptions.queryKey }),
+      queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
+      queryClient.invalidateQueries({ queryKey: ["stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["profile", row.user.login] }),
+    ]);
+  };
+
+  const ban = useMutation({
+    mutationFn: (banReason: string) =>
+      runApi((client) =>
+        client.admin.shadowBanUser({
+          params: { userId: row.user.id },
+          payload: { reason: banReason },
+        }),
+      ),
+    onSuccess: async () => {
+      setEditing(false);
+      setReason("");
+      await refreshVisibility();
+    },
+  });
+  const unban = useMutation({
+    mutationFn: () =>
+      runApi((client) => client.admin.shadowUnbanUser({ params: { userId: row.user.id } })),
+    onSuccess: refreshVisibility,
+  });
+
+  if (row.shadowBan !== null) {
+    const actor = allUsers.find((candidate) => candidate.user.id === row.shadowBan?.byUserId);
+    return (
+      <div>
+        <div className="flex items-center gap-2">
+          <Badge variant="repair-needed">shadow banned</Badge>
+          <Button
+            disabled={unban.isPending}
+            onClick={() => {
+              if (confirm(`Restore public visibility for ${row.user.login}?`)) {
+                unban.mutate();
+              }
+            }}
+            size="xs"
+            variant="outline"
+          >
+            {unban.isPending ? "Restoring…" : "Unban"}
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">{row.shadowBan.reason}</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
+          {new Date(row.shadowBan.at).toLocaleString()} · by{" "}
+          {actor?.user.login ?? row.shadowBan.byUserId}
+        </p>
+        {unban.error === null ? null : (
+          <p className="mt-2 text-xs text-red-500">
+            {errorMessage(unban.error, "Could not restore public visibility.")}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <Button onClick={() => setEditing(true)} size="xs" variant="destructive">
+        Shadow ban
+      </Button>
+    );
+  }
+
+  const normalizedReason = reason.trim();
+  return (
+    <div className="space-y-2">
+      <Textarea
+        aria-label={`Reason for shadow banning ${row.user.login}`}
+        maxLength={500}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Reason (required)"
+        rows={2}
+        value={reason}
+      />
+      <div className="flex items-center gap-2">
+        <Button
+          disabled={normalizedReason.length === 0 || ban.isPending}
+          onClick={() => ban.mutate(normalizedReason)}
+          size="xs"
+          variant="destructive"
+        >
+          {ban.isPending ? "Banning…" : "Confirm ban"}
+        </Button>
+        <Button
+          disabled={ban.isPending}
+          onClick={() => setEditing(false)}
+          size="xs"
+          variant="ghost"
+        >
+          Cancel
+        </Button>
+      </div>
+      {ban.error === null ? null : (
+        <p className="text-xs text-red-500">
+          {errorMessage(ban.error, "Could not shadow ban this user.")}
+        </p>
+      )}
+    </div>
   );
 }
 

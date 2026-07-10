@@ -28,17 +28,24 @@ interface DailyQuery {
 }
 
 interface ProfilesServiceShape {
-  getProfile(login: string): Effect.Effect<typeof ProfileResponse.Type, UserNotFound, any>;
+  getProfile(
+    login: string,
+    viewerUserId: string | null,
+  ): Effect.Effect<typeof ProfileResponse.Type, UserNotFound, any>;
   getDaily(
     login: string,
     query: DailyQuery,
+    viewerUserId: string | null,
   ): Effect.Effect<typeof ProfileDailyResponse.Type, UserNotFound, any>;
 }
 
+interface ProfileUser {
+  shadowBanned: boolean;
+  user: typeof AuthUser.Type;
+}
+
 interface ProfilesRepositoryShape {
-  findUserByLogin(
-    login: string,
-  ): Effect.Effect<Option.Option<typeof AuthUser.Type>, DatabaseError, any>;
+  findUserByLogin(login: string): Effect.Effect<Option.Option<ProfileUser>, DatabaseError, any>;
   stats(userId: string): Effect.Effect<typeof ProfileStats.Type, DatabaseError, any>;
   daily(
     userId: string,
@@ -57,24 +64,30 @@ class ProfilesRepository extends Context.Service<ProfilesRepository, ProfilesRep
 const makeProfilesService = Effect.fn("makeProfilesService")(function* () {
   const repository = yield* ProfilesRepository;
 
-  const requireUser = Effect.fn("ProfilesService.requireUser")(function* (login: string) {
-    const user = yield* repository.findUserByLogin(login).pipe(Effect.orDie);
-    if (Option.isNone(user)) {
+  const requireUser = Effect.fn("ProfilesService.requireUser")(function* (
+    login: string,
+    viewerUserId: string | null,
+  ) {
+    const result = yield* repository.findUserByLogin(login).pipe(Effect.orDie);
+    if (
+      Option.isNone(result) ||
+      (result.value.shadowBanned && result.value.user.id !== viewerUserId)
+    ) {
       return yield* Effect.fail(new UserNotFound({ login }));
     }
 
-    return user.value;
+    return result.value.user;
   });
 
   return ProfilesService.of({
-    getProfile: Effect.fn("ProfilesService.getProfile")(function* (login) {
-      const user = yield* requireUser(login);
+    getProfile: Effect.fn("ProfilesService.getProfile")(function* (login, viewerUserId) {
+      const user = yield* requireUser(login, viewerUserId);
       const stats = yield* repository.stats(user.id).pipe(Effect.orDie);
 
       return { stats, user };
     }),
-    getDaily: Effect.fn("ProfilesService.getDaily")(function* (login, query) {
-      const user = yield* requireUser(login);
+    getDaily: Effect.fn("ProfilesService.getDaily")(function* (login, query, viewerUserId) {
+      const user = yield* requireUser(login, viewerUserId);
       const days = yield* repository.daily(user.id, query).pipe(Effect.orDie);
 
       return {

@@ -10,7 +10,7 @@ import type {
 import { Avatar } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/input";
+import { Input, Textarea } from "../components/ui/input";
 import { errorMessage, isApiError, runApi } from "../lib/api";
 import { adminUsersQueryOptions } from "../lib/queries";
 
@@ -135,47 +135,38 @@ function InternalPage() {
 }
 
 function UsersTable({ data }: { data: AdminUsersData }) {
+  const [adding, setAdding] = useState(false);
+  const bannedUsers = data.users.filter((row) => row.shadowBan !== null);
+
   return (
     <section>
-      <h2 className="border-b border-border px-4 py-3 text-xs font-medium uppercase text-muted-foreground">
-        Users
-      </h2>
+      <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+        <h2 className="text-xs font-medium uppercase text-muted-foreground">
+          Shadow banned users ({formatInteger(bannedUsers.length)})
+        </h2>
+        <Button onClick={() => setAdding((open) => !open)} size="xs" variant="outline">
+          {adding ? "Close" : "Shadow ban user"}
+        </Button>
+      </div>
+      {adding ? <ShadowBanUserForm onClose={() => setAdding(false)} users={data.users} /> : null}
       <div className="overflow-x-auto border-b border-border">
-        <table className="w-full min-w-[64rem] table-fixed text-left text-sm">
+        <table className="w-full min-w-[54rem] table-fixed text-left text-sm">
           <thead className="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="w-[22%] p-3 font-medium">User</th>
-              <th className="w-[15%] p-3 font-medium">Providers</th>
-              <th className="w-[18%] p-3 font-medium">Usage</th>
-              <th className="w-[15%] p-3 font-medium">Last activity</th>
-              <th className="w-[30%] p-3 font-medium">Visibility</th>
+              <th className="w-[25%] p-3 font-medium">User</th>
+              <th className="w-[25%] p-3 font-medium">Usage</th>
+              <th className="w-[18%] p-3 font-medium">Last activity</th>
+              <th className="w-[32%] p-3 font-medium">Visibility</th>
             </tr>
           </thead>
           <tbody>
-            {data.users.map((row) => (
+            {bannedUsers.map((row) => (
               <tr className="border-b border-border last:border-b-0" key={row.user.id}>
                 <td className="p-3 align-top">
-                  {row.shadowBan === null ? (
-                    <Link
-                      className="flex items-center gap-2.5 font-medium hover:underline"
-                      params={{ user: row.user.login }}
-                      to="/$user"
-                    >
-                      <Avatar size={24} src={row.user.avatarUrl} />
-                      {row.user.login}
-                    </Link>
-                  ) : (
-                    <span className="flex items-center gap-2.5 font-medium">
-                      <Avatar size={24} src={row.user.avatarUrl} />
-                      {row.user.login}
-                    </span>
-                  )}
-                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                    {row.user.id}
-                  </div>
-                </td>
-                <td className="p-3 align-top font-mono text-xs text-muted-foreground">
-                  {row.providers.join(", ") || "—"}
+                  <span className="flex items-center gap-2.5 font-medium">
+                    <Avatar size={24} src={row.user.avatarUrl} />
+                    {row.user.login}
+                  </span>
                 </td>
                 <td className="p-3 align-top">
                   <div>{formatInteger(row.totalTokens)} tokens</div>
@@ -191,10 +182,154 @@ function UsersTable({ data }: { data: AdminUsersData }) {
                 </td>
               </tr>
             ))}
+            {bannedUsers.length === 0 ? (
+              <tr>
+                <td className="p-6 text-center text-muted-foreground" colSpan={4}>
+                  No users are shadow banned.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
     </section>
+  );
+}
+
+function ShadowBanUserForm({
+  onClose,
+  users,
+}: {
+  onClose: () => void;
+  users: AdminUsersData["users"];
+}) {
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [reason, setReason] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const eligibleUsers = users.filter((row) => row.shadowBan === null);
+  const selectedUser = eligibleUsers.find((row) => row.user.id === selectedUserId) ?? null;
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches =
+    normalizedQuery.length === 0
+      ? []
+      : eligibleUsers
+          .filter((row) => row.user.login.toLowerCase().includes(normalizedQuery))
+          .slice(0, 8);
+  const normalizedReason = reason.trim();
+
+  const ban = useMutation({
+    mutationFn: ({ reason: banReason, userId }: { reason: string; userId: string }) =>
+      runApi((client) =>
+        client.admin.shadowBanUser({
+          params: { userId },
+          payload: { reason: banReason },
+        }),
+      ),
+    onSuccess: async () => {
+      if (selectedUser === null) {
+        return;
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: adminUsersQueryOptions.queryKey }),
+        queryClient.invalidateQueries({ queryKey: ["leaderboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["stats"] }),
+        queryClient.invalidateQueries({ queryKey: ["profile", selectedUser.user.login] }),
+      ]);
+      onClose();
+    },
+  });
+
+  return (
+    <div className="border-b border-border bg-muted/20 px-4 py-4">
+      <div className="max-w-xl space-y-3">
+        <div>
+          <label className="text-xs font-medium uppercase text-muted-foreground" htmlFor="ban-user">
+            User
+          </label>
+          <Input
+            autoComplete="off"
+            className="mt-1 w-full"
+            id="ban-user"
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSelectedUserId(null);
+            }}
+            placeholder="Search by username"
+            value={query}
+          />
+          {selectedUser === null && normalizedQuery.length > 0 ? (
+            <div className="mt-1 max-h-52 overflow-y-auto border border-border bg-background">
+              {matches.map((row) => (
+                <button
+                  className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left text-sm last:border-b-0 hover:bg-muted"
+                  key={row.user.id}
+                  onClick={() => {
+                    setQuery(row.user.login);
+                    setSelectedUserId(row.user.id);
+                  }}
+                  type="button"
+                >
+                  <Avatar size={24} src={row.user.avatarUrl} />
+                  <span className="font-medium">{row.user.login}</span>
+                </button>
+              ))}
+              {matches.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-muted-foreground">No matching users.</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {selectedUser === null ? null : (
+          <div className="flex items-center gap-2 text-sm">
+            <Avatar size={24} src={selectedUser.user.avatarUrl} />
+            <span>
+              Shadow ban <strong>{selectedUser.user.login}</strong>
+            </span>
+          </div>
+        )}
+        <div>
+          <label
+            className="text-xs font-medium uppercase text-muted-foreground"
+            htmlFor="ban-reason"
+          >
+            Reason
+          </label>
+          <Textarea
+            className="mt-1 w-full"
+            id="ban-reason"
+            maxLength={500}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Why should this user be hidden?"
+            rows={3}
+            value={reason}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            disabled={selectedUser === null || normalizedReason.length === 0 || ban.isPending}
+            onClick={() => {
+              if (selectedUser !== null) {
+                ban.mutate({ reason: normalizedReason, userId: selectedUser.user.id });
+              }
+            }}
+            size="sm"
+            variant="destructive"
+          >
+            {ban.isPending ? "Banning…" : "Shadow ban user"}
+          </Button>
+          <Button disabled={ban.isPending} onClick={onClose} size="sm" variant="ghost">
+            Cancel
+          </Button>
+        </div>
+        {ban.error === null ? null : (
+          <p className="text-xs text-red-500">
+            {errorMessage(ban.error, "Could not shadow ban this user.")}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -206,8 +341,6 @@ function ModerationCell({
   row: AdminUsersData["users"][number];
 }) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [reason, setReason] = useState("");
 
   const refreshVisibility = async () => {
     await Promise.all([
@@ -218,99 +351,42 @@ function ModerationCell({
     ]);
   };
 
-  const ban = useMutation({
-    mutationFn: (banReason: string) =>
-      runApi((client) =>
-        client.admin.shadowBanUser({
-          params: { userId: row.user.id },
-          payload: { reason: banReason },
-        }),
-      ),
-    onSuccess: async () => {
-      setEditing(false);
-      setReason("");
-      await refreshVisibility();
-    },
-  });
   const unban = useMutation({
     mutationFn: () =>
       runApi((client) => client.admin.shadowUnbanUser({ params: { userId: row.user.id } })),
     onSuccess: refreshVisibility,
   });
 
-  if (row.shadowBan !== null) {
-    const actor = allUsers.find((candidate) => candidate.user.id === row.shadowBan?.byUserId);
-    return (
-      <div>
-        <div className="flex items-center gap-2">
-          <Badge variant="repair-needed">shadow banned</Badge>
-          <Button
-            disabled={unban.isPending}
-            onClick={() => {
-              if (confirm(`Restore public visibility for ${row.user.login}?`)) {
-                unban.mutate();
-              }
-            }}
-            size="xs"
-            variant="outline"
-          >
-            {unban.isPending ? "Restoring…" : "Unban"}
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">{row.shadowBan.reason}</p>
-        <p className="mt-1 font-mono text-xs text-muted-foreground">
-          {new Date(row.shadowBan.at).toLocaleString()} · by{" "}
-          {actor?.user.login ?? row.shadowBan.byUserId}
-        </p>
-        {unban.error === null ? null : (
-          <p className="mt-2 text-xs text-red-500">
-            {errorMessage(unban.error, "Could not restore public visibility.")}
-          </p>
-        )}
-      </div>
-    );
+  if (row.shadowBan === null) {
+    return null;
   }
 
-  if (!editing) {
-    return (
-      <Button onClick={() => setEditing(true)} size="xs" variant="destructive">
-        Shadow ban
-      </Button>
-    );
-  }
-
-  const normalizedReason = reason.trim();
+  const actor = allUsers.find((candidate) => candidate.user.id === row.shadowBan?.byUserId);
   return (
-    <div className="space-y-2">
-      <Textarea
-        aria-label={`Reason for shadow banning ${row.user.login}`}
-        maxLength={500}
-        onChange={(event) => setReason(event.target.value)}
-        placeholder="Reason (required)"
-        rows={2}
-        value={reason}
-      />
+    <div>
       <div className="flex items-center gap-2">
+        <Badge variant="repair-needed">shadow banned</Badge>
         <Button
-          disabled={normalizedReason.length === 0 || ban.isPending}
-          onClick={() => ban.mutate(normalizedReason)}
+          disabled={unban.isPending}
+          onClick={() => {
+            if (confirm(`Restore public visibility for ${row.user.login}?`)) {
+              unban.mutate();
+            }
+          }}
           size="xs"
-          variant="destructive"
+          variant="outline"
         >
-          {ban.isPending ? "Banning…" : "Confirm ban"}
-        </Button>
-        <Button
-          disabled={ban.isPending}
-          onClick={() => setEditing(false)}
-          size="xs"
-          variant="ghost"
-        >
-          Cancel
+          {unban.isPending ? "Restoring…" : "Unban"}
         </Button>
       </div>
-      {ban.error === null ? null : (
-        <p className="text-xs text-red-500">
-          {errorMessage(ban.error, "Could not shadow ban this user.")}
+      <p className="mt-2 text-xs text-muted-foreground">{row.shadowBan.reason}</p>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">
+        {new Date(row.shadowBan.at).toLocaleString()} · by{" "}
+        {actor?.user.login ?? row.shadowBan.byUserId}
+      </p>
+      {unban.error === null ? null : (
+        <p className="mt-2 text-xs text-red-500">
+          {errorMessage(unban.error, "Could not restore public visibility.")}
         </p>
       )}
     </div>

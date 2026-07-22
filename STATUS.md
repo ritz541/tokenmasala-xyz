@@ -84,9 +84,14 @@ server-authoritative watermark (see below).
 
 ## Conventions / things already decided
   non-Windows users.
-- **Harnesses to eventually track** (friends won't use all): hermes, pi, omp,
-  cline, zero, freebuff, kiro-cli, devin, claude, agy, opencode, amp, cmd,
-  poolside, agnes, kimi, qoder-cli, vibe, qwen, mimo, codex.
+- **Harnesses tracked (log-parsing supplement):** ccusage >=20.0.18 supports
+  15 focused sources — claude, codex, opencode, gemini, copilot, pi, amp, droid,
+  codebuff, hermes, goose, openclaw, kilo, kimi, qwen. All 15 are wired into
+  `CCUSAGE_SOURCES` so `tokenmaxxing sync` labels + backfills them. Anything
+  else (VS Code extensions, custom SDK harnesses, `omp`, `cline`, `zero`,
+  `kiro-cli`, `devin`, `agnes`, `qoder-cli`, `vibe`, `mimo`, `poolside`, `cmd`)
+  is caught live by the **proxy** (P2) via `--label` since ccusage can't parse
+  those local logs.
 - **Dashboard**: dark, OpenRouter-style density + commandcode.ai cleanliness.
   Monochrome w/ single pink accent `#ff1493` (user rejected "AI slop" generic
   portfolio look). Profile drill-down: today's output, est. cost, rank,

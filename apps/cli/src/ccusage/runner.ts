@@ -12,7 +12,7 @@ import type { CcusageSource } from "./sources";
  * typed so the sync layer can distinguish them from valid empty reports.
  */
 
-const CCUSAGE_SPEC = "ccusage@^20.0.17";
+const CCUSAGE_SPEC = "ccusage@^20.0.18";
 const RUN_TIMEOUT_MS = 180_000;
 
 class CcusageRunError extends Data.TaggedError("CcusageRunError")<{

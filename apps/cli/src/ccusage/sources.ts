@@ -19,6 +19,19 @@ const CCUSAGE_SOURCES: readonly CcusageSource[] = [
   { source: "gemini", subcommand: "gemini" },
   { source: "copilot", subcommand: "copilot" },
   { source: "pi", subcommand: "pi" },
+  // The following are supported by ccusage (>=20.x) but were not in the
+  // original tokenmaxxing source list. Wired in so `tokenmaxxing sync` can
+  // backfill history and label logs for them. The proxy (P2) already captures
+  // their live traffic at the wire regardless of this list.
+  { source: "amp", subcommand: "amp" },
+  { source: "droid", subcommand: "droid" },
+  { source: "codebuff", subcommand: "codebuff" },
+  { source: "hermes", subcommand: "hermes" },
+  { source: "goose", subcommand: "goose" },
+  { source: "openclaw", subcommand: "openclaw" },
+  { source: "kilo", subcommand: "kilo" },
+  { source: "kimi", subcommand: "kimi" },
+  { source: "qwen", subcommand: "qwen" },
 ];
 
 const DEFAULT_SOURCE_NAMES = CCUSAGE_SOURCES.map((entry) => entry.source);

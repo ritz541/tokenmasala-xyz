@@ -5,6 +5,23 @@ All notable changes to tokenmaxxing are documented here. Versions are anchored t
 
 ## Unreleased
 
+## 0.5.0 - 2026-07-22
+
+### Added
+
+- Added Pi as a supported ccusage source.
+
+### Changed
+
+- Changed sync to upload daily reports plus source-level session counts instead of raw session payloads.
+- Normalized source-prefixed model labels while preserving raw model names in usage charts.
+- Removed the unsupported Cursor source.
+
+### Fixed
+
+- Surfaced per-source ccusage failures without discarding successful source results.
+- Fixed ccusage launching on Windows by using Bun's executable runner and the Windows npm launcher fallback.
+
 ## 0.4.23 - 2026-07-14
 
 ### Added

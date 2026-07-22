@@ -21,8 +21,7 @@ const CCUSAGE_SOURCES: readonly CcusageSource[] = [
   { source: "pi", subcommand: "pi" },
   // The following are supported by ccusage (>=20.x) but were not in the
   // original tokenmaxxing source list. Wired in so `tokenmaxxing sync` can
-  // backfill history and label logs for them. The proxy (P2) already captures
-  // their live traffic at the wire regardless of this list.
+  // backfill history and label logs for them via the log-scan (zero-config).
   { source: "amp", subcommand: "amp" },
   { source: "droid", subcommand: "droid" },
   { source: "codebuff", subcommand: "codebuff" },

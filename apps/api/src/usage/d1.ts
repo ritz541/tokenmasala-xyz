@@ -254,15 +254,7 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
           }));
 
           const eventStatements = eventRows.map((row) =>
-            // The client-generated `id` is the idempotency key: if the same
-            // event arrives twice within a single batch (rare, but possible
-            // when a client retries), the second insert is a no-op rather than
-            // a conflict error. Re-sent *older* events are already excluded by
-            // the per-source watermark above.
-            db
-              .insert(usageEvents)
-              .values(row)
-              .onConflictDoNothing({ target: usageEvents.id }),
+            db.insert(usageEvents).values(row),
           );
 
           // Additive update of the daily aggregate: totals only ever increase.

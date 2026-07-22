@@ -43,6 +43,7 @@ const tokenmaxxingSubcommands = new Set([
   "bootstrap",
   "login",
   "logout",
+  "proxy",
   "service",
   "sync",
   "upgrade",

@@ -5,6 +5,7 @@ import { verboseGlobalFlag } from "../errors";
 import { bootstrapCommand } from "./bootstrap";
 import { loginCommand } from "./login";
 import { logoutCommand } from "./logout";
+import { proxyCommand } from "./proxy";
 import { serviceCommand } from "./service";
 import { syncCommand } from "./sync";
 import { upgradeCommand } from "./upgrade";
@@ -21,6 +22,7 @@ const tokenmaxxingCommand = Command.make("tokenmaxxing").pipe(
     syncCommand,
     upgradeCommand,
     serviceCommand,
+    proxyCommand,
   ]),
 );
 

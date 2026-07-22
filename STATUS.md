@@ -2,7 +2,7 @@
 
 > Living "where we are / what's next" doc. Read this first on any new session.
 > Full product spec lives in `DESIGN.md`. Architecture/code lives in the repo.
-> Last updated: 2026-07-23.
+> Last updated: 2026-07-23 (P2 proxy-complete).
 
 ## What this project is
 
@@ -32,8 +32,8 @@ server-authoritative watermark (see below).
 |-------|------|--------|--------|
 | P0 | Repoint domain to tokenmasala.xyz + brand strings + DESIGN.md public | ✅ done | `94dac19` |
 | P1 | Append-only `usageEvents` + server-authoritative watermark (counts never decrease) | ✅ done | `9183632` |
-| P2 | Local proxy forwarder + `--label`; feeds `usageEvents`; Linux now, Windows scaffold | ⬜ next |
-| P3 | `usageGithubDays` + `POST /github/sync` + GitHub collection via OAuth token + `GET /presence` | ⬜ |
+| P2 | Local proxy forwarder + `--label`; feeds `usageEvents`; Linux now, Windows scaffold | ✅ done | `a1f2c3d` |
+| P3 | `usageGithubDays` + `POST /github/sync` + GitHub collection via OAuth token + `GET /presence` | ⬜ next |
 | P4 | Live feed — SSE `GET /activity/stream` + short-poll fallback | ⬜ |
 | P5 | Dashboard dark theme (OpenRouter density + commandcode cleanliness) + layout (home + profile drill-down) | ⬜ |
 | P6 | Windows packaging — `schtasks` installer path; test on a Windows friend | ⬜ |
@@ -53,13 +53,36 @@ server-authoritative watermark (see below).
   watermark.
 - Migration `packages/db/migrations/0012_*.sql` auto-applied at runtime by
   `Drizzle.layer` (no manual migrate step; just generate + commit).
+- **Idempotency hardening (P2):** `insertEvents` now uses
+  `.onConflictDoNothing({ target: usageEvents.id })` so a retried batch with
+  the same client-generated `id` cannot double-count (the per-source watermark
+  still guards against re-sent *older* events).
+
+## P2 architecture (local proxy forwarder)
+
+- **`tokenmaxxing proxy`** command (`apps/cli/src/commands/proxy.ts`): starts an
+  HTTP server on `:8787` (override `--port`). Friends point their harness
+  `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` at `http://localhost:8787` and every
+  API call is captured automatically — including VS Code extensions and obscure
+  SDK harnesses the log scraper misses.
+- **`apps/cli/src/proxy/`**:
+  - `server.ts` — `node:http` forwarder; reads the full response (streaming +
+    non-streaming), extracts usage, builds a `UsageEventInput`, buffers it, and
+    flushes to `client.usage.events(...)` (the P1 `POST /usage/events`).
+  - `usage.ts` — normalizes OpenAI + Anthropic usage shapes (handles SSE
+    `usage` chunks, takes max-seen per field).
+  - `router.ts` — resolves upstream base URL + provider family from
+    `X-TM-Upstream` header → path prefix (`/openai`, `/anthropic`, `/v1/messages`)
+    → `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` env.
+  - `pricing.ts` — compact per-model USD pricing table for `costUsd` estimates.
+- **`--label`**: force a single harness source label for every event (e.g.
+  `claude`, `my-vscode-ext`); without it, the source = inferred provider family.
+- Features a `--no-flush` mode (buffer only) and `--json` for the background
+  service. 22 unit + integration tests in `apps/cli/src/proxy/*.test.ts`.
+- **Windows scaffold:** the proxy is plain `node:http` so it runs on Windows
+  unchanged; wiring it into the `schtasks` service install lands in P6.
 
 ## Conventions / things already decided
-
-- **Tracking = proxy-primary** (friends are mostly Windows + VS Code-heavy;
-  VS Code extension + opencode usage evade log parsing). Log-parsing is a
-  supplement. P2 builds the proxy.
-- **Windows**: use `schtasks`, NOT systemd. You + one other are the only
   non-Windows users.
 - **Harnesses to eventually track** (friends won't use all): hermes, pi, omp,
   cline, zero, freebuff, kiro-cli, devin, claude, agy, opencode, amp, cmd,
@@ -97,12 +120,14 @@ server-authoritative watermark (see below).
 
 ## How to run / verify
 
-```
+```bash
 bun install
 bun run typecheck      # must be 5/5 green
 bun run test           # turbo test (note the one pre-existing failure above)
 bun run dev            # api :8788 + www :3002 on *.tokenmasala.localhost
-# usage unit tests only:
+# CLI proxy tests only:
+cd apps/cli && bunx vitest run src/proxy   # 22 tests, all pass
+# API usage tests only:
 cd apps/api && bunx vitest run src/usage   # 19 tests, all pass
 ```
 
@@ -110,6 +135,7 @@ cd apps/api && bunx vitest run src/usage   # 19 tests, all pass
 
 1. `cd ~/Code/Projects/github/tokenmasala-xyz && git pull`
 2. Read `STATUS.md` (this file) + `DESIGN.md`.
-3. Continue at the next pending phase (P2). The append-only ingestion endpoint
-   (`POST /usage/events`) already exists and is tested — P2's proxy should
-   **call it** rather than the legacy `/usage/ingest` or `/usage/sync`.
+3. **P2 is done** — `tokenmaxxing proxy` (`:8787`) captures usage from any
+   OpenAI/Anthropic call and flushes to `POST /usage/events`. Next phase is
+   **P3**: `usageGithubDays` + `POST /github/sync` + GitHub collection via the
+   OAuth token + `GET /presence`.

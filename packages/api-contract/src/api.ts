@@ -25,6 +25,8 @@ import {
   CliTokenSummary,
   DeviceSummary,
   HealthResponse,
+  IngestEventsInput,
+  IngestEventsResponse,
   IngestUsageInput,
   LeaderboardMetric,
   LeaderboardResponse,
@@ -140,6 +142,16 @@ class UsageGroup extends HttpApiGroup.make("usage")
     HttpApiEndpoint.post("sync", "/usage/sync", {
       payload: SyncUsageInput,
       success: SyncUsageResponse,
+      error: DeviceMissing,
+    }),
+  )
+  .add(
+    // Append-only event ingestion. The server watermarks by event `ts` per
+    // (device, source) so re-sent older events are dropped and recorded totals
+    // never decrease (a cleared local cache cannot subtract history).
+    HttpApiEndpoint.post("events", "/usage/events", {
+      payload: IngestEventsInput,
+      success: IngestEventsResponse,
       error: DeviceMissing,
     }),
   )

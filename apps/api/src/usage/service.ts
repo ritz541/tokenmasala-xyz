@@ -13,6 +13,7 @@ import type {
   ServiceRepairStatusValue,
   SourceUsageStatsInput,
   UsageDayInput,
+  UsageEventInput,
 } from "@tokenmaxxing/api-contract";
 
 import { sha256Hex } from "../auth/crypto";
@@ -66,6 +67,11 @@ interface UsageServiceShape {
     days: readonly UsageDayInput[],
     sourceStats?: readonly SourceUsageStatsInput[],
   ): Effect.Effect<SyncResult, DeviceMissing, any>;
+  ingestEvents(
+    identity: typeof CliIdentity.Type,
+    device: UsageDevice,
+    events: readonly UsageEventInput[],
+  ): Effect.Effect<{ received: number; stored: number; syncedAt: string }, DeviceMissing, any>;
 }
 
 interface UsageDevice {
@@ -136,6 +142,12 @@ interface UsageRepositoryShape {
     reports: readonly StoredRawUsageReport[],
     capturedAt: Date,
   ): Effect.Effect<void, DatabaseError | RawUsageStorageError, any>;
+  insertEvents(
+    userId: string,
+    deviceId: string,
+    events: readonly UsageEventInput[],
+    syncedAt: Date,
+  ): Effect.Effect<{ stored: number }, DatabaseError, any>;
 }
 
 class UsageService extends Context.Service<UsageService, UsageServiceShape>()(
@@ -220,6 +232,26 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
         received: days.length,
         syncedAt: syncedAt.toISOString(),
         upserted,
+      };
+    }),
+    ingestEvents: Effect.fn("UsageService.ingestEvents")(function* (
+      identity,
+      device,
+      events,
+    ) {
+      const deviceId = yield* requireDeviceId(identity);
+      const syncedAt = new Date();
+
+      const { stored } = yield* repository
+        .insertEvents(identity.user.id, deviceId, events, syncedAt)
+        .pipe(Effect.orDie);
+
+      yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
+
+      return {
+        received: events.length,
+        stored,
+        syncedAt: syncedAt.toISOString(),
       };
     }),
   });

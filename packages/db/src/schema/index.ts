@@ -245,12 +245,69 @@ type NewUsageSourceStat = typeof usageSourceStats.$inferInsert;
 type UsageRawBatch = typeof usageRawBatches.$inferSelect;
 type NewUsageRawBatch = typeof usageRawBatches.$inferInsert;
 
+/**
+ * Append-only source of truth for token usage. One row per API response the
+ * CLI forwards (or per ccusage-derived event). Never updated, only inserted.
+ * `ts` is the event time in ms; the server uses it as a watermark so a cleared
+ * local cache cannot cause recorded totals to decrease — re-sent older events
+ * are dropped, newer ones are added on top of the existing `usageDays` row.
+ */
+const usageEvents = sqliteTable(
+  "usage_events",
+  {
+    id: text("id").primaryKey(),
+    deviceId: text("device_id").notNull(),
+    userId: text("user_id").notNull(),
+    ts: integer("ts", { mode: "timestamp_ms" }).notNull(),
+    date: text("date").notNull(),
+    source: text("source").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheCreationTokens: integer("cache_creation_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    totalTokens: integer("total_tokens").notNull().default(0),
+    costUsd: real("cost_usd").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    index("usage_events_user_ts_idx").on(table.userId, table.ts),
+    index("usage_events_device_ts_idx").on(table.deviceId, table.ts),
+    index("usage_events_device_date_idx").on(table.deviceId, table.date),
+  ],
+);
+
+/**
+ * Server-authoritative high-water mark of ingested event time, per
+ * (device, source). `lastEventTs` is the newest event the server has already
+ * counted. A re-sent event with `ts <= lastEventTs` is ignored, so a client
+ * that wipes its local cache and re-syncs from scratch cannot subtract from
+ * already-recorded totals.
+ */
+const deviceWatermarks = sqliteTable(
+  "device_watermarks",
+  {
+    deviceId: text("device_id").notNull(),
+    source: text("source").notNull(),
+    lastEventTs: integer("last_event_ts", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.deviceId, table.source] })],
+);
+
+type UsageEvent = typeof usageEvents.$inferSelect;
+type NewUsageEvent = typeof usageEvents.$inferInsert;
+type DeviceWatermark = typeof deviceWatermarks.$inferSelect;
+type NewDeviceWatermark = typeof deviceWatermarks.$inferInsert;
+
 export {
   cliLoginRequests,
   cliTokens,
+  deviceWatermarks,
   devices,
   sessions,
   usageDays,
+  usageEvents,
   usageRawBatches,
   usageSourceStats,
   userAccounts,
@@ -270,8 +327,11 @@ export type {
   NewUsageRawBatch,
   NewUsageSourceStat,
   NewUser,
+  NewUsageEvent,
+  NewDeviceWatermark,
   Session,
   UsageDay,
+  UsageEvent,
   UsageRawBatch,
   UsageSourceStat,
   UserAccount,

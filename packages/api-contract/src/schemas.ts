@@ -124,6 +124,28 @@ const UsageDayInput = Schema.Struct({
 
 type UsageDayInput = typeof UsageDayInput.Type;
 
+/** One append-only usage event forwarded by the CLI (or derived from ccusage).
+ * `ts` is the event time in ms; the server uses it as a watermark so re-sent
+ * older events are dropped and recorded totals never decrease. `id` is a
+ * client-generated UUID; the server ignores duplicate ids within the window. */
+const UsageEventInput = Schema.Struct({
+  cacheCreationTokens: Schema.Number,
+  cacheReadTokens: Schema.Number,
+  costUsd: Schema.Number,
+  date: Schema.String,
+  id: Schema.String,
+  inputTokens: Schema.Number,
+  model: Schema.String,
+  outputTokens: Schema.Number,
+  source: Schema.String,
+  totalTokens: Schema.Number,
+  ts: Schema.Number,
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+type UsageEventInput = typeof UsageEventInput.Type;
+
 const SourceUsageStatsInput = Schema.Struct({
   sessionCount: Schema.Number,
   source: Schema.String,
@@ -265,6 +287,24 @@ const SyncUsageResponse = Schema.Struct({
   received: Schema.Number,
   syncedAt: Schema.String,
   upserted: Schema.Number,
+});
+
+const IngestEventsInput = Schema.Struct({
+  device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
+    name: Schema.String,
+    platform: Schema.String,
+    version: Schema.optional(Schema.String),
+  }),
+  events: Schema.Array(UsageEventInput),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+const IngestEventsResponse = Schema.Struct({
+  received: Schema.Number,
+  stored: Schema.Number,
+  syncedAt: Schema.String,
 });
 
 const LeaderboardMetric = Schema.Literals(["spend", "tokens"]);
@@ -593,7 +633,10 @@ export {
   CliTokenSummary,
   DeviceSummary,
   HealthResponse,
+  IngestEventsInput,
+  IngestEventsResponse,
   IngestUsageInput,
+  UsageEventInput,
   LeaderboardEntry,
   LeaderboardMetric,
   LeaderboardResponse,

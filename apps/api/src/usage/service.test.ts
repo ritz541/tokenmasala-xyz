@@ -1,4 +1,4 @@
-import { DeviceMissing, type RawUsageReportInput } from "@tokenmaxxing/api-contract";
+import { DeviceMissing, type RawUsageReportInput, type UsageEventInput } from "@tokenmaxxing/api-contract";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -99,6 +99,12 @@ interface TestUsageService {
     reports: readonly RawUsageReportInput[],
     syncSourceStats?: readonly (typeof sourceStats)[number][],
   ): Effect.Effect<SyncResult, DeviceMissing>;
+  insertEvents(
+    userId: string,
+    deviceId: string,
+    events: readonly UsageEventInput[],
+    syncedAt: Date,
+  ): Effect.Effect<{ stored: number }, DeviceMissing>;
 }
 
 interface RepositoryOptions {
@@ -115,6 +121,7 @@ function makeRepository(options: RepositoryOptions = {}) {
       ? Effect.succeed(undefined)
       : Effect.fail(options.rawReportsError),
   );
+  const insertEvents = vi.fn(() => Effect.succeed({ stored: 0 }));
 
   const repository: UsageRepositoryShape = {
     checkInDevice,
@@ -122,6 +129,7 @@ function makeRepository(options: RepositoryOptions = {}) {
     upsertChunk,
     upsertRawReports,
     upsertSourceStats,
+    insertEvents,
   };
 
   return {

@@ -150,6 +150,13 @@ const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) 
         return yield* usage.syncBatch(identity, payload.device, payload.days, payload.sourceStats);
       }),
     )
+    .handle("events", ({ payload }) =>
+      Effect.gen(function* () {
+        const identity = yield* CurrentCliIdentity;
+        const usage = yield* UsageService;
+        return yield* usage.ingestEvents(identity, payload.device, payload.events);
+      }),
+    )
     .handle("logout", () =>
       Effect.gen(function* () {
         const identity = yield* CurrentCliIdentity;

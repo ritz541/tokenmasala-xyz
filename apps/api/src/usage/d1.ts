@@ -1,5 +1,5 @@
-import { devices, usageDays, usageRawBatches, usageSourceStats } from "@tokenmaxxing/db";
-import { eq } from "drizzle-orm";
+import { devices, usageDays, usageEvents, usageRawBatches, usageSourceStats, deviceWatermarks } from "@tokenmaxxing/db";
+import { and, eq, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { Layer } from "effect";
 
@@ -196,6 +196,129 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
 
           return db.batch([first!, ...rest]);
         });
+      }),
+    insertEvents: (userId, deviceId, events, syncedAt) =>
+      Effect.gen(function* () {
+        if (events.length === 0) {
+          return { stored: 0 };
+        }
+
+        // Server-authoritative watermark: read the newest event ts already
+        // counted per (device, source). Events at or before it are re-sends and
+        // are dropped — this is what keeps totals from ever decreasing, even if
+        // a client wipes its local cache and re-syncs from scratch.
+        const watermarkBySource = yield* database.use((db) =>
+          db
+            .select({ lastEventTs: deviceWatermarks.lastEventTs, source: deviceWatermarks.source })
+            .from(deviceWatermarks)
+            .where(eq(deviceWatermarks.deviceId, deviceId)),
+        );
+        // lastEventTs is a Date (timestamp_ms mode); keep the numeric ms in the
+        // watermark map so the per-event `event.ts > watermark` comparison works.
+        const watermark = new Map<string, number>();
+        for (const row of watermarkBySource) {
+          watermark.set(row.source, row.lastEventTs.getTime());
+        }
+
+        const fresh = events.filter(
+          (event) => event.ts > (watermark.get(event.source) ?? 0),
+        );
+        if (fresh.length === 0) {
+          return { stored: 0 };
+        }
+
+        const newWatermarkBySource = new Map<string, number>(watermark);
+        for (const event of fresh) {
+          const current = newWatermarkBySource.get(event.source) ?? 0;
+          if (event.ts > current) {
+            newWatermarkBySource.set(event.source, event.ts);
+          }
+        }
+
+        yield* database.use((db) => {
+          const eventRows: (typeof usageEvents.$inferInsert)[] = fresh.map((event) => ({
+            createdAt: syncedAt,
+            date: event.date,
+            deviceId,
+            id: event.id,
+            inputTokens: event.inputTokens,
+            model: event.model,
+            outputTokens: event.outputTokens,
+            cacheCreationTokens: event.cacheCreationTokens,
+            cacheReadTokens: event.cacheReadTokens,
+            source: event.source,
+            totalTokens: event.totalTokens,
+            ts: new Date(event.ts),
+            userId,
+            costUsd: event.costUsd,
+          }));
+
+          const eventStatements = eventRows.map((row) =>
+            db.insert(usageEvents).values(row),
+          );
+
+          // Additive update of the daily aggregate: totals only ever increase.
+          const dayStatements = fresh.map((event) =>
+            db
+              .insert(usageDays)
+              .values({
+                cacheCreationTokens: event.cacheCreationTokens,
+                cacheReadTokens: event.cacheReadTokens,
+                costUsd: event.costUsd,
+                date: event.date,
+                deviceId,
+                inputTokens: event.inputTokens,
+                model: event.model,
+                outputTokens: event.outputTokens,
+                source: event.source,
+                totalTokens: event.totalTokens,
+                userId,
+                syncedAt,
+              })
+              .onConflictDoUpdate({
+                target: [usageDays.deviceId, usageDays.date, usageDays.source, usageDays.model],
+                set: {
+                  cacheCreationTokens: sql`${usageDays.cacheCreationTokens} + excluded.${usageDays.cacheCreationTokens}`,
+                  cacheReadTokens: sql`${usageDays.cacheReadTokens} + excluded.${usageDays.cacheReadTokens}`,
+                  costUsd: sql`${usageDays.costUsd} + excluded.${usageDays.costUsd}`,
+                  inputTokens: sql`${usageDays.inputTokens} + excluded.${usageDays.inputTokens}`,
+                  outputTokens: sql`${usageDays.outputTokens} + excluded.${usageDays.outputTokens}`,
+                  totalTokens: sql`${usageDays.totalTokens} + excluded.${usageDays.totalTokens}`,
+                  syncedAt,
+                  userId,
+                },
+              }),
+          );
+
+          const watermarkStatements = [...newWatermarkBySource.entries()].map(
+            ([source, lastEventTs]) =>
+              db
+                .insert(deviceWatermarks)
+                .values({ deviceId, source, lastEventTs: new Date(lastEventTs), updatedAt: syncedAt })
+                .onConflictDoUpdate({
+                  target: [deviceWatermarks.deviceId, deviceWatermarks.source],
+                  set: {
+                    lastEventTs: new Date(lastEventTs),
+                    updatedAt: syncedAt,
+                  },
+                }),
+          );
+
+          const [firstEvent, ...restEvents] = eventStatements;
+          const [firstDay, ...restDays] = dayStatements;
+          const [firstWatermark, ...restWatermarks] = watermarkStatements;
+
+          return db.batch([
+            firstEvent!,
+            ...restEvents,
+            firstDay!,
+            ...restDays,
+            firstWatermark!,
+            ...restWatermarks,
+          ]);
+        });
+
+        return { stored: fresh.length };
       }),
   });
 });

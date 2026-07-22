@@ -25,12 +25,12 @@ function rootHead() {
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "tokenmaxxing.sh" },
+      { title: "tokenmasala.xyz" },
       {
         name: "description",
         content: "The best place to track token usage.",
       },
-      { property: "og:title", content: "tokenmaxxing.sh" },
+      { property: "og:title", content: "tokenmasala.xyz" },
       {
         property: "og:description",
         content: "The best place to track token usage.",
@@ -71,7 +71,7 @@ function NotFoundPage() {
         We couldn&apos;t find the page you were looking for.
       </p>
       <Link className="mt-6 inline-flex text-sm font-medium underline underline-offset-4" to="/">
-        Back to tokenmaxxing.sh
+        Back to tokenmasala.xyz
       </Link>
     </div>
   );

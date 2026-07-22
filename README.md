@@ -1,12 +1,12 @@
-# tokenmaxxing
+# TokenMasala
 
-The social leaderboard for LLM token usage. Sync your local agent usage
-(Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Pi), climb the board at
-[tokenmaxxing.sh](https://tokenmaxxing.sh).
+The public leaderboard for LLM token usage. Sync your local agent usage
+(Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Pi, and more), climb the board at
+[tokenmasala.xyz](https://tokenmasala.xyz).
 
 Built on [ccusage](https://github.com/ryoppippi/ccusage) for local usage
-parsing, [Effect](https://effect.website) v4 end to end, and deployed to
-Cloudflare (Workers + D1) with [Alchemy](https://alchemy.run) v2.
+parsing, [Effect](https://effect.website/) v4 end to end, and deployed to
+Cloudflare (Workers + D1) with [Alchemy](https://alchemy.run/) v2.
 
 ## Quick start
 
@@ -50,7 +50,7 @@ CLI tokens never expire. Revoke them with `tokenmaxxing logout` or from
 
 - `apps/api` — Effect HttpApi server on a Cloudflare Worker (D1)
 - `apps/www` — TanStack Start site: leaderboard + profile dashboards
-- `apps/cli` — `@851-labs/tokenmaxxing`, the `tokenmaxxing` CLI
+- `apps/cli` — `@851-labs/tokenmaxxing`, the `tokenmaxxing` CLI (forked as TokenMasala)
 - `packages/api-contract` — shared HttpApi contract (end-to-end types)
 - `packages/db` — drizzle schema + D1 migrations
 
@@ -58,7 +58,7 @@ CLI tokens never expire. Revoke them with `tokenmaxxing logout` or from
 
 ```bash
 bun install
-bun run dev        # alchemy dev: api :8788 + www :3002 on *.tokenmaxxing.localhost
+bun run dev        # alchemy dev: api :8788 + www :3002 on *.tokenmasala.localhost
 bun run typecheck
 bun run test
 ```
@@ -67,8 +67,8 @@ Run local development from the repo root; app-level Vite dev/preview scripts are
 intentionally omitted because the web app depends on Alchemy/Cloudflare bindings.
 
 Copy `.env.example` to `.env` and fill in the GitHub and Google OAuth pairs.
-Dev callbacks are `http://api.tokenmaxxing.localhost:8788/auth/github/callback`
-and `http://api.tokenmaxxing.localhost:8788/auth/google/callback`.
+Dev callbacks are `http://api.tokenmasala.localhost:8788/auth/github/callback`
+and `http://api.tokenmasala.localhost:8788/auth/google/callback`.
 Run the CLI against the dev stack with
 `TOKENMAXXING_ENV=development bun apps/cli/src/index.ts <command>`.
 

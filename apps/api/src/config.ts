@@ -3,29 +3,29 @@ import { Context } from "effect";
 import { Effect } from "effect";
 import * as Redacted from "effect/Redacted";
 
-const productName = "Tokenmaxxing";
-const apiWorkerName = "tokenmaxxing-api";
+const productName = "TokenMasala";
+const apiWorkerName = "tokenmasala-api";
 
-type TokenmaxxingSandbox = "development" | "production";
+type TokenmasalaSandbox = "development" | "production";
 
 interface RuntimeUrls {
   apiUrl: string;
-  sandbox: TokenmaxxingSandbox;
+  sandbox: TokenmasalaSandbox;
   wwwUrl: string;
 }
 
 const runtimeUrlTable = {
   development: {
-    apiUrl: "http://api.tokenmaxxing.localhost:8788",
+    apiUrl: "http://api.tokenmasala.localhost:8788",
     sandbox: "development",
-    wwwUrl: "http://tokenmaxxing.localhost:3002",
+    wwwUrl: "http://tokenmasala.localhost:3002",
   },
   production: {
-    apiUrl: "https://api.tokenmaxxing.sh",
+    apiUrl: "https://api.tokenmasala.xyz",
     sandbox: "production",
-    wwwUrl: "https://tokenmaxxing.sh",
+    wwwUrl: "https://tokenmasala.xyz",
   },
-} as const satisfies Record<TokenmaxxingSandbox, RuntimeUrls>;
+} as const satisfies Record<TokenmasalaSandbox, RuntimeUrls>;
 
 interface GitHubOAuthConfig {
   clientId: string;
@@ -110,7 +110,7 @@ function corsOriginsFor(urls: RuntimeUrls): string[] {
 }
 
 function resolveRuntimeUrls(env: AppConfigEnv): RuntimeUrls {
-  const sandbox: TokenmaxxingSandbox =
+  const sandbox: TokenmasalaSandbox =
     env.TOKENMAXXING_ENV === "development" ? "development" : "production";
 
   return runtimeUrlTable[sandbox];

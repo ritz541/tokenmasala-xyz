@@ -7,7 +7,7 @@ type Profile = typeof ProfileResponse.Type;
 const ORGANIZATION_NAME = "851 Labs";
 const ORGANIZATION_ID = `${SITE_ORIGIN}/#organization`;
 const WEBSITE_ID = `${SITE_ORIGIN}/#website`;
-const SITE_NAME = "tokenmaxxing.sh";
+const SITE_NAME = "tokenmasala.xyz";
 
 const ORGANIZATION_SAME_AS = [
   "https://github.com/851-labs",
@@ -42,9 +42,9 @@ function softwareApplicationSchema(): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "tokenmaxxing",
+    name: "tokenmasala",
     description:
-      "CLI that syncs local LLM agent usage and publishes it to the tokenmaxxing.sh leaderboard.",
+      "CLI that syncs local LLM agent usage and publishes it to the tokenmasala.xyz leaderboard.",
     applicationCategory: "DeveloperApplication",
     operatingSystem: "macOS, Linux, Windows",
     url: SITE_ORIGIN,

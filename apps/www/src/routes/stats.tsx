@@ -66,13 +66,13 @@ const Route = createFileRoute("/stats")({
   },
   head: () => ({
     meta: [
-      { title: "Stats - tokenmaxxing.sh" },
+      { title: "Stats — tokenmasala.xyz" },
       {
         name: "description",
         content:
-          "Aggregate tokenmaxxing stats across tracked LLM agent spend, token volume, models, sources, and public leaderboard users.",
+          "Aggregate TokenMasala stats across tracked LLM agent spend, token volume, models, sources, and public leaderboard users.",
       },
-      { property: "og:title", content: "tokenmaxxing.sh stats" },
+      { property: "og:title", content: "tokenmasala.xyz stats" },
       {
         property: "og:description",
         content:

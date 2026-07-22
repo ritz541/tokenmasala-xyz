@@ -7,9 +7,9 @@ import { SITE_ORIGIN } from "../lib/og";
 const GITHUB_URL = "https://github.com/851-labs/tokenmaxxing";
 const DISCORD_URL = "https://discord.gg/WzX6BpfaRH";
 
-const TERMS_TITLE = "Terms of Service — tokenmaxxing.sh";
+const TERMS_TITLE = "Terms of Service — tokenmasala.xyz";
 const TERMS_DESCRIPTION =
-  "The terms for using tokenmaxxing.sh, the public leaderboard for LLM agent usage, provided as-is and free of charge.";
+  "The terms for using tokenmasala.xyz, the public leaderboard for LLM agent usage, provided as-is and free of charge.";
 const TERMS_URL = new URL("/terms", SITE_ORIGIN).toString();
 
 const Route = createFileRoute("/terms")({
@@ -35,7 +35,7 @@ function TermsPage() {
 
       <div className="mt-10 space-y-8">
         <Section title="The service">
-          tokenmaxxing.sh is a public leaderboard for LLM agent usage. It is provided as-is and free
+          tokenmasala.xyz is a public leaderboard for LLM agent usage. It is provided as-is and free
           of charge. We may change, pause, or shut down the service at any time, and features may be
           added or removed without notice.
         </Section>

@@ -34,14 +34,14 @@ import { UsageRepositoryLive } from "./usage/d1";
 const ApiWorker = Cloudflare.Worker(
   "api",
   {
-    name: "tokenmaxxing-api",
+    name: "tokenmasala-api",
     main: import.meta.filename,
     url: false,
     compatibility: {
       date: "2026-06-02",
       flags: ["nodejs_compat"],
     },
-    domain: "api.tokenmaxxing.sh",
+    domain: "api.tokenmasala.xyz",
     observability: {
       enabled: true,
     },

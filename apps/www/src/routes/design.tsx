@@ -288,7 +288,7 @@ function OgPngPreview({ alt, src }: { alt: string; src: string }) {
       <div className="flex aspect-[1200/630] w-full flex-col justify-center gap-2 border border-border bg-muted p-4 text-sm text-muted-foreground">
         <p className="font-medium text-foreground">PNG preview unavailable in local dev</p>
         <p>
-          Cloudflare Browser runs remotely and cannot capture <Code>tokenmaxxing.localhost</Code>.
+          Cloudflare Browser runs remotely and cannot capture <Code>tokenmasala.localhost</Code>.
           Use the HTML card preview locally, or test PNG output from a deployed/preview URL.
         </p>
       </div>

@@ -56,18 +56,18 @@ type TokenmaxxingEnvironment = "development" | "production";
 
 const runtimeConfigTable: Record<TokenmaxxingEnvironment, { apiUrl: string; wwwUrl: string }> = {
   development: {
-    apiUrl: "http://api.tokenmaxxing.localhost:8788",
-    wwwUrl: "http://tokenmaxxing.localhost:3002",
+    apiUrl: "http://api.tokenmasala.localhost:8788",
+    wwwUrl: "http://tokenmasala.localhost:3002",
   },
   production: {
-    apiUrl: "https://api.tokenmaxxing.sh",
-    wwwUrl: "https://tokenmaxxing.sh",
+    apiUrl: "https://api.tokenmasala.xyz",
+    wwwUrl: "https://tokenmasala.xyz",
   },
 };
 
 const legacyProductionUrls = {
-  apiUrl: new Set(["https://api.tokenmaxxing.851.sh"]),
-  wwwUrl: new Set(["https://tokenmaxxing.851.sh"]),
+  apiUrl: new Set(["https://api.tokenmaxxing.851.sh", "https://api.tokenmaxxing.sh"]),
+  wwwUrl: new Set(["https://tokenmaxxing.851.sh", "https://tokenmaxxing.sh"]),
 };
 
 function getEnvironment(

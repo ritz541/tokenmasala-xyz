@@ -8,9 +8,9 @@ const GITHUB_URL = "https://github.com/851-labs/tokenmaxxing";
 const DISCORD_URL = "https://discord.gg/WzX6BpfaRH";
 const CCUSAGE_URL = "https://ccusage.com/";
 
-const PRIVACY_TITLE = "Privacy Policy — tokenmaxxing.sh";
+const PRIVACY_TITLE = "Privacy Policy — tokenmasala.xyz";
 const PRIVACY_DESCRIPTION =
-  "How tokenmaxxing handles your data: we collect only daily usage aggregates and never your prompts, code, or session content.";
+  "How tokenmasala handles your data: we collect only daily usage aggregates and never your prompts, code, or session content.";
 const PRIVACY_URL = new URL("/privacy", SITE_ORIGIN).toString();
 
 const Route = createFileRoute("/privacy")({

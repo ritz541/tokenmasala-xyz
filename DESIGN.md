@@ -139,7 +139,7 @@ const usageGithubDays = sqliteTable(
     index("usage_github_days_user_idx").on(t.userId),
   ],
 );
-````
+```
 
 `usageDays` stays as-is in shape but is written by **addition** (delta upsert) in the new
 ingest path.
@@ -206,8 +206,7 @@ Access (login wall is the Access policy, not app code).
 3. `bun run deploy` (Alchemy pushes Worker + D1 + migrations).
 4. **Public:** no access gate for now — deploy the `www` app as-is so anyone with the URL can
    view the board. (Privacy opt-in toggle is a deferred, separate feature.)
-5. Friend install: one-liner above. They `login` (OAuth), `service install` (schedules sync),
-6. Friend install: one-liner above. They `login` (OAuth), `service install` (schedules sync).
+5. Friend install: one-liner above. They `login` (OAuth), `service install` (schedules sync)
 
 ---
 

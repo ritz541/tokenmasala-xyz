@@ -7,9 +7,11 @@ import { decodeDailyReport, decodeSessionReport } from "./schema";
 import type { CcusageSource } from "./sources";
 
 /**
- * Shells out to `bun x ccusage@^20.0.17 <source> daily --json --breakdown` (npx
- * fallback only when bun itself is missing). Runner and report failures stay
+ * Shells out to `bun x ccusage@<CCUSAGE_SPEC> <source> daily --json --breakdown`
+ * (npx fallback only when bun itself is missing). Runner and report failures stay
  * typed so the sync layer can distinguish them from valid empty reports.
+ *
+ * CCUSAGE_SPEC must stay in sync with the `ccusage` version in apps/cli/package.json.
  */
 
 const CCUSAGE_SPEC = "ccusage@^20.0.18";

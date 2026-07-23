@@ -2,8 +2,8 @@ import { Schema } from "effect";
 
 /**
  * The shape of `ccusage <source> daily --json --breakdown --mode calculate`
- * (v20, focused per-source commands — NOT the unified report, which buckets
- * by `period` and mixes agents). Each source emits a different dialect:
+ * (focused per-source commands — NOT the unified report, which buckets agents
+ * by `period`). Each source emits a different dialect:
  *
  *   claude    totalCost + modelBreakdowns[{modelName, …, cost}]
  *   codex     costUSD   + models{name: {tokens…}} (no per-model cost)

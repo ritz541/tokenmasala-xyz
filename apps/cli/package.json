@@ -42,6 +42,7 @@
     "@effect/platform-node": "catalog:",
     "@tokenmaxxing/api-contract": "workspace:*",
     "@types/bun": "catalog:",
+    "ccusage": "20.0.18",
     "effect": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -207,8 +207,8 @@ you actually produced after clearing caches. P2.5 fixes that losslessly.
   on untouched upstream HEAD). It blocks the pre-commit hook (`turbo test`), so
   commits are made with `--no-verify` (you approved this). Don't "fix" it by
   touching unrelated code.
-- **Iteration budget raised to 200** (`agent.max_turns` + `HERMES_MAX_ITERATIONS`)
-  so long build sessions don't get cut off.
+- **Skip pre-commit tests** on this Linux box if needed: `git commit --no-verify`
+  bypasses the known failing D1 test (see above). You approved this workflow.
 - CLI git identity is `ritz541 <riteshshivajichavan@gmail.com>` (system config).
   Do NOT override with `-c user.name=ritz`. Auth to GitHub via `gh` CLI token.
 

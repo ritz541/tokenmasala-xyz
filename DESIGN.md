@@ -16,10 +16,12 @@ service. We are forking it, not building from scratch.
 
 Three things upstream does **not** do, which this fork adds:
 
-1. **Tracks every harness, including VS Code extensions and obscure ones** (grok, kimi-code,
-   mimocode, qwen, mimo, cline, kiro, devin, agy, amp, cmd, poolside, agnes, pi, omp, zero,
-   freebuff, vibe, Hermes, codex…). Upstream only parses ccusage-compatible local JSONL logs,
-   which misses VS Code extensions and custom SDK scripts.
+1. **Tracks every harness** (grok, kimi-code, mimocode, qwen, mimo, cline, kiro,
+   devin, agy, amp, cmd, poolside, agnes, pi, omp, zero, freebuff, vibe, Hermes, codex…).
+   Upstream only parses ccusage-compatible local JSONL logs, which misses hosted-chat
+   extensions and custom SDK harnesses that never write a parseable local transcript.
+   Claude-in-VS-Code and OpenCode-in-VS-Code are covered because those extensions write
+   the same JSONL as their CLI counterparts.
 2. **Never lets the total go down.** Upstream recomputes daily totals from local logs and
    upserts last-write-wins — so clearing a cache _lowers_ the stored count. We make ingestion
    **append-only / additive**.
@@ -29,36 +31,34 @@ Three things upstream does **not** do, which this fork adds:
 
 ## 1. Locked decisions (discussed, agreed)
 
-| Topic                        | Decision                                                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Privacy / deploy             | **Public** instance on Cloudflare (no auth gate for now). Privacy opt-in toggle is a deferred idea — kept in mind, not built yet.                                                                                                                                                                                                                                      |
-| Default tracking for friends | **ccusage log-scan primary with per-session deduplication.** (Proxy dropped: non-CA proxy only saw connection metadata, not token counts; MITM/CA was intrusive). Zero-config for friends across 15 supported harnesses (`claude`, `codex`, `opencode`, `gemini`, `copilot`, `pi`, `amp`, `droid`, `codebuff`, `hermes`, `goose`, `openclaw`, `kilo`, `kimi`, `qwen`). |
-| Live cadence                 | Default client batch-sync every 5 min. Proxy also streams each request to the API immediately → live meter is real-time when proxy active.                                                                                                                                                                                                                             |
-| Live transport               | **SSE** for the activity feed (short-poll fallback). Scales fine to the 15–30 user target.                                                                                                                                                                                                                                                                             |
-| Platforms                    | Linux (us + 1 friend) **and Windows** (most friends). Background sync must install a **Windows Task Scheduler** task, not only systemd.                                                                                                                                                                                                                                |
-| Domain                       | `tokenmasala.xyz` (production API `api.tokenmasala.xyz`).                                                                                                                                                                                                                                                                                                              |
+| Topic                        | Decision                                                                                                                                                                                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Privacy / deploy             | **Public** instance on Cloudflare (no auth gate for now). Privacy opt-in toggle is a deferred idea — kept in mind, not built yet.                                                                                                                                 |
+| Default tracking for friends | **ccusage log-scan primary with per-session deduplication.** Zero-config for friends across 15 supported harnesses (`claude`, `codex`, `opencode`, `gemini`, `copilot`, `pi`, `amp`, `droid`, `codebuff`, `hermes`, `goose`, `openclaw`, `kilo`, `kimi`, `qwen`). |
+| Live cadence                 | Default client batch-sync every 5 min.                                                                                                                                                                                                                            |
+| Live transport               | **SSE** for the activity feed (short-poll fallback). Scales fine to the 15–30 user target.                                                                                                                                                                        |
+| Platforms                    | Linux (us + 1 friend) **and Windows** (most friends). Background sync must install a **Windows Task Scheduler** task, not only systemd.                                                                                                                           |
+| Domain                       | `tokenmasala.xyz` (production API `api.tokenmasala.xyz`).                                                                                                                                                                                                         |
 
 ---
 
 ## 2. Architecture
 
-```
-┌─────────────┐   intercept   ┌────────────────┐   events    ┌──────────────┐
-│ friend laptop│──API calls──▶│ local proxy     │─────────────▶│              │
-│ (any harness,│              │ (forwarder+     │  UsageEvent  │  Cloudflare  │
-│  VS Code ext)│──ccusage────▶│  logger)        │  (append)    │  Worker API  │
-└─────────────┘   log parse   └────────────────┘             │  (D1 SQLite) │
+````
+┌─────────────┐   log-scan   ┌────────────────┐   events    ┌──────────────┐
+│ friend laptop│──JSONL files─▶│  ccusage CLI   │─────────────▶│              │
+│ (any harness,│  (zero-config)│  (per-source   │  payload    │  Cloudflare  │
+│  VS Code ext)│               │   daily+session)│   push       │  Worker API  │
+└─────────────┘               └────────────────┘             │  (D1 SQLite) │
                                                              │      │        │
                                                              │      ▼        │
                                                              │  dashboard   │
                                                              │  (TanStack,  │
-                                                             │   Access-gated)│
-└──────────────┘
-        ▲
-        │ GitHub push/commit/LOC via GitHub REST (OAuth token from login)
-```
+                                                             │   public)    │
+         ▲                                                  └──────────────┘
+         │ GitHub push/commit/LOC via GitHub REST (OAuth token from login)
 
-- **CLI (`apps/cli`)** gains: a proxy binary/mode, an event cursor, a Windows `schtasks`
+- **CLI (`apps/cli`)** gains: a Windows `schtasks` installer path, GitHub data collection (via the OAuth token already granted at login), and the domain baked into production defaults.
   installer path, GitHub data collection (via the OAuth token already granted at login),
   and the domain baked into production defaults.
 - **API (`apps/api`)** gains: an `ingestEvent` endpoint (append-only), a `syncGithub`
@@ -89,11 +89,6 @@ cacheCreationTokens, cacheReadTokens, totalTokens, costUsd, createdAt`.
   queries without rewriting every read path. Totals only ever increase.
 - Deleting a local cache stops _new_ events for that window; recorded totals are untouched.
   History before install = one-time backfill, then frozen.
-
-Harness attribution in proxy mode: detect from request endpoint/key
-(`api.anthropic.com` → Claude-family, `api.openai.com`/OpenRouter → OpenAI-family, etc.) plus
-a configurable `--label` friends can set. Log-parsing supplies the accurate label for
-ccusage-compatible harnesses.
 
 ---
 
@@ -144,7 +139,7 @@ const usageGithubDays = sqliteTable(
     index("usage_github_days_user_idx").on(t.userId),
   ],
 );
-```
+````
 
 `usageDays` stays as-is in shape but is written by **addition** (delta upsert) in the new
 ingest path.
@@ -192,15 +187,13 @@ Access (login wall is the Access policy, not app code).
 
 ## 7. Windows + VS Code support
 
-- Background sync (`tokenburner service install`) must branch on platform:
-  - **Linux:** systemd user timer (existing) **+** the proxy as a systemd service.
-  - **Windows:** `schtasks` to register a 5-min sync task **+** the proxy as a startup
-    background process (or a scheduled task). No systemd on Windows.
-- Proxy interception catches **Claude-in-VS-Code** and **OpenCode-in-VS-Code** because those
-  extensions make real API calls that the proxy forwards — no extension-specific code needed.
-- Install for a Windows friend: `npm i -g @<you>/tokenburner`, `tokenburner login`,
-  `tokenburner service install`, and (optional) point their `OPENAI_BASE_URL` /
-  `ANTHROPIC_BASE_URL` at the local proxy for full coverage.
+- Background sync (`tokenmaxxing service install`) must branch on platform:
+  - **Windows:** `schtasks` to register a 5-min sync task. No systemd on Windows.
+- Claude-in-VS-Code and OpenCode-in-VS-Code are covered automatically: those extensions
+  write the same JSONL transcripts as their CLI counterparts, so ccusage captures them
+  with no extension-specific code or base-URL edits needed.
+- Hosted-chat-style extensions (e.g. Anthropic's web "Claude" chat) that never spawn a local
+  CLI are the genuine blind spot — not fixable via log-scan, deferred to upstream ccusage.
 
 ---
 
@@ -214,7 +207,7 @@ Access (login wall is the Access policy, not app code).
 4. **Public:** no access gate for now — deploy the `www` app as-is so anyone with the URL can
    view the board. (Privacy opt-in toggle is a deferred, separate feature.)
 5. Friend install: one-liner above. They `login` (OAuth), `service install` (schedules sync),
-   optionally enable the proxy.
+6. Friend install: one-liner above. They `login` (OAuth), `service install` (schedules sync).
 
 ---
 
@@ -224,19 +217,17 @@ Access (login wall is the Access policy, not app code).
   (passing). Friends hit _our_ API, not upstream.
 - **P1 — append-only events.** Add `usageEvents` schema + migration, `POST /usage/events`,
   CLI event cursor, delta upsert into `usageDays`. Proves the "count never goes down" fix.
-- **P2 — proxy.** Local forwarder + `--label`; feed `usageEvents`. Cross-platform (Linux now,
-  Windows scaffold).
-- **P3 — GitHub + presence.** `usageGithubDays`, `POST /github/sync`, GitHub collection via
+- **P2 — GitHub + presence.** `usageGithubDays`, `POST /github/sync`, GitHub collection via
   OAuth token, `GET /presence`.
-- **P4 — live feed.** SSE `GET /activity/stream` + short-poll fallback.
-- **P5 — dashboard.** Dark theme + §6 layout (home + profile) reading the new endpoints.
-- **P6 — Windows packaging.** `schtasks` installer path, test on a Windows friend.
-- **P7 — deploy + Access gating + friend onboarding.**
+- **P3 — live feed.** SSE `GET /activity/stream` + short-poll fallback.
+- **P4 — dashboard.** Dark theme + §6 layout (home + profile) reading the new endpoints.
+- **P5 — Windows packaging.** `schtasks` installer path, test on a Windows friend.
+- **P6 — deploy + Access gating + friend onboarding.**
 
 ---
 
 ## 10. Open items (not blocking P0/P1)
 
 - Final domain purchase + repo rename.
-- Confirm which harnesses each friend actually uses (scopes proxy label defaults).
+- npm package scope rename (`@851-labs/tokenmaxxing` → your npm org).
 - Whether to also expose a public "opt-in" leaderboard later (Access policy toggle).

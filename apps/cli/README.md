@@ -1,8 +1,9 @@
-# @851-labs/tokenmaxxing
+# @tokenmasala/tokenmasala
 
-CLI for [tokenmaxxing](https://tokenmaxxing.sh) — the social leaderboard
+CLI for [tokenmasala](https://tokenmasala.xyz) — the public leaderboard
 for LLM token usage. Parses your local agent usage (Claude Code, Codex,
-OpenCode, Gemini CLI, Copilot CLI, Pi) via
+OpenCode, Gemini CLI, Copilot CLI, Pi, Amp, Droid, CodeBuff, Hermes,
+Goose, OpenClaw, Kilo, Kimi, Qwen) via
 [ccusage](https://github.com/ryoppippi/ccusage) and pushes daily aggregates
 to your public profile.
 
@@ -20,6 +21,9 @@ You can also install globally with `bun add -g --trust @851-labs/tokenmaxxing@la
 `pnpm add -g @851-labs/tokenmaxxing@latest`, or
 `yarn global add @851-labs/tokenmaxxing@latest`.
 
+> **Note:** The published npm package is still `@851-labs/tokenmaxxing` pending
+> an npm scope rename to `@tokenmasala/tokenmasala`. The CLI binary is `tokenmaxxing`.
+
 The background service uses the global `tokenmaxxing` binary and syncs every
 5 minutes. It auto-updates through the package manager that installed the
 global binary (bun, npm, pnpm, or yarn) when that package manager can be
@@ -36,7 +40,17 @@ profiles aggregate across devices. Useful flags: `--dry-run`,
 Daily aggregates only: date, model name, agent name, token counts, and the
 API-equivalent cost — never prompts, file paths, project names, or session
 content. Revoke access anytime with `tokenmaxxing logout` or from
-[settings](https://tokenmaxxing.sh/settings).
+[settings](https://tokenmasala.xyz/settings).
+
+## Supported agents
+
+The CLI tracks 15 ccusage-compatible agents out of the box: `claude`, `codex`,
+`opencode`, `gemini`, `copilot`, `pi`, `amp`, `droid`, `codebuff`, `hermes`,
+`goose`, `openclaw`, `kilo`, `kimi`, `qwen`.
+
+Harnesses without a parseable local transcript (hosted web chat, custom SDK
+CLIs) are not captured by log-scan. Those gaps are tracked upstream in
+[ccusage](https://github.com/ryoppippi/ccusage), not in this fork.
 
 ## License
 

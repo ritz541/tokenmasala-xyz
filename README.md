@@ -1,7 +1,8 @@
 # TokenMasala
 
 The public leaderboard for LLM token usage. Sync your local agent usage
-(Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Pi, and more), climb the board at
+(Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Pi, Amp, Droid,
+CodeBuff, Hermes, Goose, OpenClaw, Kilo, Kimi, Qwen, and more), climb the board at
 [tokenmasala.xyz](https://tokenmasala.xyz).
 
 Built on [ccusage](https://github.com/ryoppippi/ccusage) for local usage

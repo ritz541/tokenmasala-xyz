@@ -30,7 +30,7 @@ async function ccusageErrorFor<A>(effect: Effect.Effect<A, CcusageRunError>) {
 }
 
 describe("ccusage commands", () => {
-  it("uses the minimum v20 release verified for GPT-5.6", () => {
+  it("uses the pinned 20.x spec verified across sources", () => {
     expect(dailyCcusageCommand(codex)).toEqual([
       "ccusage@^20.0.18",
       "codex",

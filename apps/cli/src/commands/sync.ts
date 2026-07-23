@@ -97,6 +97,9 @@ const syncCommand = Command.make(
     dryRun: Flag.boolean("dry-run").pipe(
       Flag.withDescription("Aggregate locally but push nothing"),
     ),
+    git: Flag.boolean("git").pipe(
+      Flag.withDescription("Include local git commit/line telemetry in sync (default: false)"),
+    ),
     json: Flag.boolean("json").pipe(Flag.withDescription("Output machine-readable JSON")),
     since: Flag.string("since").pipe(
       Flag.optional,
@@ -109,9 +112,10 @@ const syncCommand = Command.make(
       ),
     ),
   },
-  ({ dryRun, json, since, sources }) =>
+  ({ dryRun, git, json, since, sources }) =>
     syncEffect({
       dryRun,
+      git,
       json,
       since: Option.getOrUndefined(since),
       sources: Option.getOrUndefined(sources),
@@ -120,6 +124,7 @@ const syncCommand = Command.make(
 
 interface SyncOptions {
   dryRun: boolean;
+  git?: boolean | undefined;
   json: boolean;
   since?: string | undefined;
   sources?: string | undefined;
@@ -404,10 +409,9 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
         status,
       };
     }
-
-    const githubDays = yield* collectGitTelemetry({ since: options.since }).pipe(
-      Effect.orElseSucceed(() => []),
-    );
+    const githubDays = options.git
+      ? yield* collectGitTelemetry({ since: options.since }).pipe(Effect.orElseSucceed(() => []))
+      : [];
 
     const response = yield* uploadUsageReports({
       auth,

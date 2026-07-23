@@ -213,16 +213,20 @@ Access (login wall is the Access policy, not app code).
 
 ## 9. Build order (phases)
 
+> **Authority:** [STATUS.md](../STATUS.md) is the single source of truth for phase status.
+> The numbering below reflects the completed P0–P3 pipeline and maps to the next phases.
+
 - **P0 — fork + repoint.** Clone (done), rename, bake domain, verify `bun run typecheck`
   (passing). Friends hit _our_ API, not upstream.
 - **P1 — append-only events.** Add `usageEvents` schema + migration, `POST /usage/events`,
   CLI event cursor, delta upsert into `usageDays`. Proves the "count never goes down" fix.
-- **P2 — GitHub + presence.** `usageGithubDays`, `POST /github/sync`, GitHub collection via
-  OAuth token, `GET /presence`.
-- **P3 — live feed.** SSE `GET /activity/stream` + short-poll fallback.
-- **P4 — dashboard.** Dark theme + §6 layout (home + profile) reading the new endpoints.
-- **P5 — Windows packaging.** `schtasks` installer path, test on a Windows friend.
-- **P6 — deploy + Access gating + friend onboarding.**
+- **P2 — ccusage log-scan integration + session dedup.** Wire all ccusage sources, pin
+  20.0.18, build-order phase `usageSessions` table + per-session dedup + per-source exclusivity.
+- **P3 — GitHub + presence.** `usageGithubDays`, `POST /github/sync`, git telemetry, `GET /presence`.
+- **P4 — live feed.** SSE `GET /activity/stream` + short-poll fallback.
+- **P5 — dashboard.** Dark theme + §6 layout (home + profile) reading the new endpoints.
+- **P6 — Windows packaging.** `schtasks` installer path; test on a Windows friend.
+- **P7 — deploy + Access gating + friend onboarding.**
 
 ---
 

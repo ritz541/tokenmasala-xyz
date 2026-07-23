@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 
 import { Data, Effect } from "effect";
+import pkg from "../../package.json" with { type: "json" };
 
 import type { CcusageDailyReport, CcusageSessionReport } from "./schema";
 import { decodeDailyReport, decodeSessionReport } from "./schema";
@@ -11,10 +12,10 @@ import type { CcusageSource } from "./sources";
  * (npx fallback only when bun itself is missing). Runner and report failures stay
  * typed so the sync layer can distinguish them from valid empty reports.
  *
- * CCUSAGE_SPEC must stay in sync with the `ccusage` version in apps/cli/package.json.
+ * Derived from apps/cli/package.json — no separate source of truth to maintain.
  */
 
-const CCUSAGE_SPEC = "ccusage@^20.0.18";
+const CCUSAGE_SPEC = `ccusage@^${(pkg as typeof pkg & { devDependencies: Record<string, string> }).devDependencies.ccusage}`;
 const RUN_TIMEOUT_MS = 180_000;
 
 class CcusageRunError extends Data.TaggedError("CcusageRunError")<{

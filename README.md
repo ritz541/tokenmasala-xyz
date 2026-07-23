@@ -31,7 +31,7 @@ files stay current.
 Use `tokenmaxxing service status` for the last run and `tokenmaxxing service
 doctor` to inspect scheduler files, auth, auto-update, locks, and recent logs.
 
-`sync` aggregates one row per (day × model × agent) and upserts — run it as
+`sync` aggregates local usage via `ccusage` (session-level lossless deduplication with daily snapshot fallback) and pushes it — run it as
 often as you like, from as many machines as you like; profiles aggregate
 across all your devices. `--dry-run` shows what would be pushed, `--since
 YYYY-MM-DD` bounds the range, `--sources claude,codex` picks agents.
@@ -44,7 +44,7 @@ content. Profiles and the leaderboard are public; device hostnames appear
 on your own settings page and in your per-device breakdown.
 
 CLI tokens never expire. Revoke them with `tokenmaxxing logout` or from
-[settings](https://tokenmaxxing.sh/settings).
+[settings](https://tokenmasala.xyz/settings).
 
 ## Layout
 

@@ -1,5 +1,13 @@
-import { devices, usageDays, usageEvents, usageRawBatches, usageSourceStats, deviceWatermarks } from "@tokenmaxxing/db";
-import { and, eq, sql } from "drizzle-orm";
+import {
+  devices,
+  usageDays,
+  usageEvents,
+  usageRawBatches,
+  usageSessions,
+  usageSourceStats,
+  deviceWatermarks,
+} from "@tokenmaxxing/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { Layer } from "effect";
 
@@ -232,9 +240,7 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
           watermark.set(row.source, row.lastEventTs.getTime());
         }
 
-        const fresh = events.filter(
-          (event) => event.ts > (watermark.get(event.source) ?? 0),
-        );
+        const fresh = events.filter((event) => event.ts > (watermark.get(event.source) ?? 0));
         if (fresh.length === 0) {
           return { stored: 0 };
         }
@@ -265,9 +271,7 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
             costUsd: event.costUsd,
           }));
 
-          const eventStatements = eventRows.map((row) =>
-            db.insert(usageEvents).values(row),
-          );
+          const eventStatements = eventRows.map((row) => db.insert(usageEvents).values(row));
 
           // Additive update of the daily aggregate: totals only ever increase.
           const dayStatements = fresh.map((event) =>
@@ -290,12 +294,12 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
               .onConflictDoUpdate({
                 target: [usageDays.deviceId, usageDays.date, usageDays.source, usageDays.model],
                 set: {
-                  cacheCreationTokens: sql`${usageDays.cacheCreationTokens} + excluded.${usageDays.cacheCreationTokens}`,
-                  cacheReadTokens: sql`${usageDays.cacheReadTokens} + excluded.${usageDays.cacheReadTokens}`,
-                  costUsd: sql`${usageDays.costUsd} + excluded.${usageDays.costUsd}`,
-                  inputTokens: sql`${usageDays.inputTokens} + excluded.${usageDays.inputTokens}`,
-                  outputTokens: sql`${usageDays.outputTokens} + excluded.${usageDays.outputTokens}`,
-                  totalTokens: sql`${usageDays.totalTokens} + excluded.${usageDays.totalTokens}`,
+                  cacheCreationTokens: sql`${usageDays.cacheCreationTokens} + excluded.cache_creation_tokens`,
+                  cacheReadTokens: sql`${usageDays.cacheReadTokens} + excluded.cache_read_tokens`,
+                  costUsd: sql`${usageDays.costUsd} + excluded.cost_usd`,
+                  inputTokens: sql`${usageDays.inputTokens} + excluded.input_tokens`,
+                  outputTokens: sql`${usageDays.outputTokens} + excluded.output_tokens`,
+                  totalTokens: sql`${usageDays.totalTokens} + excluded.total_tokens`,
                   syncedAt,
                   userId,
                 },
@@ -306,7 +310,12 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
             ([source, lastEventTs]) =>
               db
                 .insert(deviceWatermarks)
-                .values({ deviceId, source, lastEventTs: new Date(lastEventTs), updatedAt: syncedAt })
+                .values({
+                  deviceId,
+                  source,
+                  lastEventTs: new Date(lastEventTs),
+                  updatedAt: syncedAt,
+                })
                 .onConflictDoUpdate({
                   target: [deviceWatermarks.deviceId, deviceWatermarks.source],
                   set: {
@@ -328,6 +337,102 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
             firstWatermark!,
             ...restWatermarks,
           ]);
+        });
+
+        return { stored: fresh.length };
+      }),
+    insertSessions: (userId, deviceId, sessions, syncedAt) =>
+      Effect.gen(function* () {
+        if (sessions.length === 0) {
+          return { stored: 0 };
+        }
+
+        // Lossless, cache-clear-safe ingestion. ccusage emits one row per
+        // session with a STABLE session id (data[].session). We fold each
+        // session into usageDays exactly once — the first time we see its id.
+        // This makes totals both non-decreasing AND exact: a cleared local
+        // cache cannot drop history (the dedup row lives on the server), and
+        // new work done after a clear is ADDED, never clamped. The daily
+        // upsertChunk (max()) remains a safety floor for the snapshot path.
+        const byKey = new Map<string, (typeof sessions)[number]>();
+        for (const session of sessions) {
+          byKey.set(`${session.source} ${session.sessionId}`, session);
+        }
+
+        // 1. Which of these session ids are already recorded?
+        const incomingSessionIds = [...new Set(sessions.map((s) => s.sessionId))];
+        const incomingSources = [...new Set(sessions.map((s) => s.source))];
+        const existing = yield* database.use((db) =>
+          db
+            .select({ source: usageSessions.source, sessionId: usageSessions.sessionId })
+            .from(usageSessions)
+            .where(
+              and(
+                eq(usageSessions.deviceId, deviceId),
+                inArray(usageSessions.source, incomingSources),
+                inArray(usageSessions.sessionId, incomingSessionIds),
+              ),
+            ),
+        );
+        for (const row of existing) {
+          byKey.delete(`${row.source} ${row.sessionId}`);
+        }
+        const fresh = [...byKey.values()];
+        if (fresh.length === 0) {
+          return { stored: 0 };
+        }
+
+        yield* database.use((db) => {
+          const sessionRows = fresh.map((session) =>
+            db.insert(usageSessions).values({
+              createdAt: syncedAt,
+              date: session.date,
+              deviceId,
+              lastActivity: new Date(session.lastActivity),
+              sessionId: session.sessionId,
+              source: session.source,
+              userId,
+            }),
+          );
+
+          // 2. Additively fold the NEW sessions into usageDays. Each session
+          //    targets its own (date, model) bucket; totals strictly increase.
+          const dayStatements = fresh.map((session) =>
+            db
+              .insert(usageDays)
+              .values({
+                cacheCreationTokens: session.cacheCreationTokens,
+                cacheReadTokens: session.cacheReadTokens,
+                costUsd: session.costUsd,
+                date: session.date,
+                deviceId,
+                inputTokens: session.inputTokens,
+                model: session.model,
+                outputTokens: session.outputTokens,
+                source: session.source,
+                totalTokens: session.totalTokens,
+                userId,
+                syncedAt,
+              })
+              .onConflictDoUpdate({
+                target: [usageDays.deviceId, usageDays.date, usageDays.source, usageDays.model],
+                set: {
+                  cacheCreationTokens: sql`${usageDays.cacheCreationTokens} + excluded.cache_creation_tokens`,
+                  cacheReadTokens: sql`${usageDays.cacheReadTokens} + excluded.cache_read_tokens`,
+                  costUsd: sql`${usageDays.costUsd} + excluded.cost_usd`,
+                  inputTokens: sql`${usageDays.inputTokens} + excluded.input_tokens`,
+                  outputTokens: sql`${usageDays.outputTokens} + excluded.output_tokens`,
+                  totalTokens: sql`${usageDays.totalTokens} + excluded.total_tokens`,
+                  syncedAt,
+                  userId,
+                },
+              }),
+          );
+
+          const [firstSession, ...restSessions] = sessionRows;
+          const [firstDay, ...restDays] = dayStatements;
+
+          return db.batch([firstSession!, ...restSessions, firstDay!, ...restDays]);
         });
 
         return { stored: fresh.length };

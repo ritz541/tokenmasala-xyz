@@ -1,4 +1,8 @@
-import { DeviceMissing, type RawUsageReportInput, type UsageEventInput } from "@tokenmaxxing/api-contract";
+import {
+  DeviceMissing,
+  type RawUsageReportInput,
+  type UsageEventInput,
+} from "@tokenmaxxing/api-contract";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -122,6 +126,7 @@ function makeRepository(options: RepositoryOptions = {}) {
       : Effect.fail(options.rawReportsError),
   );
   const insertEvents = vi.fn(() => Effect.succeed({ stored: 0 }));
+  const insertSessions = vi.fn(() => Effect.succeed({ stored: 0 }));
 
   const repository: UsageRepositoryShape = {
     checkInDevice,
@@ -130,6 +135,7 @@ function makeRepository(options: RepositoryOptions = {}) {
     upsertRawReports,
     upsertSourceStats,
     insertEvents,
+    insertSessions,
   };
 
   return {
@@ -139,6 +145,7 @@ function makeRepository(options: RepositoryOptions = {}) {
     upsertChunk,
     upsertRawReports,
     upsertSourceStats,
+    insertSessions,
   };
 }
 

@@ -218,12 +218,23 @@ type TestUsageIngest = (
   request: TestUsageIngestRequest,
 ) => Effect.Effect<{ received: number; syncedAt: string; upserted: number }, unknown>;
 
-function makeUploadAuth(ingest: TestUsageIngest): SyncAuth {
+function makeUploadAuth(
+  ingest: TestUsageIngest,
+  sessions?: (request: any) => Effect.Effect<any, unknown>,
+): SyncAuth {
   return {
     authSource: "stored",
     client: {
       usage: {
         ingest,
+        sessions:
+          sessions ??
+          (() =>
+            Effect.succeed({
+              received: 0,
+              stored: 0,
+              syncedAt: "2026-07-22T00:00:00.000Z",
+            })),
       },
     } as unknown as TokenmaxxingApiClient,
     config: {
@@ -468,7 +479,7 @@ describe("sync source outcomes", () => {
     ]);
   });
 
-  it("uploads daily reports plus aggregate session counts without session payloads", async () => {
+  it("uploads sessions (not daily raw) when the session scan yields rows, avoiding double count", async () => {
     const { layer } = makeTestLayer({
       initialConfig: {
         apiUrl: "https://api.tokenmaxxing.example",
@@ -476,12 +487,19 @@ describe("sync source outcomes", () => {
       },
       interactive: false,
     });
-    let uploadPayload: TestUsageIngestRequest["payload"] | undefined;
-    const auth = makeUploadAuth((request) =>
-      Effect.sync(() => {
-        uploadPayload = request.payload;
-        return { received: 1, syncedAt: "2026-07-22T00:00:00.000Z", upserted: 1 };
-      }),
+    let ingestPayload: TestUsageIngestRequest["payload"] | undefined;
+    let sessionsPayload: any;
+    const auth = makeUploadAuth(
+      (request) =>
+        Effect.sync(() => {
+          ingestPayload = request.payload;
+          return { received: 1, syncedAt: "2026-07-22T00:00:00.000Z", upserted: 1 };
+        }),
+      (request) =>
+        Effect.sync(() => {
+          sessionsPayload = request.payload;
+          return { received: 1, stored: 1, syncedAt: "2026-07-22T00:00:00.000Z" };
+        }),
     );
 
     const result = await Effect.runPromise(
@@ -494,8 +512,10 @@ describe("sync source outcomes", () => {
             Effect.succeed({
               sessions: [
                 {
-                  projectPath: "/Users/alex/secret-client",
-                  sessionId: "-Users-alex-secret-client",
+                  lastActivity: "2026-07-22T10:00:00.000Z",
+                  session: "sess_abc",
+                  totalTokens: 999,
+                  modelsUsed: ["gpt-5"],
                 },
               ],
             }),
@@ -503,19 +523,76 @@ describe("sync source outcomes", () => {
       ).pipe(Effect.provide(layer)),
     );
 
-    expect(result).toMatchObject({ status: "ok", upserted: 1 });
-    expect(uploadPayload).toMatchObject({
-      reports: [
-        {
-          payload: { daily: [{ date: "2026-07-22", totalTokens: 10 }] },
-          reportKind: "daily",
-          source: "codex",
-        },
-      ],
-      sourceStats: [{ sessionCount: 1, source: "codex" }],
+    // Session path won: daily raw upload is skipped (exclusivity) so the same
+    // usage is not counted twice.
+    expect(result.status).toBe("ok");
+    expect(ingestPayload?.reports).toHaveLength(0);
+    expect(sessionsPayload?.sessions).toHaveLength(1);
+    expect(sessionsPayload?.sessions[0]).toMatchObject({
+      date: "2026-07-22",
+      model: "gpt-5",
+      sessionId: "sess_abc",
+      source: "codex",
+      totalTokens: 999,
     });
-    expect(JSON.stringify(uploadPayload)).not.toContain("secret-client");
-    expect(uploadPayload?.reports).toHaveLength(1);
+  });
+
+  it("tolerates the gemini/agy session shape (sessionId, totalCost, modelsUsed, no timestamp)", async () => {
+    const { layer } = makeTestLayer({
+      initialConfig: {
+        apiUrl: "https://api.tokenmaxxing.example",
+        wwwUrl: "https://tokenmaxxing.example",
+      },
+      interactive: false,
+    });
+    let sessionsPayload: any;
+    const auth = makeUploadAuth(
+      () => Effect.succeed({ received: 1, syncedAt: "2026-07-22T00:00:00.000Z", upserted: 1 }),
+      (request) =>
+        Effect.sync(() => {
+          sessionsPayload = request.payload;
+          return { received: 1, stored: 1, syncedAt: "2026-07-22T00:00:00.000Z" };
+        }),
+    );
+
+    const result = await Effect.runPromise(
+      syncProgram(
+        { auth, dryRun: false, json: true, sources: "gemini" },
+        {
+          runDailyReport: () =>
+            Effect.succeed({ daily: [{ date: "2026-07-22", totalTokens: 10 }] }),
+          runSessionReport: () =>
+            Effect.succeed({
+              sessions: [
+                {
+                  sessionId: "89f4d4c7-44ec-499f-9ffc-348216b85a74",
+                  totalCost: 0.0028967,
+                  totalTokens: 20338,
+                  modelsUsed: ["gemini-3-flash-preview"],
+                  modelBreakdowns: [
+                    {
+                      modelName: "gemini-3-flash-preview",
+                      cost: 0.0028967,
+                      inputTokens: 303,
+                      outputTokens: 47,
+                      cacheReadTokens: 19444,
+                    },
+                  ],
+                },
+              ],
+            }),
+        },
+      ).pipe(Effect.provide(layer)),
+    );
+
+    expect(result.status).toBe("ok");
+    expect(sessionsPayload?.sessions).toHaveLength(1);
+    const s = sessionsPayload?.sessions[0];
+    expect(s.sessionId).toBe("89f4d4c7-44ec-499f-9ffc-348216b85a74");
+    expect(s.model).toBe("gemini-3-flash-preview");
+    expect(s.costUsd).toBeCloseTo(0.0028967, 6);
+    // No timestamp in the report -> attributed to today's local date, not dropped.
+    expect(/^\d{4}-\d{2}-\d{2}$/.test(s.date)).toBe(true);
   });
 
   it("keeps daily rows when the session report fails", async () => {
@@ -565,11 +642,18 @@ describe("sync source outcomes", () => {
       interactive: false,
     });
     let uploadPayload: TestUsageIngestRequest["payload"] | undefined;
-    const auth = makeUploadAuth((request) =>
-      Effect.sync(() => {
-        uploadPayload = request.payload;
-        return { received: 1, syncedAt: "2026-07-22T00:00:00.000Z", upserted: 1 };
-      }),
+    let sessionsUploaded: number | undefined;
+    const auth = makeUploadAuth(
+      (request) =>
+        Effect.sync(() => {
+          uploadPayload = request.payload;
+          return { received: 1, syncedAt: "2026-07-22T00:00:00.000Z", upserted: 1 };
+        }),
+      (request) =>
+        Effect.sync(() => {
+          sessionsUploaded = request.payload.sessions.length;
+          return { received: 1, stored: 1, syncedAt: "2026-07-22T00:00:00.000Z" };
+        }),
     );
 
     await Effect.runPromise(
@@ -584,12 +668,21 @@ describe("sync source outcomes", () => {
         {
           runDailyReport: () =>
             Effect.succeed({ daily: [{ date: "2026-07-22", totalTokens: 10 }] }),
-          runSessionReport: () => Effect.succeed({ sessions: [{}, {}] }),
+          runSessionReport: () =>
+            Effect.succeed({
+              sessions: [
+                { lastActivity: "2026-07-22T10:00:00.000Z", session: "s1" },
+                { lastActivity: "2026-07-22T10:00:00.000Z", session: "s2" },
+              ],
+            }),
         },
       ).pipe(Effect.provide(layer)),
     );
 
-    expect(uploadPayload?.reports).toHaveLength(1);
+    // Bounded (since=) sync: session path wins, so no daily raw upload and no
+    // lifetime sourceStats overwrite — session counts are preserved.
+    expect(sessionsUploaded).toBe(2);
+    expect(uploadPayload?.reports).toHaveLength(0);
     expect(uploadPayload).not.toHaveProperty("sourceStats");
   });
 

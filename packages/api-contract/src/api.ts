@@ -27,6 +27,8 @@ import {
   HealthResponse,
   IngestEventsInput,
   IngestEventsResponse,
+  IngestSessionsInput,
+  IngestSessionsResponse,
   IngestUsageInput,
   LeaderboardMetric,
   LeaderboardResponse,
@@ -152,6 +154,17 @@ class UsageGroup extends HttpApiGroup.make("usage")
     HttpApiEndpoint.post("events", "/usage/events", {
       payload: IngestEventsInput,
       success: IngestEventsResponse,
+      error: DeviceMissing,
+    }),
+  )
+  .add(
+    // Lossless, cache-clear-safe ingestion. The CLI sends ccusage's
+    // per-session report; the server dedups by (device, source, sessionId)
+    // and additively folds only NEW sessions into usageDays. A cleared local
+    // cache cannot drop history and post-clear work is added, not clamped.
+    HttpApiEndpoint.post("sessions", "/usage/sessions", {
+      payload: IngestSessionsInput,
+      success: IngestSessionsResponse,
       error: DeviceMissing,
     }),
   )

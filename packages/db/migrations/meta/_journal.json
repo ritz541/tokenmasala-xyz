@@ -92,6 +92,13 @@
       "when": 1784756157196,
       "tag": "0012_furry_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1784791299270,
+      "tag": "0013_brown_santa_claus",
+      "breakpoints": true
     }
   ]
 }

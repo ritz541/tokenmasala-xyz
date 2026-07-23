@@ -300,6 +300,37 @@ type NewUsageEvent = typeof usageEvents.$inferInsert;
 type DeviceWatermark = typeof deviceWatermarks.$inferSelect;
 type NewDeviceWatermark = typeof deviceWatermarks.$inferInsert;
 
+/**
+ * Dedup set for per-session ingestion (the lossless, cache-clear-safe path).
+ * One row per (device, source, sessionId) where `sessionId` is the stable id
+ * ccusage emits in `ccusage <source> session --json` (data[].session). The
+ * server folds a session's tokens into `usageDays` exactly once — the first
+ * time it is seen. Clearing local caches cannot drop history (the row persists
+ * on the server), and new work done after a clear is ADDED, not clamped, so
+ * totals are both non-decreasing AND exact. `lastActivity` (the session's
+ * local day) is stored so the fold targets the right `usageDays.date` bucket.
+ */
+const usageSessions = sqliteTable(
+  "usage_sessions",
+  {
+    deviceId: text("device_id").notNull(),
+    source: text("source").notNull(),
+    sessionId: text("session_id").notNull(),
+    userId: text("user_id").notNull(),
+    date: text("date").notNull(),
+    lastActivity: integer("last_activity", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.deviceId, table.source, table.sessionId] }),
+    index("usage_sessions_user_idx").on(table.userId),
+    index("usage_sessions_device_date_idx").on(table.deviceId, table.date),
+  ],
+);
+
+type UsageSession = typeof usageSessions.$inferSelect;
+type NewUsageSession = typeof usageSessions.$inferInsert;
+
 export {
   cliLoginRequests,
   cliTokens,
@@ -309,6 +340,7 @@ export {
   usageDays,
   usageEvents,
   usageRawBatches,
+  usageSessions,
   usageSourceStats,
   userAccounts,
   users,
@@ -329,11 +361,13 @@ export type {
   NewUser,
   NewUsageEvent,
   NewDeviceWatermark,
+  NewUsageSession,
   Session,
   UsageDay,
   UsageEvent,
   UsageRawBatch,
   UsageSourceStat,
+  UsageSession,
   UserAccount,
   User,
 };

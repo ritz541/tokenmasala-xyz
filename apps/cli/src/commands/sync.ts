@@ -7,10 +7,16 @@ import type {
   RawUsageReportInput,
   SourceUsageStatsInput,
   UsageDayInput,
+  UsageSessionInput,
 } from "@tokenmaxxing/api-contract";
 
 import packageJson from "../../package.json";
-import { aggregateDays, summarize, type SourceSummary } from "../ccusage/aggregate";
+import {
+  aggregateDays,
+  aggregateSessions,
+  summarize,
+  type SourceSummary,
+} from "../ccusage/aggregate";
 import {
   type CcusageReportKind,
   CcusageRunError,
@@ -192,6 +198,7 @@ interface UploadUsageReportsOptions {
   };
   options: Pick<SyncProgramOptions, "json" | "silent">;
   rawReports: RawUsageReportInput[];
+  sessions?: UsageSessionInput[] | undefined;
   sourceStats?: SourceUsageStatsInput[] | undefined;
   uploadPolicy?: UploadRetryPolicy | undefined;
 }
@@ -266,6 +273,7 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
       : (options.auth ?? (yield* resolveSyncAuth({ json: options.json })));
 
     const rows: UsageDayInput[] = [];
+    const sessions: UsageSessionInput[] = [];
     const rawReports: RawUsageReportInput[] = [];
     const sourceSummaries: Record<string, SyncSourceSummary | null> = {};
     const sourceResults: SyncSourceResult[] = [];
@@ -309,12 +317,6 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
       }
 
       const sourceRows = aggregateDays(source.source, dailyReport.daily);
-      rawReports.push({
-        command: dailyCcusageCommand(source, { since: options.since }),
-        payload: dailyReport,
-        reportKind: "daily",
-        source: source.source,
-      });
 
       const sessionResult = yield* runSessionReport(source, { since: options.since }).pipe(
         Effect.match({
@@ -322,6 +324,26 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
           onSuccess: (report) => ({ report, _tag: "success" as const }),
         }),
       );
+      const sessionRows =
+        sessionResult._tag === "success"
+          ? aggregateSessions(source.source, sessionResult.report.sessions)
+          : [];
+      // Per-source exclusivity: the session path and the daily snapshot path
+      // describe the SAME underlying usage and BOTH write usageDays. If the
+      // session scan produced rows we upload those (authoritative, lossless)
+      // and skip the daily raw upload for this source — otherwise the same
+      // sessions would be counted twice. Fall back to the daily raw path only
+      // when the session scan yielded nothing (or failed).
+      const sessionCovered = sessionRows.length > 0;
+      if (!sessionCovered) {
+        rawReports.push({
+          command: dailyCcusageCommand(source, { since: options.since }),
+          payload: dailyReport,
+          reportKind: "daily",
+          source: source.source,
+        });
+      }
+
       const sessionCount =
         sessionResult._tag === "success" ? sessionResult.report.sessions.length : null;
       const summary = { ...summarize(sourceRows), sessions: sessionCount };
@@ -336,7 +358,10 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
           : { source: source.source, status: "synced", summary };
       sourceSummaries[source.source] = summary;
       sourceResults.push(result);
-      rows.push(...sourceRows);
+      rows.push(...(sessionCovered ? sessionRows : sourceRows));
+      if (sessionCovered) {
+        sessions.push(...sessionRows);
+      }
       if (result.status === "partial") {
         spinner.error(
           renderInlineResults
@@ -382,6 +407,7 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
       device,
       options,
       rawReports,
+      sessions,
       sourceStats: options.since === undefined ? sourceStatsForSync(sourceResults) : undefined,
       uploadPolicy: options.uploadPolicy,
     });
@@ -404,12 +430,16 @@ function uploadUsageReports({
   device,
   options,
   rawReports,
+  sessions = [],
   sourceStats,
   uploadPolicy,
 }: UploadUsageReportsOptions) {
   return Effect.gen(function* () {
     const spinner = yield* humanSpinner("Uploading usage", options);
-    const upload = uploadUsageReportsOnce({ auth, device, rawReports, sourceStats }, uploadPolicy);
+    const upload = uploadUsageReportsOnce(
+      { auth, device, rawReports, sessions, sourceStats },
+      uploadPolicy,
+    );
 
     return yield* upload.pipe(
       Effect.tap(() => Effect.sync(() => spinner.stop("Usage uploaded"))),
@@ -420,18 +450,34 @@ function uploadUsageReports({
 }
 
 function uploadUsageReportsOnce(
-  input: Pick<UploadUsageReportsOptions, "auth" | "device" | "rawReports" | "sourceStats">,
+  input: Pick<
+    UploadUsageReportsOptions,
+    "auth" | "device" | "rawReports" | "sessions" | "sourceStats"
+  >,
   uploadPolicy: UploadRetryPolicy | undefined,
 ) {
   const upload = () =>
-    input.auth.client.usage.ingest({
-      payload: {
-        device: input.device,
-        reports: input.rawReports,
-        ...(input.sourceStats === undefined ? {} : { sourceStats: input.sourceStats }),
-      },
-    });
+    Effect.gen(function* () {
+      const response = yield* input.auth.client.usage.ingest({
+        payload: {
+          device: input.device,
+          reports: input.rawReports,
+          ...(input.sourceStats === undefined ? {} : { sourceStats: input.sourceStats }),
+        },
+      });
 
+      const sessionList = input.sessions ?? [];
+      if (sessionList.length > 0) {
+        yield* input.auth.client.usage.sessions({
+          payload: {
+            device: input.device,
+            sessions: sessionList,
+          },
+        });
+      }
+
+      return response;
+    });
   if (uploadPolicy === undefined) {
     return upload();
   }

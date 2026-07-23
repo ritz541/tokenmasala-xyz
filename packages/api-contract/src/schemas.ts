@@ -307,6 +307,53 @@ const IngestEventsResponse = Schema.Struct({
   syncedAt: Schema.String,
 });
 
+/**
+ * One ccusage session (from `ccusage <source> session --json`, data[]).
+ * `sessionId` is the stable per-session id ccusage emits — the dedup key.
+ * `date` is the session's local day (derived from lastActivity) so the fold
+ * lands in the right usageDays bucket. The token/cost fields are already
+ * aggregated per session by ccusage across every harness, so the server
+ * folds each session into usageDays exactly once (first time seen).
+ */
+const UsageSessionInput = Schema.Struct({
+  cacheCreationTokens: Schema.Number,
+  cacheReadTokens: Schema.Number,
+  costUsd: Schema.Number,
+  date: Schema.String,
+  inputTokens: Schema.Number,
+  lastActivity: Schema.Number,
+  model: Schema.String,
+  outputTokens: Schema.Number,
+  sessionId: Schema.String,
+  source: Schema.String,
+  totalTokens: Schema.Number,
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+type UsageSessionInput = typeof UsageSessionInput.Type;
+
+const IngestSessionsInput = Schema.Struct({
+  device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
+    name: Schema.String,
+    platform: Schema.String,
+    version: Schema.optional(Schema.String),
+  }),
+  sessions: Schema.Array(UsageSessionInput),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+const IngestSessionsResponse = Schema.Struct({
+  received: Schema.Number,
+  stored: Schema.Number,
+  syncedAt: Schema.String,
+});
+
+type IngestSessionsInput = typeof IngestSessionsInput.Type;
+type IngestSessionsResponse = typeof IngestSessionsResponse.Type;
+
 const LeaderboardMetric = Schema.Literals(["spend", "tokens"]);
 const LeaderboardWindow = Schema.Literals(["all", "30d", "7d"]);
 
@@ -635,6 +682,8 @@ export {
   HealthResponse,
   IngestEventsInput,
   IngestEventsResponse,
+  IngestSessionsInput,
+  IngestSessionsResponse,
   IngestUsageInput,
   UsageEventInput,
   LeaderboardEntry,
@@ -675,6 +724,7 @@ export {
   UserAccountSummary,
   UsageDayInput,
   UsageRawReportKind,
+  UsageSessionInput,
 };
 
 export type {

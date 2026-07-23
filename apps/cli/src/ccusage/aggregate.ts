@@ -1,6 +1,6 @@
-import type { UsageDayInput } from "@tokenmaxxing/api-contract";
+import type { UsageDayInput, UsageSessionInput } from "@tokenmaxxing/api-contract";
 
-import type { CcusageDay } from "./schema";
+import type { CcusageDay, CcusageSession } from "./schema";
 
 /**
  * Pure transform from ccusage daily reports to the sync payload: one row
@@ -132,6 +132,56 @@ interface SourceSummary {
   spendUsd: number;
 }
 
+function aggregateSessions(
+  source: string,
+  sessions: readonly CcusageSession[],
+): UsageSessionInput[] {
+  const today = new Date().toISOString().slice(0, 10);
+  return sessions
+    .map((session): UsageSessionInput | null => {
+      // Real ccusage per-source session output carries `sessionId` or `session`.
+      const sessionId =
+        session.sessionId ?? session.session ?? session.sessionFile ?? session.projectPath;
+      if (sessionId === undefined || sessionId.length === 0) {
+        return null;
+      }
+      // Per-source reports vary in whether they carry a timestamp: claude/codex have
+      // lastActivity, others carry none. When missing, attribute to today
+      // — the session is deduped by id server-side, so the bucket is stable.
+      const ts = session.lastActivity ?? session.firstActivity;
+      const date = ts !== undefined ? ts.slice(0, 10) : today;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return null;
+      }
+      // Note: ccusage session reports don't carry per-model token breakdowns today.
+      // For single-model sessions, attribute to that model; for multi-model
+      // sessions, fallback is "unknown".
+      const model =
+        session.models?.[0] ??
+        session.modelsUsed?.[0] ??
+        session.modelBreakdowns?.[0]?.modelName ??
+        "unknown";
+      const costUsd = session.costUSD ?? session.totalCost ?? 0;
+      return {
+        cacheCreationTokens: session.cacheCreationTokens ?? 0,
+        cacheReadTokens: session.cacheReadTokens ?? 0,
+        costUsd,
+        date,
+        inputTokens: session.inputTokens ?? 0,
+        lastActivity: ts !== undefined ? Date.parse(ts) : Date.now(),
+        model,
+        outputTokens: session.outputTokens ?? 0,
+        sessionId,
+        source,
+        totalTokens: session.totalTokens ?? 0,
+      };
+    })
+    .filter((session): session is UsageSessionInput => session !== null)
+    .sort((a, b) =>
+      a.date === b.date ? a.sessionId.localeCompare(b.sessionId) : a.date.localeCompare(b.date),
+    );
+}
+
 function summarize(rows: readonly UsageDayInput[]): SourceSummary {
   const days = new Set<string>();
   const models = new Set<string>();
@@ -150,6 +200,6 @@ function summarize(rows: readonly UsageDayInput[]): SourceSummary {
   };
 }
 
-export { aggregateDays, summarize };
+export { aggregateDays, aggregateSessions, summarize };
 
 export type { SourceSummary };

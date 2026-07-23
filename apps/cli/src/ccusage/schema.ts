@@ -57,8 +57,42 @@ const CcusageDailyReport = Schema.Struct({
 
 type CcusageDailyReport = typeof CcusageDailyReport.Type;
 
+const CcusageSession = Schema.Struct({
+  cacheCreationTokens: Schema.optional(Schema.Number),
+  cacheReadTokens: Schema.optional(Schema.Number),
+  costUSD: Schema.optional(Schema.Number),
+  firstActivity: Schema.optional(Schema.String),
+  inputTokens: Schema.optional(Schema.Number),
+  lastActivity: Schema.optional(Schema.String),
+  modelBreakdowns: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        cacheCreationTokens: Schema.optional(Schema.Number),
+        cacheReadTokens: Schema.optional(Schema.Number),
+        cost: Schema.optional(Schema.Number),
+        inputTokens: Schema.optional(Schema.Number),
+        modelName: Schema.String,
+        outputTokens: Schema.optional(Schema.Number),
+      }),
+    ),
+  ),
+  models: Schema.optional(Schema.Array(Schema.String)),
+  modelsUsed: Schema.optional(Schema.Array(Schema.String)),
+  outputTokens: Schema.optional(Schema.Number),
+  // ccusage emits the per-session id under DIFFERENT keys per harness:
+  // unified/claude -> `session`, gemini/agy -> `sessionId`. Accept both.
+  projectPath: Schema.optional(Schema.String),
+  session: Schema.optional(Schema.String),
+  sessionFile: Schema.optional(Schema.String),
+  sessionId: Schema.optional(Schema.String),
+  totalCost: Schema.optional(Schema.Number),
+  totalTokens: Schema.optional(Schema.Number),
+});
+
+type CcusageSession = typeof CcusageSession.Type;
+
 const CcusageSessionReport = Schema.Struct({
-  sessions: Schema.Array(Schema.Unknown),
+  sessions: Schema.Array(CcusageSession),
 });
 
 type CcusageSessionReport = typeof CcusageSessionReport.Type;
@@ -69,6 +103,7 @@ const decodeSessionReport = Schema.decodeUnknownEffect(CcusageSessionReport);
 export {
   CcusageDailyReport,
   CcusageDay,
+  CcusageSession,
   CcusageSessionReport,
   decodeDailyReport,
   decodeSessionReport,

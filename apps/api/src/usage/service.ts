@@ -14,6 +14,7 @@ import type {
   SourceUsageStatsInput,
   UsageDayInput,
   UsageEventInput,
+  UsageSessionInput,
 } from "@tokenmaxxing/api-contract";
 
 import { sha256Hex } from "../auth/crypto";
@@ -71,6 +72,11 @@ interface UsageServiceShape {
     identity: typeof CliIdentity.Type,
     device: UsageDevice,
     events: readonly UsageEventInput[],
+  ): Effect.Effect<{ received: number; stored: number; syncedAt: string }, DeviceMissing, any>;
+  ingestSessions(
+    identity: typeof CliIdentity.Type,
+    device: UsageDevice,
+    sessions: readonly UsageSessionInput[],
   ): Effect.Effect<{ received: number; stored: number; syncedAt: string }, DeviceMissing, any>;
 }
 
@@ -146,6 +152,12 @@ interface UsageRepositoryShape {
     userId: string,
     deviceId: string,
     events: readonly UsageEventInput[],
+    syncedAt: Date,
+  ): Effect.Effect<{ stored: number }, DatabaseError, any>;
+  insertSessions(
+    userId: string,
+    deviceId: string,
+    sessions: readonly UsageSessionInput[],
     syncedAt: Date,
   ): Effect.Effect<{ stored: number }, DatabaseError, any>;
 }
@@ -234,11 +246,7 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
         upserted,
       };
     }),
-    ingestEvents: Effect.fn("UsageService.ingestEvents")(function* (
-      identity,
-      device,
-      events,
-    ) {
+    ingestEvents: Effect.fn("UsageService.ingestEvents")(function* (identity, device, events) {
       const deviceId = yield* requireDeviceId(identity);
       const syncedAt = new Date();
 
@@ -254,6 +262,24 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
         syncedAt: syncedAt.toISOString(),
       };
     }),
+    ingestSessions: Effect.fn("UsageService.ingestSessions")(
+      function* (identity, device, sessions) {
+        const deviceId = yield* requireDeviceId(identity);
+        const syncedAt = new Date();
+
+        const { stored } = yield* repository
+          .insertSessions(identity.user.id, deviceId, sessions, syncedAt)
+          .pipe(Effect.orDie);
+
+        yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
+
+        return {
+          received: sessions.length,
+          stored,
+          syncedAt: syncedAt.toISOString(),
+        };
+      },
+    ),
   });
 });
 

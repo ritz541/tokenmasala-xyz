@@ -57,10 +57,9 @@ Three things upstream does **not** do, which this fork adds:
                                                              │   public)    │
          ▲                                                  └──────────────┘
          │ GitHub push/commit/LOC via GitHub REST (OAuth token from login)
+````
 
 - **CLI (`apps/cli`)** gains: a Windows `schtasks` installer path, GitHub data collection (via the OAuth token already granted at login), and the domain baked into production defaults.
-  installer path, GitHub data collection (via the OAuth token already granted at login),
-  and the domain baked into production defaults.
 - **API (`apps/api`)** gains: an `ingestEvent` endpoint (append-only), a `syncGithub`
   endpoint, SSE activity endpoint, and the GitHub schema.
 - **DB (`packages/db`)** gains: `usageEvents` (append-only source of truth) and

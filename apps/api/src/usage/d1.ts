@@ -60,6 +60,18 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
           return;
         }
 
+        // Monotone-max reconciliation for SNAPSHOT data. ccusage emits a
+        // full daily total per (date, model) on every sync — not a delta. A
+        // client that clears its local cache and re-scans will re-send a
+        // recomputed (often smaller) total. A last-write-wins upsert would
+        // OVERWRITE the larger stored total and the leaderboard would drop.
+        // `max(...)` (SQLite scalar fn) keeps every column monotone
+        // non-decreasing under any
+        // re-send / cache-clear / clock-replay, and is idempotent (sending
+        // the same snapshot is a no-op). This is the correct permanent
+        // invariant for a snapshot-backed leaderboard; the append-only
+        // `usageEvents` log (POST /usage/events) is the audit/live-feed
+        // trail and is folded separately by additive deltas.
         yield* database.use((db) => {
           const statements = rows.map((row) =>
             db
@@ -81,14 +93,14 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
               .onConflictDoUpdate({
                 target: [usageDays.deviceId, usageDays.date, usageDays.source, usageDays.model],
                 set: {
-                  userId,
-                  inputTokens: row.inputTokens,
-                  outputTokens: row.outputTokens,
-                  cacheCreationTokens: row.cacheCreationTokens,
-                  cacheReadTokens: row.cacheReadTokens,
-                  totalTokens: row.totalTokens,
-                  costUsd: row.costUsd,
+                  cacheCreationTokens: sql`max(${usageDays.cacheCreationTokens}, excluded.cache_creation_tokens)`,
+                  cacheReadTokens: sql`max(${usageDays.cacheReadTokens}, excluded.cache_read_tokens)`,
+                  costUsd: sql`max(${usageDays.costUsd}, excluded.cost_usd)`,
+                  inputTokens: sql`max(${usageDays.inputTokens}, excluded.input_tokens)`,
+                  outputTokens: sql`max(${usageDays.outputTokens}, excluded.output_tokens)`,
+                  totalTokens: sql`max(${usageDays.totalTokens}, excluded.total_tokens)`,
                   syncedAt,
+                  userId,
                 },
               }),
           );

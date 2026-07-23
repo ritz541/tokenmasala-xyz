@@ -70,31 +70,50 @@ server-authoritative watermark (see below).
 
 ## P1 architecture (the important part)
 
-- **`usageEvents`** (append-only): one row per usage event, client-generated
-  UUID `id`. Source of truth.
-- **`deviceWatermarks`**: per `(deviceId, source)` the newest event `ts` the
-  server has already counted.
-- **`POST /usage/events`** (`IngestEventsInput` → `IngestEventsResponse`):
-  reads watermark → **drops events with `ts <= watermark`** (a cleared local
-  cache re-sending old events cannot subtract history) → inserts the rest →
-  **additively** updates `usageDays` via
-  `sql\`total_tokens + excluded.total_tokens\`` (totals only increase) → bumps
-  watermark.
+Two distinct data paths, both designed so totals never decrease:
+
+**Live snapshot path (what the CLI actually uses today).** ccusage emits a
+*full daily total per (date, model)* — a SNAPSHOT, not a delta. The CLI ships
+those via `POST /usage/ingest` → `service.ingestRaw` → `d1.upsertChunk`. That
+upsert was originally **last-write-wins** (`onConflictDoUpdate` replacing every
+column) — which is exactly the bug: clear local caches, ccusage recomputes a
+smaller day, re-sync overwrites the larger stored total downward. **Fixed
+(2026-07-23): `upsertChunk` now reconciles with `max(stored, incoming)` on every
+token/cost column** (SQLite `max()` scalar — D1 has no `greatest()`). This is
+monotone non-decreasing under any re-send / cache-clear / clock-replay, and
+idempotent (same snapshot = no-op). Zero schema change. Proven by
+`apps/api/src/usage/monotonic.test.ts` (real sqlite engine, 3 cases).
+
+**Append-only event path (audit + live feed).** `usageEvents` (append-only,
+client UUID `id`) + `deviceWatermarks` per `(deviceId, source)` + `POST
+/usage/events`: reads watermark → drops events with `ts <= watermark` → inserts
+rest → **additively** folds into `usageDays` → bumps watermark. This path is
+correct for *delta* feeds (the dropped proxy used it). It is NOT on the
+ccusage live path because ccusage gives snapshots; it remains the source the
+P4 SSE live feed (`GET /activity/stream`) will stream from.
+
 - Migration `packages/db/migrations/0012_*.sql` auto-applied at runtime by
   `Drizzle.layer` (no manual migrate step; just generate + commit).
+
+> Design note: for SNAPSHOT data the provably-correct invariant is monotone
+> MAX, not additive sum. Additive sum is correct only for deltas. Do not
+> "fix" `upsertChunk` back to last-write-wins, and do not try to feed ccusage
+> snapshots through the additive `insertEvents` (double counts).
 
 ## P2 architecture (ccusage log-scan integration)
 
 - `tokenmaxxing sync` (`apps/cli/src/commands/sync.ts`) runs `ccusage` per
-  source via `apps/cli/src/ccusage/runner.ts` and ingests the JSON reports.
+  source via `apps/cli/src/ccusage/runner.ts` and ingests the JSON reports via
+  `POST /usage/ingest` (the monotone-max live path above).
 - `apps/cli/src/ccusage/`:
   - `runner.ts` — shells out to `bun x ccusage@^20.0.18 <source> daily --json
     --breakdown` (and `session`), normalizes the report, surfaces typed errors
     (`CcusageRunError`) without masking Bun failures as npm fallback.
   - `sources.ts` — `CCUSAGE_SOURCES`: the 15 focused sources ccusage >=20.0.18
     supports (see below).
-  - `usage.ts` — maps ccusage daily rows → `UsageEventInput[]` for
-    `POST /usage/events`.
+  - `aggregate.ts` — maps ccusage daily rows → `UsageDayInput[]` (one row per
+    `(date, model)`), handling the three per-source dialects; feeds the ingest
+    path. NOTE: there is no `usage.ts`; do not add one expecting it to exist.
 - **Zero-config for friends**: the CLI reads local agent logs directly; no
   base-URL edits, no proxy, no CA. This is the whole point of the direction.
 

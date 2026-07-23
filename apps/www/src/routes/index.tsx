@@ -8,6 +8,7 @@ import { Check, Copy } from "@phosphor-icons/react/ssr";
 import { z } from "zod";
 
 import { formatTokens, formatUsd } from "../components/charts/scale";
+import { ActivityFeed } from "../components/activity-feed";
 import { Avatar } from "../components/ui/avatar";
 import { Code, codeTextStyle } from "../components/ui/code";
 import { Tabs } from "../components/ui/tabs";
@@ -382,6 +383,10 @@ function LeaderboardPage() {
             </table>
           )}
         </div>
+      </section>
+
+      <section className="px-4 py-8 max-w-6xl mx-auto">
+        <ActivityFeed />
       </section>
 
       <FaqSection />

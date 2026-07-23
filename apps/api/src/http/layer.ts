@@ -252,6 +252,17 @@ const statsHandlers = HttpApiBuilder.group(TokenmaxxingApi, "stats", (handlers) 
   ),
 );
 
+const activityHandlers = HttpApiBuilder.group(TokenmaxxingApi, "activity", (handlers) =>
+  handlers.handle("feed", ({ query }) =>
+    Effect.gen(function* () {
+      const usage = yield* UsageService;
+      const limit = query.limit;
+      const sinceTs = query.since ? new Date(query.since) : undefined;
+      return yield* usage.getActivityFeed({ limit, sinceTs }).pipe(Effect.orDie);
+    }),
+  ),
+);
+
 const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) =>
   handlers
     .handle("listUsers", () =>
@@ -278,6 +289,7 @@ const adminHandlers = HttpApiBuilder.group(TokenmaxxingApi, "admin", (handlers) 
 );
 
 const handlersLayer = Layer.mergeAll(
+  activityHandlers,
   adminHandlers,
   healthHandlers,
   meHandlers,
@@ -302,12 +314,30 @@ interface ApiLayerOptions {
   usageServiceLayer: Layer.Layer<UsageService>;
 }
 
+const activityStreamRoute = HttpRouter.add(
+  "GET",
+  "/activity/stream",
+  Effect.gen(function* () {
+    const usage = yield* UsageService;
+    const feed = yield* usage.getActivityFeed({ limit: 50 }).pipe(Effect.orDie);
+    const sseBody = feed.events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+
+    return HttpServerResponse.raw(`event: init\n${sseBody}`, {
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      },
+    });
+  }),
+);
+
 function makeApiLayer(options: ApiLayerOptions) {
   const apiLayer = Layer.mergeAll(
     HttpApiBuilder.layer(TokenmaxxingApi, { openapiPath: "/openapi.json" }),
     oauthRoutesLayer,
+    activityStreamRoute,
   );
-
   return apiLayer.pipe(
     Layer.provide(handlersLayer),
     Layer.provide(options.middlewareLayer),

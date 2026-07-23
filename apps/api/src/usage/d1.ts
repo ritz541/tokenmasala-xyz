@@ -6,9 +6,11 @@ import {
   usageRawBatches,
   usageSessions,
   usageSourceStats,
+  userAccounts,
+  users,
   deviceWatermarks,
 } from "@tokenmaxxing/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { Layer } from "effect";
 
@@ -506,6 +508,61 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
             version: device.version ?? null,
           };
         });
+      }),
+    getRecentEvents: (options = {}) =>
+      Effect.gen(function* () {
+        const limit = Math.min(options.limit ?? 50, 100);
+        const rows = yield* database.use((db) => {
+          let query = db
+            .select({
+              cacheCreationTokens: usageEvents.cacheCreationTokens,
+              cacheReadTokens: usageEvents.cacheReadTokens,
+              costUsd: usageEvents.costUsd,
+              deviceId: usageEvents.deviceId,
+              eventId: usageEvents.id,
+              inputTokens: usageEvents.inputTokens,
+              model: usageEvents.model,
+              outputTokens: usageEvents.outputTokens,
+              source: usageEvents.source,
+              totalTokens: usageEvents.totalTokens,
+              ts: usageEvents.ts,
+              userId: users.id,
+              userLogin: users.login,
+              userName: users.name,
+              userAvatarUrl: users.avatarUrl,
+            })
+            .from(usageEvents)
+            .innerJoin(users, eq(users.id, usageEvents.userId));
+
+          if (options.sinceTs !== undefined) {
+            return query
+              .where(gt(usageEvents.ts, options.sinceTs))
+              .orderBy(desc(usageEvents.ts))
+              .limit(limit);
+          }
+
+          return query.orderBy(desc(usageEvents.ts)).limit(limit);
+        });
+
+        return rows.map((row) => ({
+          cacheCreationTokens: row.cacheCreationTokens,
+          cacheReadTokens: row.cacheReadTokens,
+          costUsd: row.costUsd,
+          deviceId: row.deviceId,
+          id: row.eventId,
+          inputTokens: row.inputTokens,
+          model: row.model,
+          outputTokens: row.outputTokens,
+          source: row.source,
+          totalTokens: row.totalTokens,
+          ts: row.ts.toISOString(),
+          user: {
+            avatarUrl: row.userAvatarUrl,
+            id: row.userId,
+            login: row.userLogin,
+            name: row.userName,
+          },
+        }));
       }),
   });
 });

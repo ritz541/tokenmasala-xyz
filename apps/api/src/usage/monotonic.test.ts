@@ -230,6 +230,27 @@ function d1Database(sqlite: DatabaseSync): D1Database {
     prepare: (query: string) => d1Statement(sqlite, query),
   } as unknown as D1Database;
 }
+/** Positional-array raw() that handles duplicate column names across joins. */
+function d1Raw(sqlite: DatabaseSync, query: string, parameters: SQLInputValue[]): unknown[][] {
+  const stmt = sqlite.prepare(query);
+  const cols = stmt.columns();
+  const seen = new Set<string>();
+  const hasDupes = cols.some((c) => {
+    if (seen.has(c.name)) return true;
+    seen.add(c.name);
+    return false;
+  });
+  if (!hasDupes) {
+    return (stmt.all(...parameters) as Record<string, unknown>[]).map((r) => Object.values(r));
+  }
+  const fromIdx = query.toLowerCase().indexOf(" from ");
+  const selectPart = query.substring(7, fromIdx);
+  const colExprs = selectPart.split(",").map((s) => s.trim());
+  const aliased = colExprs.map((expr, i) => `${expr} as "__c${i}"`);
+  const newQuery = `select ${aliased.join(", ")}${query.substring(fromIdx)}`;
+  const rows = sqlite.prepare(newQuery).all(...parameters) as Record<string, unknown>[];
+  return rows.map((r) => cols.map((_, i) => r[`__c${i}`]));
+}
 
 function d1Statement(
   sqlite: DatabaseSync,
@@ -239,10 +260,7 @@ function d1Statement(
   return {
     all: async () => ({ results: sqlite.prepare(query).all(...parameters) }),
     bind: (...values: unknown[]) => d1Statement(sqlite, query, values as SQLInputValue[]),
-    raw: async () => {
-      const rows = sqlite.prepare(query).all(...parameters) as Record<string, unknown>[];
-      return rows.map((r) => Object.values(r));
-    },
+    raw: async () => d1Raw(sqlite, query, parameters),
     run: async () => sqlite.prepare(query).run(...parameters),
   } as unknown as D1PreparedStatement;
 }

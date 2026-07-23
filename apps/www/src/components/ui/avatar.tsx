@@ -13,15 +13,34 @@ interface AvatarProps {
   size?: AvatarSize;
   /** Eager-load the image (use for above-the-fold avatars). */
   priority?: boolean;
+  /** Used to render initials when `src` is null. */
+  name?: string | null;
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
 
 /** A square avatar image with a muted fallback when `src` is null. */
-function Avatar({ src, alt = "", size = 28, priority = false }: AvatarProps) {
+function Avatar({ src, alt = "", name, size = 28, priority = false }: AvatarProps) {
   const pixels = typeof size === "number" ? size : AVATAR_SIZES[size];
   const style = { width: pixels, height: pixels };
 
   if (src === null) {
-    return <span className="shrink-0 select-none bg-muted" style={style} />;
+    return (
+      <span
+        className="shrink-0 select-none inline-flex items-center justify-center bg-muted text-muted-foreground text-xs font-medium"
+        style={style}
+      >
+        {name ? initials(name) : null}
+      </span>
+    );
   }
 
   return (

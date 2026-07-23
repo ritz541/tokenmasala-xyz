@@ -42,6 +42,12 @@ const statsQueryOptions = queryOptions({
   staleTime: 30_000,
 });
 
+const activityFeedQueryOptions = queryOptions({
+  queryKey: ["activity"],
+  queryFn: () => runApi((client) => client.activity.feed({ query: { limit: 50 } })),
+  staleTime: 5_000,
+  refetchInterval: 5_000,
+});
 function leaderboardQueryOptions(
   metric: typeof LeaderboardMetric.Type,
   window: typeof LeaderboardWindow.Type,
@@ -71,6 +77,7 @@ function profileDailyQueryOptions(login: string) {
 }
 
 export {
+  activityFeedQueryOptions,
   adminUsersQueryOptions,
   accountsQueryOptions,
   devicesQueryOptions,

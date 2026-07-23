@@ -17,6 +17,7 @@ import type {
   UsageSessionInput,
   UsageGithubDayInput,
   PresenceDeviceSummary,
+  ActivityEventSummary,
 } from "@tokenmaxxing/api-contract";
 
 import { sha256Hex } from "../auth/crypto";
@@ -88,6 +89,10 @@ interface UsageServiceShape {
   getPresence(
     userId: string,
   ): Effect.Effect<{ devices: PresenceDeviceSummary[] }, DatabaseError, any>;
+  getActivityFeed(options?: {
+    limit?: number | undefined;
+    sinceTs?: Date | undefined;
+  }): Effect.Effect<{ events: ActivityEventSummary[] }, DatabaseError, any>;
 }
 
 interface UsageDevice {
@@ -177,6 +182,10 @@ interface UsageRepositoryShape {
     syncedAt: Date,
   ): Effect.Effect<{ upserted: number }, DatabaseError, any>;
   getPresenceDevices(userId: string): Effect.Effect<PresenceDeviceSummary[], DatabaseError, any>;
+  getRecentEvents(options?: {
+    limit?: number | undefined;
+    sinceTs?: Date | undefined;
+  }): Effect.Effect<ActivityEventSummary[], DatabaseError, any>;
 }
 
 class UsageService extends Context.Service<UsageService, UsageServiceShape>()(
@@ -316,6 +325,10 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
     getPresence: Effect.fn("UsageService.getPresence")(function* (userId) {
       const devices = yield* repository.getPresenceDevices(userId);
       return { devices };
+    }),
+    getActivityFeed: Effect.fn("UsageService.getActivityFeed")(function* (options) {
+      const events = yield* repository.getRecentEvents(options);
+      return { events };
     }),
   });
 });

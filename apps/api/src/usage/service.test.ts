@@ -129,6 +129,7 @@ function makeRepository(options: RepositoryOptions = {}) {
   const insertSessions = vi.fn(() => Effect.succeed({ stored: 0 }));
   const upsertGithubDays = vi.fn(() => Effect.succeed({ upserted: 0 }));
   const getPresenceDevices = vi.fn(() => Effect.succeed([]));
+  const getRecentEvents = vi.fn(() => Effect.succeed([]));
 
   const repository: UsageRepositoryShape = {
     checkInDevice,
@@ -140,6 +141,7 @@ function makeRepository(options: RepositoryOptions = {}) {
     insertSessions,
     upsertGithubDays,
     getPresenceDevices,
+    getRecentEvents,
   };
   return {
     checkInDevice,

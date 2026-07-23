@@ -15,6 +15,7 @@ import {
 } from "./errors";
 import { Authorization, CliAuth } from "./middleware";
 import {
+  ActivityFeedResponse,
   AdminUsersResponse,
   CliLoginApproveInput,
   CliLoginApproveResponse,
@@ -255,6 +256,15 @@ class AdminGroup extends HttpApiGroup.make("admin")
     }),
   )
   .middleware(Authorization) {}
+class ActivityGroup extends HttpApiGroup.make("activity").add(
+  HttpApiEndpoint.get("feed", "/activity", {
+    query: {
+      limit: Schema.optional(Schema.Number),
+      since: Schema.optional(Schema.String),
+    },
+    success: ActivityFeedResponse,
+  }),
+) {}
 
 class TokenmaxxingApi extends HttpApi.make("tokenmaxxing")
   .add(HealthGroup)
@@ -264,9 +274,11 @@ class TokenmaxxingApi extends HttpApi.make("tokenmaxxing")
   .add(LeaderboardGroup)
   .add(StatsGroup)
   .add(ProfilesGroup)
+  .add(ActivityGroup)
   .add(AdminGroup) {}
 
 export {
+  ActivityGroup,
   AdminGroup,
   CliLoginGroup,
   HealthGroup,

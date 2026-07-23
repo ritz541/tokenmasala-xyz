@@ -403,6 +403,28 @@ const PresenceResponse = Schema.Struct({
   devices: Schema.Array(PresenceDeviceSummary),
 });
 
+const ActivityEventSummary = Schema.Struct({
+  cacheCreationTokens: Schema.Number,
+  cacheReadTokens: Schema.Number,
+  costUsd: Schema.Number,
+  deviceId: Schema.String,
+  id: Schema.String,
+  inputTokens: Schema.Number,
+  model: Schema.String,
+  outputTokens: Schema.Number,
+  source: Schema.String,
+  totalTokens: Schema.Number,
+  ts: Schema.String,
+  user: AuthUser,
+});
+
+const ActivityFeedResponse = Schema.Struct({
+  events: Schema.Array(ActivityEventSummary),
+});
+
+type ActivityEventSummary = typeof ActivityEventSummary.Type;
+type ActivityFeedResponse = typeof ActivityFeedResponse.Type;
+
 type PresenceDeviceSummary = typeof PresenceDeviceSummary.Type;
 type PresenceResponse = typeof PresenceResponse.Type;
 
@@ -716,6 +738,8 @@ const AdminUsersResponse = Schema.Struct({
 type AdminUsersResponse = typeof AdminUsersResponse.Type;
 
 export {
+  ActivityEventSummary,
+  ActivityFeedResponse,
   AdminDeviceDebugRow,
   AdminDeviceStatus,
   AdminDeviceUpdateStatus,

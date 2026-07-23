@@ -83,6 +83,7 @@ const CcusageSession = Schema.Struct({
   // unified/claude -> `session`, gemini/agy -> `sessionId`. Accept both.
   projectPath: Schema.optional(Schema.String),
   session: Schema.optional(Schema.String),
+  session_id: Schema.optional(Schema.String),
   sessionFile: Schema.optional(Schema.String),
   sessionId: Schema.optional(Schema.String),
   totalCost: Schema.optional(Schema.Number),

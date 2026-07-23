@@ -141,7 +141,11 @@ function aggregateSessions(
     .map((session): UsageSessionInput | null => {
       // Real ccusage per-source session output carries `sessionId` or `session`.
       const sessionId =
-        session.sessionId ?? session.session ?? session.sessionFile ?? session.projectPath;
+        session.sessionId ??
+        session.session_id ??
+        session.session ??
+        session.sessionFile ??
+        session.projectPath;
       if (sessionId === undefined || sessionId.length === 0) {
         return null;
       }

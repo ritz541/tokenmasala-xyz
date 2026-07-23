@@ -59,8 +59,8 @@ server-authoritative watermark (see below).
 | P1    | Append-only `usageEvents` + server-authoritative watermark (counts never decrease)                                                                                                                                                         | ✅ done | `9183632` |
 | P2    | **ccusage log-scan integration** — wire all ccusage sources into `sync`, bump spec, confirm zero-config capture                                                                                                                            | ✅ done | `4e5e7f8` |
 | P2.5  | **Lossless session-level dedup** — `usageSessions` table + `POST /usage/sessions`; per-session dedup + additive fold into `usageDays`; per-source exclusivity (sessions win, daily raw skipped) so cache-clear same-day work is never lost | ✅ done | `b4c36e2` |
-| P3    | `usageGithubDays` + `POST /github/sync` + GitHub collection via OAuth token + `GET /presence`                                                                                                                                              | ⬜ next |
-| P4    | Live feed — SSE `GET /activity/stream` + short-poll fallback                                                                                                                                                                               | ⬜      |
+| P3    | **GitHub activity & presence** — `usageGithubDays` table + `POST /github/sync` + CLI git telemetry + `GET /presence` API                                                                                                                   | ✅ done | `466e60f` |
+| P4    | Live feed — SSE `GET /activity/stream` + short-poll fallback                                                                                                                                                                               | ⬜ next |
 | P5    | Dashboard dark theme (OpenRouter density + commandcode cleanliness) + layout (home + profile drill-down)                                                                                                                                   | ⬜      |
 | P6    | Windows packaging — `schtasks` installer path; test on a Windows friend                                                                                                                                                                    | ⬜      |
 | P7    | Cloudflare deploy + friend onboarding                                                                                                                                                                                                      | ⬜      |
@@ -160,6 +160,14 @@ you actually produced after clearing caches. P2.5 fixes that losslessly.
   and `apps/cli/src/commands/sync.test.ts` (exclusivity: sessions win → daily
   raw skipped; gemini shape tolerated; daily fallback on session failure).
 
+## P3 architecture (GitHub telemetry sync & presence API)
+
+- **`usage_github_days` table** (`packages/db/src/schema/index.ts`, migration `0014_wakeful_secret_warriors.sql`): PK `(deviceId, date)`, columns `pushCount`, `commitCount`, `prCount`, `additions`, `deletions`, `syncedAt`.
+- **`POST /github/sync` → `service.ingestGithub` → `d1.upsertGithubDays`**: accepts `IngestGithubInput` (`device`, `days`). Uses D1 `onConflictDoUpdate` reconciling daily commit/LOC counts via `max(stored, incoming)` so git activity counts are monotone non-decreasing and immune to local git log wipes or re-scans.
+- **`GET /presence` → `service.getPresence` → `d1.getPresenceDevices`**: queries user devices and computes `isOnline: boolean` (15-minute activity window based on `lastCheckInAt` or `lastSyncAt`).
+- **CLI git collector (`apps/cli/src/github/collector.ts`)**: `collectGitTelemetry` parses local git numstat log entries, groups commits/adds/deletes by local date, and ships payload during `tokenmaxxing sync`.
+- **Proven by**: `apps/api/src/usage/github.test.ts` (monotone-max D1 upserts, device online status window) and `apps/cli/src/github/collector.test.ts` (git log numstat parsing).
+
 ## Conventions / things already decided
 
 - **Harnesses tracked (log-scan):** ccusage >=20.0.18 supports 15 focused
@@ -221,6 +229,4 @@ cd apps/api && bunx vitest run src/usage     # 19 tests, all pass
 
 1. `cd ~/Code/Projects/github/tokenmasala-xyz && git pull`
 2. Read `STATUS.md` (this file) + `DESIGN.md`.
-3. **Direction is ccusage log-scan only — proxy is dropped.** P1 + P2 (log-scan
-   integration) are done. Next phase is **P3**: `usageGithubDays` +
-   `POST /github/sync` + GitHub collection via the OAuth token + `GET /presence`.
+3. **Direction is ccusage log-scan only — proxy is dropped.** P1 + P2 + P2.5 + P3 are done. Next phase is **P4**: SSE live activity stream (`GET /activity/stream`) + short-poll fallback.

@@ -101,6 +101,13 @@ const meHandlers = HttpApiBuilder.group(TokenmaxxingApi, "me", (handlers) =>
         yield* tokens.revokeToken(user.id, params.tokenId);
         return { ok: true };
       }),
+    )
+    .handle("presence", () =>
+      Effect.gen(function* () {
+        const user = yield* CurrentUser;
+        const usage = yield* UsageService;
+        return yield* usage.getPresence(user.id).pipe(Effect.orDie);
+      }),
     ),
 );
 
@@ -162,6 +169,13 @@ const usageHandlers = HttpApiBuilder.group(TokenmaxxingApi, "usage", (handlers) 
         const identity = yield* CurrentCliIdentity;
         const usage = yield* UsageService;
         return yield* usage.ingestSessions(identity, payload.device, payload.sessions);
+      }),
+    )
+    .handle("githubSync", ({ payload }) =>
+      Effect.gen(function* () {
+        const identity = yield* CurrentCliIdentity;
+        const usage = yield* UsageService;
+        return yield* usage.ingestGithub(identity, payload.device, payload.days);
       }),
     )
     .handle("logout", () =>

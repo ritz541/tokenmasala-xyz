@@ -2,6 +2,7 @@ import {
   devices,
   usageDays,
   usageEvents,
+  usageGithubDays,
   usageRawBatches,
   usageSessions,
   usageSourceStats,
@@ -436,6 +437,75 @@ const makeD1UsageRepository = Effect.fn("makeD1UsageRepository")(function* () {
         });
 
         return { stored: fresh.length };
+      }),
+    upsertGithubDays: (userId, deviceId, days, syncedAt) =>
+      Effect.gen(function* () {
+        if (days.length === 0) {
+          return { upserted: 0 };
+        }
+
+        yield* database.use((db) => {
+          const statements = days.map((day) =>
+            db
+              .insert(usageGithubDays)
+              .values({
+                additions: day.additions,
+                commitCount: day.commitCount,
+                date: day.date,
+                deletions: day.deletions,
+                deviceId,
+                prCount: day.prCount,
+                pushCount: day.pushCount,
+                syncedAt,
+                userId,
+              })
+              .onConflictDoUpdate({
+                target: [usageGithubDays.deviceId, usageGithubDays.date],
+                set: {
+                  additions: sql`max(${usageGithubDays.additions}, excluded.additions)`,
+                  commitCount: sql`max(${usageGithubDays.commitCount}, excluded.commit_count)`,
+                  deletions: sql`max(${usageGithubDays.deletions}, excluded.deletions)`,
+                  prCount: sql`max(${usageGithubDays.prCount}, excluded.pr_count)`,
+                  pushCount: sql`max(${usageGithubDays.pushCount}, excluded.push_count)`,
+                  syncedAt,
+                  userId,
+                },
+              }),
+          );
+
+          const [first, ...rest] = statements;
+          return db.batch([first!, ...rest]);
+        });
+
+        return { upserted: days.length };
+      }),
+    getPresenceDevices: (userId) =>
+      Effect.gen(function* () {
+        const rows = yield* database.use((db) =>
+          db.select().from(devices).where(eq(devices.userId, userId)),
+        );
+
+        const ONLINE_WINDOW_MS = 15 * 60 * 1000;
+        const now = Date.now();
+
+        return rows.map((device) => {
+          const lastActivity = Math.max(
+            device.lastCheckInAt?.getTime() ?? 0,
+            device.lastSyncAt?.getTime() ?? 0,
+          );
+          const isOnline = lastActivity > 0 && now - lastActivity <= ONLINE_WINDOW_MS;
+
+          return {
+            arch: device.arch ?? null,
+            id: device.id,
+            isOnline,
+            lastCheckInAt: device.lastCheckInAt?.toISOString() ?? null,
+            lastSyncAt: device.lastSyncAt?.toISOString() ?? null,
+            name: device.name,
+            platform: device.platform,
+            version: device.version ?? null,
+          };
+        });
       }),
   });
 });

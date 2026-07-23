@@ -353,6 +353,58 @@ const IngestSessionsResponse = Schema.Struct({
 
 type IngestSessionsInput = typeof IngestSessionsInput.Type;
 type IngestSessionsResponse = typeof IngestSessionsResponse.Type;
+/** Single daily row of git telemetry emitted by CLI git collector */
+const UsageGithubDayInput = Schema.Struct({
+  additions: Schema.Number,
+  commitCount: Schema.Number,
+  date: Schema.String,
+  deletions: Schema.Number,
+  prCount: Schema.Number,
+  pushCount: Schema.Number,
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+type UsageGithubDayInput = typeof UsageGithubDayInput.Type;
+
+const IngestGithubInput = Schema.Struct({
+  device: Schema.Struct({
+    arch: Schema.optional(Schema.String),
+    name: Schema.String,
+    platform: Schema.String,
+    version: Schema.optional(Schema.String),
+  }),
+  days: Schema.Array(UsageGithubDayInput),
+}).annotate({
+  parseOptions: { onExcessProperty: "error" },
+});
+
+const IngestGithubResponse = Schema.Struct({
+  received: Schema.Number,
+  upserted: Schema.Number,
+  syncedAt: Schema.String,
+});
+
+type IngestGithubInput = typeof IngestGithubInput.Type;
+type IngestGithubResponse = typeof IngestGithubResponse.Type;
+
+const PresenceDeviceSummary = Schema.Struct({
+  arch: Schema.NullOr(Schema.String),
+  id: Schema.String,
+  isOnline: Schema.Boolean,
+  lastCheckInAt: Schema.NullOr(Schema.String),
+  lastSyncAt: Schema.NullOr(Schema.String),
+  name: Schema.String,
+  platform: Schema.String,
+  version: Schema.NullOr(Schema.String),
+});
+
+const PresenceResponse = Schema.Struct({
+  devices: Schema.Array(PresenceDeviceSummary),
+});
+
+type PresenceDeviceSummary = typeof PresenceDeviceSummary.Type;
+type PresenceResponse = typeof PresenceResponse.Type;
 
 const LeaderboardMetric = Schema.Literals(["spend", "tokens"]);
 const LeaderboardWindow = Schema.Literals(["all", "30d", "7d"]);
@@ -682,15 +734,20 @@ export {
   HealthResponse,
   IngestEventsInput,
   IngestEventsResponse,
+  IngestGithubInput,
+  IngestGithubResponse,
   IngestSessionsInput,
   IngestSessionsResponse,
   IngestUsageInput,
   UsageEventInput,
+  UsageGithubDayInput,
   LeaderboardEntry,
   LeaderboardMetric,
   LeaderboardResponse,
   LeaderboardWindow,
   MeResponse,
+  PresenceDeviceSummary,
+  PresenceResponse,
   OAuthProviderId,
   OkResponse,
   ProfileDailyGroupBy,

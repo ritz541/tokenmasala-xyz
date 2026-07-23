@@ -27,6 +27,8 @@ import {
   HealthResponse,
   IngestEventsInput,
   IngestEventsResponse,
+  IngestGithubInput,
+  IngestGithubResponse,
   IngestSessionsInput,
   IngestSessionsResponse,
   IngestUsageInput,
@@ -35,6 +37,7 @@ import {
   LeaderboardWindow,
   MeResponse,
   OkResponse,
+  PresenceResponse,
   ProfileDailyGroupBy,
   ProfileDailyResponse,
   ProfileResponse,
@@ -96,14 +99,17 @@ class MeGroup extends HttpApiGroup.make("me")
     HttpApiEndpoint.get("listTokens", "/me/tokens", {
       success: Schema.Struct({ tokens: Schema.Array(CliTokenSummary) }),
     }),
-  )
-  .add(
     HttpApiEndpoint.post("revokeToken", "/me/tokens/:tokenId/revoke", {
       params: {
         tokenId: Schema.String,
       },
       success: OkResponse,
       error: TokenNotFound,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("presence", "/presence", {
+      success: PresenceResponse,
     }),
   )
   .middleware(Authorization) {}
@@ -165,6 +171,13 @@ class UsageGroup extends HttpApiGroup.make("usage")
     HttpApiEndpoint.post("sessions", "/usage/sessions", {
       payload: IngestSessionsInput,
       success: IngestSessionsResponse,
+      error: DeviceMissing,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("githubSync", "/github/sync", {
+      payload: IngestGithubInput,
+      success: IngestGithubResponse,
       error: DeviceMissing,
     }),
   )

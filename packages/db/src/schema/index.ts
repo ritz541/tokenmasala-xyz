@@ -331,6 +331,36 @@ const usageSessions = sqliteTable(
 type UsageSession = typeof usageSessions.$inferSelect;
 type NewUsageSession = typeof usageSessions.$inferInsert;
 
+/**
+ * GitHub git activity metrics, one row per (device, date).
+ * `date` is an opaque YYYY-MM-DD string in device local time.
+ */
+const usageGithubDays = sqliteTable(
+  "usage_github_days",
+  {
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    pushCount: integer("push_count").notNull().default(0),
+    commitCount: integer("commit_count").notNull().default(0),
+    prCount: integer("pr_count").notNull().default(0),
+    additions: integer("additions").notNull().default(0),
+    deletions: integer("deletions").notNull().default(0),
+    syncedAt: integer("synced_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.deviceId, table.date] }),
+    index("usage_github_days_user_idx").on(table.userId),
+  ],
+);
+
+type UsageGithubDay = typeof usageGithubDays.$inferSelect;
+type NewUsageGithubDay = typeof usageGithubDays.$inferInsert;
+
 export {
   cliLoginRequests,
   cliTokens,
@@ -339,6 +369,7 @@ export {
   sessions,
   usageDays,
   usageEvents,
+  usageGithubDays,
   usageRawBatches,
   usageSessions,
   usageSourceStats,
@@ -362,9 +393,11 @@ export type {
   NewUsageEvent,
   NewDeviceWatermark,
   NewUsageSession,
+  NewUsageGithubDay,
   Session,
   UsageDay,
   UsageEvent,
+  UsageGithubDay,
   UsageRawBatch,
   UsageSourceStat,
   UsageSession,

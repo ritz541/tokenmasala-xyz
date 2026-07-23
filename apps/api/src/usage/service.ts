@@ -15,6 +15,8 @@ import type {
   UsageDayInput,
   UsageEventInput,
   UsageSessionInput,
+  UsageGithubDayInput,
+  PresenceDeviceSummary,
 } from "@tokenmaxxing/api-contract";
 
 import { sha256Hex } from "../auth/crypto";
@@ -78,6 +80,14 @@ interface UsageServiceShape {
     device: UsageDevice,
     sessions: readonly UsageSessionInput[],
   ): Effect.Effect<{ received: number; stored: number; syncedAt: string }, DeviceMissing, any>;
+  ingestGithub(
+    identity: typeof CliIdentity.Type,
+    device: UsageDevice,
+    days: readonly UsageGithubDayInput[],
+  ): Effect.Effect<{ received: number; upserted: number; syncedAt: string }, DeviceMissing, any>;
+  getPresence(
+    userId: string,
+  ): Effect.Effect<{ devices: PresenceDeviceSummary[] }, DatabaseError, any>;
 }
 
 interface UsageDevice {
@@ -160,6 +170,13 @@ interface UsageRepositoryShape {
     sessions: readonly UsageSessionInput[],
     syncedAt: Date,
   ): Effect.Effect<{ stored: number }, DatabaseError, any>;
+  upsertGithubDays(
+    userId: string,
+    deviceId: string,
+    days: readonly UsageGithubDayInput[],
+    syncedAt: Date,
+  ): Effect.Effect<{ upserted: number }, DatabaseError, any>;
+  getPresenceDevices(userId: string): Effect.Effect<PresenceDeviceSummary[], DatabaseError, any>;
 }
 
 class UsageService extends Context.Service<UsageService, UsageServiceShape>()(
@@ -280,6 +297,26 @@ const makeUsageService = Effect.fn("makeUsageService")(function* () {
         };
       },
     ),
+    ingestGithub: Effect.fn("UsageService.ingestGithub")(function* (identity, device, days) {
+      const deviceId = yield* requireDeviceId(identity);
+      const syncedAt = new Date();
+
+      const { upserted } = yield* repository
+        .upsertGithubDays(identity.user.id, deviceId, days, syncedAt)
+        .pipe(Effect.orDie);
+
+      yield* repository.touchDevice(deviceId, device, syncedAt).pipe(Effect.orDie);
+
+      return {
+        received: days.length,
+        upserted,
+        syncedAt: syncedAt.toISOString(),
+      };
+    }),
+    getPresence: Effect.fn("UsageService.getPresence")(function* (userId) {
+      const devices = yield* repository.getPresenceDevices(userId);
+      return { devices };
+    }),
   });
 });
 

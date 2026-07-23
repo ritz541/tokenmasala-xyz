@@ -7,6 +7,7 @@ import type {
   RawUsageReportInput,
   SourceUsageStatsInput,
   UsageDayInput,
+  UsageGithubDayInput,
   UsageSessionInput,
 } from "@tokenmaxxing/api-contract";
 
@@ -45,6 +46,7 @@ import {
   writeJson,
 } from "../output";
 import { validateCurrentLogin } from "../auth-validation";
+import { collectGitTelemetry } from "../github/collector";
 import { browserLoginEffect } from "./login";
 import { NotLoggedInError } from "./whoami";
 
@@ -196,6 +198,7 @@ interface UploadUsageReportsOptions {
     platform: NodeJS.Platform;
     version?: string | undefined;
   };
+  githubDays?: UsageGithubDayInput[] | undefined;
   options: Pick<SyncProgramOptions, "json" | "silent">;
   rawReports: RawUsageReportInput[];
   sessions?: UsageSessionInput[] | undefined;
@@ -402,9 +405,14 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
       };
     }
 
+    const githubDays = yield* collectGitTelemetry({ since: options.since }).pipe(
+      Effect.orElseSucceed(() => []),
+    );
+
     const response = yield* uploadUsageReports({
       auth,
       device,
+      githubDays,
       options,
       rawReports,
       sessions,
@@ -428,6 +436,7 @@ function syncProgram(options: SyncProgramOptions, runtime: SyncProgramRuntime = 
 function uploadUsageReports({
   auth,
   device,
+  githubDays,
   options,
   rawReports,
   sessions = [],
@@ -437,10 +446,9 @@ function uploadUsageReports({
   return Effect.gen(function* () {
     const spinner = yield* humanSpinner("Uploading usage", options);
     const upload = uploadUsageReportsOnce(
-      { auth, device, rawReports, sessions, sourceStats },
+      { auth, device, githubDays, rawReports, sessions, sourceStats },
       uploadPolicy,
     );
-
     return yield* upload.pipe(
       Effect.tap(() => Effect.sync(() => spinner.stop("Usage uploaded"))),
       Effect.tapError(() => Effect.sync(() => spinner.error("Failed uploading usage"))),
@@ -452,7 +460,7 @@ function uploadUsageReports({
 function uploadUsageReportsOnce(
   input: Pick<
     UploadUsageReportsOptions,
-    "auth" | "device" | "rawReports" | "sessions" | "sourceStats"
+    "auth" | "device" | "githubDays" | "rawReports" | "sessions" | "sourceStats"
   >,
   uploadPolicy: UploadRetryPolicy | undefined,
 ) {
@@ -472,6 +480,15 @@ function uploadUsageReportsOnce(
           payload: {
             device: input.device,
             sessions: sessionList,
+          },
+        });
+      }
+
+      if (input.githubDays && input.githubDays.length > 0) {
+        yield* input.auth.client.usage.githubSync({
+          payload: {
+            device: input.device,
+            days: input.githubDays,
           },
         });
       }
